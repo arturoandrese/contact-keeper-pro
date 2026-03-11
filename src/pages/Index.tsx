@@ -167,10 +167,14 @@ const Index = () => {
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-end">
-                  <Button size="sm" onClick={handleExport}>
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" onClick={() => handleExport("xlsx")}>
                     <Download className="mr-1.5 h-3.5 w-3.5" />
-                    Exportar Excel
+                    Excel
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleExport("csv")}>
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    CSV
                   </Button>
                 </div>
                 <ContactTable contacts={contacts} />
