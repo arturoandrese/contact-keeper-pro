@@ -1,0 +1,2 @@
+[functions.fetch-sheet-report]
+verify_jwt = false
