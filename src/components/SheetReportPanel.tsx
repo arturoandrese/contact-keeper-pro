@@ -1,20 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle } from "lucide-react";
+import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download } from "lucide-react";
 import { toast } from "sonner";
+import { fetchSheetReport, type SheetData } from "@/lib/googleSheets";
 
 interface SheetReportPanelProps {
   baseId: string;
   baseName: string;
   sheetId: string;
   onBack: () => void;
-}
-
-interface SheetStats {
-  total: number;
-  stats: Record<string, number>;
-  contacts: Array<Record<string, string>>;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
@@ -33,32 +28,19 @@ const getStatusDisplay = (status: string) => {
 };
 
 const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPanelProps) => {
-  const [data, setData] = useState<SheetStats | null>(null);
+  const [data, setData] = useState<SheetData | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [updating, setUpdating] = useState(false);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: result, error } = await supabase.functions.invoke("fetch-sheet-report", {
-        body: { sheetId },
-      });
-
-      if (error) {
-        toast.error("Error conectando con Google Sheets");
-        console.error(error);
-        return;
-      }
-
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-
+      const result = await fetchSheetReport(sheetId);
       setData(result);
       setLastFetched(new Date());
-    } catch (err) {
-      toast.error("Error obteniendo reporte");
+    } catch (err: any) {
+      toast.error(err.message || "Error obteniendo reporte");
       console.error(err);
     }
     setLoading(false);
@@ -74,6 +56,114 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
     return () => clearInterval(interval);
   }, [fetchReport]);
 
+  const handleUpdateBase = async () => {
+    if (!data || data.contacts.length === 0) return;
+    setUpdating(true);
+
+    try {
+      // Get existing contacts from the base
+      const { data: existingContacts, error: fetchErr } = await supabase
+        .from("contacts")
+        .select("id, mail1, mail2, mail3, mail4")
+        .eq("base_id", baseId);
+
+      if (fetchErr) throw fetchErr;
+
+      // Build a map: email -> sheet status
+      const emailStatusMap = new Map<string, string>();
+      for (const sc of data.contacts) {
+        const email = (
+          sc["Email Address"] || sc["email"] || sc["MAIL1"] || sc["mail"] ||
+          Object.values(sc).find((v) => typeof v === "string" && v.includes("@"))
+        )?.toLowerCase().trim();
+        if (email) {
+          emailStatusMap.set(email, sc._status || "UNKNOWN");
+        }
+      }
+
+      // Find bounced emails
+      const bouncedEmails = new Set<string>();
+      const deliveredEmails = new Set<string>();
+      for (const [email, status] of emailStatusMap) {
+        if (status.includes("BOUNCED")) {
+          bouncedEmails.add(email);
+        } else if (status.includes("DELIVERED") || status.includes("OPENED") || status.includes("CLICKED") || status === "EMAIL_SENT" || status === "MAIL_MERGE_COMPLETE") {
+          deliveredEmails.add(email);
+        }
+      }
+
+      // For each contact, check if any of their emails bounced and clear them
+      let updatedCount = 0;
+      const updates: Array<{ id: string; changes: Record<string, string> }> = [];
+
+      for (const contact of existingContacts || []) {
+        const changes: Record<string, string> = {};
+        const mails = [
+          { key: "mail1", val: contact.mail1 },
+          { key: "mail2", val: contact.mail2 },
+          { key: "mail3", val: contact.mail3 },
+          { key: "mail4", val: contact.mail4 },
+        ];
+
+        for (const m of mails) {
+          if (m.val && bouncedEmails.has(m.val.toLowerCase().trim())) {
+            changes[m.key] = ""; // Clear bounced email
+          }
+        }
+
+        if (Object.keys(changes).length > 0) {
+          updates.push({ id: contact.id, changes });
+        }
+      }
+
+      // Batch update bounced emails
+      for (const u of updates) {
+        await supabase
+          .from("contacts")
+          .update(u.changes as any)
+          .eq("id", u.id);
+        updatedCount++;
+      }
+
+      // Save delivered contacts to delivered_contacts table
+      let deliveredSaved = 0;
+      for (const sc of data.contacts) {
+        const email = (
+          sc["Email Address"] || sc["email"] || sc["MAIL1"] || sc["mail"] ||
+          Object.values(sc).find((v) => typeof v === "string" && v.includes("@"))
+        )?.toLowerCase().trim();
+
+        if (email && deliveredEmails.has(email)) {
+          const name = sc["First Name"] || sc["NOMBRE"] || sc["nombre"] || "";
+          await supabase.from("delivered_contacts").upsert(
+            {
+              base_id: baseId,
+              email,
+              name,
+              status: sc._status,
+            } as any,
+            { onConflict: "base_id,email" }
+          );
+          deliveredSaved++;
+        }
+      }
+
+      // Mark base as crossed
+      await supabase
+        .from("bases")
+        .update({ crossed: true, crossed_at: new Date().toISOString() } as any)
+        .eq("id", baseId);
+
+      toast.success(
+        `✅ Base actualizada: ${updatedCount} emails rebotados limpiados, ${deliveredSaved} contactos entregados guardados`
+      );
+    } catch (err: any) {
+      toast.error("Error actualizando base: " + (err.message || "Error desconocido"));
+      console.error(err);
+    }
+    setUpdating(false);
+  };
+
   const sortedStats = data
     ? Object.entries(data.stats).sort(([, a], [, b]) => b - a)
     : [];
@@ -86,7 +176,6 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
   const bounced = data?.stats["EMAIL_BOUNCED"] || data?.stats["BOUNCED"] || 0;
   const opened = data?.stats["EMAIL_OPENED"] || data?.stats["OPENED"] || 0;
-  const clicked = data?.stats["EMAIL_CLICKED"] || data?.stats["CLICKED"] || 0;
 
   return (
     <div className="space-y-6">
@@ -108,10 +197,22 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
             )}
           </div>
         </div>
-        <Button size="sm" variant="outline" onClick={fetchReport} disabled={loading}>
-          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          Actualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          {data && (
+            <Button size="sm" variant="default" onClick={handleUpdateBase} disabled={updating}>
+              {updating ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Actualizar base con reporte
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={fetchReport} disabled={loading}>
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+        </div>
       </div>
 
       {loading && !data && (
