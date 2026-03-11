@@ -23,7 +23,7 @@ function normalizeYammStatus(rawStatus: string): string {
   return "UNKNOWN";
 }
 
-export async function fetchSheetReport(sheetId: string, range = "A:Z"): Promise<SheetData> {
+export async function fetchSheetReport(sheetId: string, range = "'Hoja 3'!A:Z"): Promise<SheetData> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?key=${GOOGLE_SHEETS_API_KEY}`;
 
   const response = await fetch(url);
