@@ -21,7 +21,7 @@ const Index = () => {
   const [rawCount, setRawCount] = useState(0);
   const [view, setView] = useState<View>("upload");
   const [saveOpen, setSaveOpen] = useState(false);
-  const [selectedBase, setSelectedBase] = useState<{ id: string; name: string; crossed: boolean } | null>(null);
+  const [selectedBase, setSelectedBase] = useState<{ id: string; name: string; crossed: boolean; sheetId?: string } | null>(null);
   const [dark, setDark] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("theme") === "dark";
@@ -108,8 +108,14 @@ const Index = () => {
     setView("bbd");
   };
 
-  const handleSelectBase = (baseId: string, baseName: string, crossed: boolean) => {
-    setSelectedBase({ id: baseId, name: baseName, crossed });
+  const handleSelectBase = async (baseId: string, baseName: string, crossed: boolean) => {
+    // Fetch sheetId for the base
+    let baseSheetId: string | undefined;
+    try {
+      const { data } = await supabase.from("bases").select("sheet_id").eq("id", baseId).single();
+      if (data && (data as any).sheet_id) baseSheetId = (data as any).sheet_id;
+    } catch {}
+    setSelectedBase({ id: baseId, name: baseName, crossed, sheetId: baseSheetId });
     setView("preview");
   };
 
@@ -209,6 +215,7 @@ const Index = () => {
           <CrossReferencePanel
             baseId={selectedBase.id}
             baseName={selectedBase.name}
+            sheetId={selectedBase.sheetId}
             onBack={() => setView("preview")}
           />
         )}

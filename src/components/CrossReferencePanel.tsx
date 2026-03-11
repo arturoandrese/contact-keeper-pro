@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
-import { Upload, Loader2, Download, Info, ArrowLeft } from "lucide-react";
+import { Upload, Loader2, Download, Info, ArrowLeft, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { CleanedContact } from "@/lib/contactCleaner";
@@ -11,22 +12,25 @@ import {
   hashEmailLog,
   type CrossReferencedContact,
   type ExistingDelivered,
+  type EmailLogEntry,
 } from "@/lib/crossReference";
+import { fetchSheetReport, fetchSheetTabs, type SheetTab } from "@/lib/googleSheets";
 
 interface CrossReferencePanelProps {
   baseId: string;
   baseName: string;
+  sheetId?: string;
   onBack: () => void;
 }
 
-const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelProps) => {
+const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferencePanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<CrossReferencedContact[] | null>(null);
   const [stats, setStats] = useState({ original: 0, filtered: 0, patterns: 0 });
 
-  const processLog = useCallback(
-    async (file: File) => {
+  const runCrossReference = useCallback(
+    async (log: EmailLogEntry[]) => {
       setProcessing(true);
       try {
         const { data: dbContacts, error } = await supabase
@@ -52,10 +56,6 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
           MAIL4: c.mail4,
         }));
 
-        const buffer = await file.arrayBuffer();
-        const log = parseEmailLog(buffer);
-
-        const logHash = hashEmailLog(log);
         const { data: baseData } = await supabase
           .from("bases")
           .select("crossed, crossed_at")
@@ -77,7 +77,6 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
 
         const { filtered, patterns, delivered } = crossReference(contacts, log, allDelivered);
 
-        // Update empresa in contacts table with EMPRESA_SHORT from cross-reference
         if (filtered.length > 0) {
           for (const f of filtered) {
             if (f.EMPRESA_SHORT) {
@@ -99,7 +98,7 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
               await supabase
                 .from("domain_patterns")
                 .upsert(batch, { onConflict: "domain,pattern" });
-            } catch {} // Table may not exist yet
+            } catch {}
           }
         }
 
@@ -116,17 +115,9 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
             const batch = delivered.slice(i, i + 500).map((d) => {
               const prev = existingMap.get(d.mail);
               if (isDuplicate && prev) {
-                return {
-                  ...d,
-                  times_contacted: prev.times_contacted,
-                  last_contacted_at: prev.last_contacted_at,
-                };
+                return { ...d, times_contacted: prev.times_contacted, last_contacted_at: prev.last_contacted_at };
               }
-              return {
-                ...d,
-                times_contacted: (prev?.times_contacted || 0) + 1,
-                last_contacted_at: now,
-              };
+              return { ...d, times_contacted: (prev?.times_contacted || 0) + 1, last_contacted_at: now };
             });
             await supabase
               .from("delivered_contacts")
@@ -140,14 +131,10 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
           .eq("id", baseId);
 
         setResults(filtered);
-        setStats({
-          original: contacts.length,
-          filtered: filtered.length,
-          patterns: patterns.length,
-        });
+        setStats({ original: contacts.length, filtered: filtered.length, patterns: patterns.length });
         toast.success(`Cruce completado: ${filtered.length} contactos válidos`);
       } catch (err) {
-        toast.error("Error procesando archivo de log");
+        toast.error("Error procesando cruce");
         console.error(err);
       }
       setProcessing(false);
@@ -155,14 +142,59 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
     [baseId]
   );
 
+  const processFile = useCallback(
+    async (file: File) => {
+      const buffer = await file.arrayBuffer();
+      const log = parseEmailLog(buffer);
+      await runCrossReference(log);
+    },
+    [runCrossReference]
+  );
+
+  const processLiveReport = useCallback(async () => {
+    if (!sheetId) return;
+    setProcessing(true);
+    try {
+      // Fetch tabs and let user pick, or auto-pick last
+      const tabs = await fetchSheetTabs(sheetId);
+      if (tabs.length === 0) {
+        toast.error("No se encontraron pestañas en el Google Sheet");
+        setProcessing(false);
+        return;
+      }
+
+      // Use last tab by default
+      const tabName = tabs[tabs.length - 1].title;
+      const sheetData = await fetchSheetReport(sheetId, tabName);
+
+      // Convert sheet contacts to EmailLogEntry format
+      const log: EmailLogEntry[] = sheetData.contacts.map((c) => ({
+        NOMBRE: c["NOMBRE"] || c["First Name"] || c["nombre"] || "",
+        APELLIDO: c["APELLIDO"] || c["Last Name"] || c["apellido"] || "",
+        EMPRESA: c["EMPRESA"] || c["Company"] || c["empresa"] || "",
+        WEB: c["WEB"] || c["Website"] || c["web"] || "",
+        MAIL1: c["MAIL1"] || c["Email Address"] || c["email"] || c["mail"] || "",
+        MAIL2: c["MAIL2"] || c["email2"] || "",
+        status: c._status || "",
+      }));
+
+      toast.info(`📊 Cruzando con pestaña "${tabName}" (${log.length} contactos)`);
+      await runCrossReference(log);
+    } catch (err: any) {
+      toast.error("Error obteniendo reporte en vivo: " + (err.message || ""));
+      console.error(err);
+      setProcessing(false);
+    }
+  }, [sheetId, runCrossReference]);
+
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
       const file = e.dataTransfer.files[0];
-      if (file) processLog(file);
+      if (file) processFile(file);
     },
-    [processLog]
+    [processFile]
   );
 
   const columns: (keyof CrossReferencedContact)[] = [
@@ -199,49 +231,70 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
         )}
       </div>
 
-      {!results && (
-        <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={onDrop}
-          className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-12 text-center transition-all duration-300 ${
-            isDragging
-              ? "border-primary bg-primary/5 scale-[1.02]"
-              : "border-border hover:border-primary/50 hover:bg-muted/50"
-          }`}
-        >
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="absolute inset-0 cursor-pointer opacity-0"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) processLog(file);
-            }}
-          />
-          <div className="flex flex-col items-center gap-4">
-            {processing ? (
-              <>
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="text-lg font-semibold">Procesando cruce…</p>
-                <p className="text-sm text-muted-foreground">
-                  Verificando contactos previos, cooldown de 15 días…
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
-                  <Upload className="h-7 w-7 text-primary" />
+      {!results && !processing && (
+        <div className="space-y-4">
+          {/* Live report option */}
+          {sheetId && (
+            <button
+              onClick={processLiveReport}
+              className="w-full rounded-2xl border-2 border-primary/30 bg-primary/5 p-8 text-center transition-all duration-300 hover:border-primary hover:bg-primary/10 hover:scale-[1.01]"
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20">
+                  <BarChart3 className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-lg font-semibold">Arrastra tu reporte de email (XLSX)</p>
+                  <p className="text-lg font-semibold">Cruzar con reporte en vivo</p>
                   <p className="text-sm text-muted-foreground">
-                    Archivo con columnas: MAIL1, Merge status
+                    Usa los datos directamente de Google Sheets (YAMM) sin subir archivo
                   </p>
                 </div>
-              </>
-            )}
+              </div>
+            </button>
+          )}
+
+          {/* File upload option */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={onDrop}
+            className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-300 ${
+              isDragging
+                ? "border-primary bg-primary/5 scale-[1.02]"
+                : "border-border hover:border-primary/50 hover:bg-muted/50"
+            }`}
+          >
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="absolute inset-0 cursor-pointer opacity-0"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) processFile(file);
+              }}
+            />
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+                <Upload className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-lg font-semibold">O arrastra tu reporte de email (XLSX)</p>
+                <p className="text-sm text-muted-foreground">
+                  Archivo con columnas: MAIL1, Merge status
+                </p>
+              </div>
+            </div>
           </div>
+        </div>
+      )}
+
+      {processing && !results && (
+        <div className="flex flex-col items-center gap-4 py-16">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-lg font-semibold">Procesando cruce…</p>
+          <p className="text-sm text-muted-foreground">
+            Verificando contactos previos, cooldown de 15 días…
+          </p>
         </div>
       )}
 
