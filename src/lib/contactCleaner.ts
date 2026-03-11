@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { splitDomainWord } from "./companyName";
 
 export interface CleanedContact {
   NOMBRE: string;
@@ -109,23 +110,19 @@ function capitalize(value: string): string {
 
 /**
  * Extrae nombre de empresa desde un dominio web.
- * Maneja nombres compuestos separados por guiones o puntos.
- * Ej: "mi-empresa.com" -> "Mi Empresa"
- *     "grupo-acme-corp.es" -> "Grupo Acme Corp"
- *     "johnsmith.io" -> "Johnsmith"
+ * Resultado siempre en MAYÚSCULAS, separando palabras compuestas.
  */
 function extractCompanyFromWeb(domain: string): string {
   if (!domain) return "";
-  // Quitar TLD (.com, .es, .co.uk, etc.)
   let name = domain
     .replace(/\.(com|org|net|io|co|es|mx|ar|cl|pe|uk|de|fr|it|pt|br|eu|info|biz|app|dev|tech|ai|pro|agency|group|digital|media|studio|solutions|consulting|services|cloud|online|store|shop|site|world|global|int|gov|edu|mil|co\.uk|com\.mx|com\.ar|com\.br|com\.co|com\.pe|com\.es|co\.jp|co\.kr)$/i, "");
 
   // Separar por guiones, puntos o underscores -> palabras
   const words = name.split(/[-._]+/).filter(Boolean);
 
-  // Capitalizar cada palabra
+  // Aplicar splitDomainWord a cada palabra para separar compuestos, resultado en MAYÚSCULAS
   return words
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .map(w => splitDomainWord(w))
     .join(" ");
 }
 
