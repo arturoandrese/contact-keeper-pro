@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { splitDomainWord } from "./companyName";
 
 export interface CleanedContact {
   NOMBRE: string;
