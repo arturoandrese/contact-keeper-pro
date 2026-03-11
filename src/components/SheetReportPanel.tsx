@@ -291,14 +291,14 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                   </tr>
                 </thead>
                 <tbody>
-                  {data.contacts.slice(0, 100).map((contact, i) => {
+                  {data.contacts.map((contact, i) => {
                     const display = getStatusDisplay(contact._status || "UNKNOWN");
                     const email =
                       contact["Email Address"] ||
                       contact["email"] ||
                       contact["MAIL1"] ||
                       contact["mail"] ||
-                      Object.values(contact).find((v) => v.includes("@")) ||
+                      Object.values(contact).find((v) => typeof v === "string" && v.includes("@")) ||
                       "—";
                     const name =
                       contact["First Name"] ||
@@ -320,11 +320,6 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                 </tbody>
               </table>
             </div>
-            {data.contacts.length > 100 && (
-              <div className="border-t border-border bg-muted/30 px-4 py-2 text-center text-xs text-muted-foreground">
-                Mostrando 100 de {data.contacts.length} contactos
-              </div>
-            )}
           </div>
 
           {/* Auto-refresh indicator */}

@@ -25,10 +25,22 @@ export async function fetchSheetReport(sheetId: string, range = "A:Z"): Promise<
   const headers = rows[0] as string[];
   const dataRows = rows.slice(1);
 
-  // Find the "Merge status" column (YAMM standard)
-  const mergeIdx = headers.findIndex(
-    (h: string) => h.toLowerCase().includes("merge status") || h.toLowerCase().includes("status")
-  );
+  // Find the "Merge status" column (YAMM standard) - check multiple patterns
+  const mergeIdx = headers.findIndex((h: string) => {
+    const lower = h.toLowerCase().trim();
+    return (
+      lower === "merge status" ||
+      lower === "status" ||
+      lower === "estado" ||
+      lower.includes("merge status") ||
+      lower.includes("mail merge") ||
+      lower.includes("yamm") ||
+      lower.includes("status")
+    );
+  });
+
+  console.log("📊 Sheet headers:", headers);
+  console.log("📊 Merge status column index:", mergeIdx, mergeIdx >= 0 ? `(${headers[mergeIdx]})` : "(NOT FOUND)");
 
   // Calculate stats from merge status
   const stats: Record<string, number> = {};
