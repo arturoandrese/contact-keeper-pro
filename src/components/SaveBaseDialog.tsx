@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,16 +18,33 @@ interface SaveBaseDialogProps {
   defaultName?: string;
 }
 
+function getDatePrefix(): string {
+  const now = new Date();
+  const d = now.getDate();
+  const m = now.getMonth() + 1;
+  const y = String(now.getFullYear()).slice(-2);
+  return `${d}-${m}-${y}_`;
+}
+
 const SaveBaseDialog = ({ open, onOpenChange, onSave, defaultName }: SaveBaseDialogProps) => {
-  const [name, setName] = useState(defaultName || "");
+  const prefix = getDatePrefix();
+  const [suffix, setSuffix] = useState(defaultName || "");
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (open) {
+      setSuffix(defaultName || "");
+    }
+  }, [open, defaultName]);
+
+  const fullName = `${prefix}${suffix}`;
+
   const handleSave = async () => {
-    if (!name.trim()) return;
+    if (!suffix.trim()) return;
     setSaving(true);
-    await onSave(name.trim());
+    await onSave(fullName.trim());
     setSaving(false);
-    setName("");
+    setSuffix("");
     onOpenChange(false);
   };
 
@@ -39,20 +56,27 @@ const SaveBaseDialog = ({ open, onOpenChange, onSave, defaultName }: SaveBaseDia
         </DialogHeader>
         <div className="space-y-3 py-2">
           <Label htmlFor="base-name">Nombre de la base</Label>
-          <Input
-            id="base-name"
-            placeholder="Ej: Prospección Marzo 2026"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            autoFocus
-          />
+          <div className="flex items-center gap-0">
+            <span className="inline-flex items-center rounded-l-md border border-r-0 border-border bg-muted px-3 py-2 text-sm text-muted-foreground font-mono">
+              {prefix}
+            </span>
+            <Input
+              id="base-name"
+              className="rounded-l-none"
+              placeholder="Nombre descriptivo"
+              value={suffix}
+              onChange={(e) => setSuffix(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              autoFocus
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">Se guardará como: <span className="font-mono font-medium text-foreground">{fullName || prefix + "..."}</span></p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={!name.trim() || saving}>
+          <Button onClick={handleSave} disabled={!suffix.trim() || saving}>
             {saving ? (
               <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
             ) : (
