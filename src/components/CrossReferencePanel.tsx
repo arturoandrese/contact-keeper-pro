@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
-import { Upload, Loader2, Download, Info, ArrowLeft } from "lucide-react";
+import { Upload, Loader2, Download, Info, ArrowLeft, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { CleanedContact } from "@/lib/contactCleaner";
@@ -11,15 +12,18 @@ import {
   hashEmailLog,
   type CrossReferencedContact,
   type ExistingDelivered,
+  type EmailLogEntry,
 } from "@/lib/crossReference";
+import { fetchSheetReport, fetchSheetTabs, type SheetTab } from "@/lib/googleSheets";
 
 interface CrossReferencePanelProps {
   baseId: string;
   baseName: string;
+  sheetId?: string;
   onBack: () => void;
 }
 
-const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelProps) => {
+const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferencePanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<CrossReferencedContact[] | null>(null);
