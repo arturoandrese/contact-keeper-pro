@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Download, Trash2, CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -25,6 +26,9 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   const [bases, setBases] = useState<Base[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchBases = async () => {
     setLoading(true);
@@ -45,6 +49,43 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   useEffect(() => {
     fetchBases();
   }, []);
+
+  useEffect(() => {
+    if (editingId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingId]);
+
+  const startRename = (base: Base, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(base.id);
+    setEditName(base.name);
+  };
+
+  const confirmRename = async (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (!editingId || !editName.trim()) return;
+    const { error } = await supabase
+      .from("bases")
+      .update({ name: editName.trim() })
+      .eq("id", editingId);
+
+    if (error) {
+      toast.error("Error renombrando base");
+    } else {
+      setBases((prev) =>
+        prev.map((b) => (b.id === editingId ? { ...b, name: editName.trim() } : b))
+      );
+      toast.success("Base renombrada");
+    }
+    setEditingId(null);
+  };
+
+  const cancelRename = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(null);
+  };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -152,17 +193,48 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
           {bases.map((base) => (
             <div
               key={base.id}
-              onClick={() => onSelectBase(base.id, base.name, base.crossed)}
+              onClick={() => editingId !== base.id && onSelectBase(base.id, base.name, base.crossed)}
               className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4 cursor-pointer transition-all hover:shadow-md hover:border-primary/30"
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 min-w-0 flex-1">
                 {base.crossed ? (
                   <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground/40 shrink-0" />
                 )}
-                <div>
-                  <p className="font-display font-semibold">{base.name}</p>
+                <div className="min-w-0 flex-1">
+                  {editingId === base.id ? (
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Input
+                        ref={inputRef}
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") confirmRename(e);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        className="h-8 text-sm font-semibold"
+                      />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-primary" onClick={confirmRename}>
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={cancelRename}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="font-display font-semibold truncate">{base.name}</p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => startRename(base, e)}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 mt-0.5">
                     <span className="text-xs text-muted-foreground">
                       {base.clean_count} contactos
@@ -180,47 +252,22 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => doDownload(base, "clean", "xlsx", e)}
-                  disabled={exporting === base.id}
-                  className="text-xs"
-                >
+              <div className="flex items-center gap-1.5 flex-wrap justify-end ml-4">
+                <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "clean", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
                   {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
                   XLSX
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => doDownload(base, "clean", "csv", e)}
-                  disabled={exporting === base.id}
-                  className="text-xs"
-                >
+                <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "clean", "csv", e)} disabled={exporting === base.id} className="text-xs">
                   {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
                   CSV
                 </Button>
                 {base.crossed && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => doDownload(base, "crossed", "xlsx", e)}
-                      disabled={exporting === base.id}
-                      className="text-xs"
-                    >
-                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                      Cruzada
-                    </Button>
-                  </>
+                  <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "crossed", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
+                    {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                    Cruzada
+                  </Button>
                 )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                  onClick={(e) => handleDelete(base.id, e)}
-                >
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDelete(base.id, e)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
