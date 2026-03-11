@@ -60,6 +60,53 @@ function isCorporateEmail(email: string): boolean {
   return !FREE_EMAIL_DOMAINS.has(domain);
 }
 
+function normalizeHeaderKey(key: string): string {
+  return removeAccents((key || "").toLowerCase()).replace(/[\s._-]/g, "");
+}
+
+function getFieldValue(row: Record<string, string>, candidates: string[]): string {
+  const wanted = new Set(candidates.map(normalizeHeaderKey));
+  for (const [key, value] of Object.entries(row)) {
+    if (!value) continue;
+    if (wanted.has(normalizeHeaderKey(key))) {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
+function extractPrimaryCorporateEmail(row: Record<string, string>): string {
+  const emailFields = new Set(
+    [
+      "email1", "email", "mail1", "mail", "correo", "correo1", "work_email", "business_email",
+      "EMAIL1", "EMAIL", "MAIL1", "MAIL", "CORREO", "CORREO1",
+    ].map(normalizeHeaderKey)
+  );
+
+  const candidates: string[] = [];
+  for (const [key, rawValue] of Object.entries(row)) {
+    if (!rawValue) continue;
+    if (!emailFields.has(normalizeHeaderKey(key))) continue;
+
+    const value = String(rawValue).trim().toLowerCase();
+    const split = value.split(/[\s,;|]+/).filter(Boolean);
+    candidates.push(...split);
+  }
+
+  for (const candidate of candidates) {
+    if (isValidEmail(candidate) && isCorporateEmail(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
+
+function capitalize(value: string): string {
+  if (!value) return "";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 /**
  * Extrae nombre de empresa desde un dominio web.
  * Maneja nombres compuestos separados por guiones o puntos.
@@ -72,10 +119,10 @@ function extractCompanyFromWeb(domain: string): string {
   // Quitar TLD (.com, .es, .co.uk, etc.)
   let name = domain
     .replace(/\.(com|org|net|io|co|es|mx|ar|cl|pe|uk|de|fr|it|pt|br|eu|info|biz|app|dev|tech|ai|pro|agency|group|digital|media|studio|solutions|consulting|services|cloud|online|store|shop|site|world|global|int|gov|edu|mil|co\.uk|com\.mx|com\.ar|com\.br|com\.co|com\.pe|com\.es|co\.jp|co\.kr)$/i, "");
-  
+
   // Separar por guiones, puntos o underscores -> palabras
   const words = name.split(/[-._]+/).filter(Boolean);
-  
+
   // Capitalizar cada palabra
   return words
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
@@ -106,14 +153,15 @@ export function parseAndClean(csvText: string): CleanedContact[] {
   const results: CleanedContact[] = [];
 
   for (const row of parsed.data) {
-    const email1 = (row.email1 || row.Email || row.EMAIL || row.email || "").trim().toLowerCase();
-    if (!isValidEmail(email1)) continue;
+    const email1 = extractPrimaryCorporateEmail(row);
+    if (!email1) continue;
 
-    // Filtrar emails no corporativos
-    if (!isCorporateEmail(email1)) continue;
-
-    const rawFirst = removeAccents((row.first_name || row.First_Name || row.FirstName || row.nombre || "").trim());
-    const rawLast = removeAccents((row.last_name || row.Last_Name || row.LastName || row.apellido || "").trim());
+    const rawFirst = removeAccents(
+      getFieldValue(row, ["first_name", "firstname", "nombre", "NOMBRE", "name"])
+    );
+    const rawLast = removeAccents(
+      getFieldValue(row, ["last_name", "lastname", "apellido", "APELLIDO", "surname"])
+    );
 
     const firstParts = rawFirst.split(/\s+/).filter(Boolean);
     const lastParts = rawLast.split(/\s+/).filter(Boolean);
@@ -122,51 +170,50 @@ export function parseAndClean(csvText: string): CleanedContact[] {
     const apellido = (lastParts[0] || "").toLowerCase();
     const apellido2 = lastParts.length > 1 ? lastParts[1].toLowerCase() : "";
 
-    const web = extractDomain(row.company_website || row.Company_Website || row.website || row.Web || row.WEB || "");
-    
-    // Empresa: preferir extraer de la web para nombre limpio
+    const web = extractDomain(
+      getFieldValue(row, ["company_website", "website", "web", "sitio_web", "url"]) 
+    );
+
     let empresa = "";
     if (web) {
       empresa = extractCompanyFromWeb(web);
     }
-    // Si no hay web, usar company_name pero limpiarlo
+
     if (!empresa) {
-      const rawCompany = (row.company_name || row.Company_Name || row.company || row.empresa || row.EMPRESA || "").trim();
-      // Limitar largo y limpiar
+      const rawCompany = getFieldValue(row, ["company_name", "company", "empresa", "EMPRESA", "organizacion"]);
       empresa = rawCompany.length > 40 ? rawCompany.substring(0, 40).trim() : rawCompany;
       empresa = empresa.toUpperCase();
     }
 
-    const domain = web;
-    let mail1 = "";
+    const domain = web || email1.split("@")[1] || "";
+    const hasNameForPattern = Boolean(nombre && apellido);
+
+    let mail1 = email1;
     let mail2 = "";
-    let mail3 = email1;
+    let mail3 = "";
     let mail4 = "";
 
-    if (domain) {
+    if (domain && hasNameForPattern) {
       const initial = nombre.charAt(0);
       mail1 = `${initial}${apellido}@${domain}`;
       mail2 = `${nombre}.${apellido}@${domain}`;
+      mail3 = email1;
       if (apellido2) {
         mail4 = `${initial}${apellido}${apellido2.charAt(0)}@${domain}`;
       } else {
         mail4 = `${initial}${apellido}@${domain}`;
       }
-    } else {
-      mail1 = email1;
-      mail2 = "";
-      mail3 = "";
-      mail4 = "";
     }
 
-    if (!mail2 && mail3.toLowerCase() === mail1.toLowerCase()) {
-      mail3 = "";
-    }
+    if (mail2 && mail2.toLowerCase() === mail1.toLowerCase()) mail2 = "";
+    if (mail3 && mail3.toLowerCase() === mail1.toLowerCase()) mail3 = "";
+    if (mail4 && mail4.toLowerCase() === mail1.toLowerCase()) mail4 = "";
+    if (mail4 && mail2 && mail4.toLowerCase() === mail2.toLowerCase()) mail4 = "";
 
     let contact: CleanedContact = {
-      NOMBRE: nombre.charAt(0).toUpperCase() + nombre.slice(1),
-      APELLIDO: apellido.charAt(0).toUpperCase() + apellido.slice(1),
-      APELLIDO2: apellido2 ? apellido2.charAt(0).toUpperCase() + apellido2.slice(1) : "",
+      NOMBRE: capitalize(nombre),
+      APELLIDO: capitalize(apellido),
+      APELLIDO2: capitalize(apellido2),
       EMPRESA: empresa,
       WEB: web,
       MAIL1: mail1,
@@ -178,6 +225,7 @@ export function parseAndClean(csvText: string): CleanedContact[] {
     contact = dedup(contact);
     results.push(contact);
   }
+
 
   const seen = new Set<string>();
   const unique: CleanedContact[] = [];
