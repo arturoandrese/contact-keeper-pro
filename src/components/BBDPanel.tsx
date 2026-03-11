@@ -34,7 +34,8 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       .order("created_at", { ascending: false });
 
     if (error) {
-      toast.error("Error cargando bases");
+      console.error("Error fetching bases:", error);
+      toast.error("Error cargando bases: " + error.message);
     } else {
       setBases((data as Base[]) || []);
     }
@@ -57,7 +58,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     }
   };
 
-  const handleDownload = async (base: Base, type: "clean" | "crossed", e: React.MouseEvent) => {
+  const doDownload = async (base: Base, type: "clean" | "crossed", fmt: "xlsx" | "csv", e: React.MouseEvent) => {
     e.stopPropagation();
     setExporting(base.id);
     try {
@@ -104,7 +105,19 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Contactos");
       const suffix = type === "crossed" ? "_cruzada" : "_limpia";
-      XLSX.writeFile(wb, `${base.name}${suffix}.xlsx`);
+
+      if (fmt === "csv") {
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${base.name}${suffix}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        XLSX.writeFile(wb, `${base.name}${suffix}.xlsx`);
+      }
     } finally {
       setExporting(null);
     }
@@ -131,7 +144,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         <div className="rounded-xl border border-dashed border-border p-12 text-center">
           <p className="font-semibold">Sin bases aún</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Sube un CSV desde la pantalla principal para empezar.
+            Sube un CSV o Excel desde la pantalla principal para empezar.
           </p>
         </div>
       ) : (
@@ -167,36 +180,40 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={(e) => handleDownload(base, "clean", e)}
+                  onClick={(e) => doDownload(base, "clean", "xlsx", e)}
                   disabled={exporting === base.id}
                   className="text-xs"
                 >
-                  {exporting === base.id ? (
-                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Download className="mr-1 h-3.5 w-3.5" />
-                  )}
-                  Limpia
+                  {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                  XLSX
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => doDownload(base, "clean", "csv", e)}
+                  disabled={exporting === base.id}
+                  className="text-xs"
+                >
+                  {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                  CSV
                 </Button>
                 {base.crossed && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => handleDownload(base, "crossed", e)}
-                    disabled={exporting === base.id}
-                    className="text-xs"
-                  >
-                    {exporting === base.id ? (
-                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Download className="mr-1 h-3.5 w-3.5" />
-                    )}
-                    Cruzada
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => doDownload(base, "crossed", "xlsx", e)}
+                      disabled={exporting === base.id}
+                      className="text-xs"
+                    >
+                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                      Cruzada
+                    </Button>
+                  </>
                 )}
                 <Button
                   variant="ghost"

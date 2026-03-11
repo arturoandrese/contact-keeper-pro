@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { Upload } from "lucide-react";
+import * as XLSX from "xlsx";
 
 interface FileUploaderProps {
   onFileLoaded: (content: string) => void;
@@ -9,14 +10,28 @@ const FileUploader = ({ onFileLoaded }: FileUploaderProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
 
-  const handleFile = useCallback(
+  const processFile = useCallback(
     (file: File) => {
       setFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        onFileLoaded(e.target?.result as string);
-      };
-      reader.readAsText(file);
+      const ext = file.name.split(".").pop()?.toLowerCase();
+
+      if (ext === "csv" || ext === "txt") {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          onFileLoaded(e.target?.result as string);
+        };
+        reader.readAsText(file);
+      } else if (ext === "xlsx" || ext === "xls") {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const csv = XLSX.utils.sheet_to_csv(firstSheet);
+          onFileLoaded(csv);
+        };
+        reader.readAsArrayBuffer(file);
+      }
     },
     [onFileLoaded]
   );
@@ -26,9 +41,9 @@ const FileUploader = ({ onFileLoaded }: FileUploaderProps) => {
       e.preventDefault();
       setIsDragging(false);
       const file = e.dataTransfer.files[0];
-      if (file) handleFile(file);
+      if (file) processFile(file);
     },
-    [handleFile]
+    [processFile]
   );
 
   return (
@@ -47,11 +62,11 @@ const FileUploader = ({ onFileLoaded }: FileUploaderProps) => {
     >
       <input
         type="file"
-        accept=".csv"
+        accept=".csv,.xlsx,.xls"
         className="absolute inset-0 cursor-pointer opacity-0"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) handleFile(file);
+          if (file) processFile(file);
         }}
       />
       <div className="flex flex-col items-center gap-4">
@@ -65,8 +80,8 @@ const FileUploader = ({ onFileLoaded }: FileUploaderProps) => {
           </div>
         ) : (
           <div>
-            <p className="text-lg font-semibold text-foreground">Arrastra tu CSV aquí</p>
-            <p className="text-sm text-muted-foreground">o haz clic para seleccionar archivo</p>
+            <p className="text-lg font-semibold text-foreground">Arrastra tu CSV o Excel aquí</p>
+            <p className="text-sm text-muted-foreground">Formatos: .csv, .xlsx, .xls</p>
           </div>
         )}
       </div>
