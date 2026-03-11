@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download } from "lucide-react";
 import { toast } from "sonner";
-import { fetchSheetReport, type SheetData } from "@/lib/googleSheets";
+import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
 
 interface SheetReportPanelProps {
   baseId: string;
@@ -38,11 +39,35 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const [loading, setLoading] = useState(false);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [tabs, setTabs] = useState<SheetTab[]>([]);
+  const [selectedTab, setSelectedTab] = useState<string>("");
+  const [loadingTabs, setLoadingTabs] = useState(true);
+
+  // Fetch available tabs on mount
+  useEffect(() => {
+    const loadTabs = async () => {
+      setLoadingTabs(true);
+      try {
+        const sheetTabs = await fetchSheetTabs(sheetId);
+        setTabs(sheetTabs);
+        // Default to last tab (usually the active campaign)
+        if (sheetTabs.length > 0) {
+          setSelectedTab(sheetTabs[sheetTabs.length - 1].title);
+        }
+      } catch (err: any) {
+        toast.error("Error cargando pestañas: " + (err.message || ""));
+        console.error(err);
+      }
+      setLoadingTabs(false);
+    };
+    loadTabs();
+  }, [sheetId]);
 
   const fetchReport = useCallback(async () => {
+    if (!selectedTab) return;
     setLoading(true);
     try {
-      const result = await fetchSheetReport(sheetId);
+      const result = await fetchSheetReport(sheetId, selectedTab);
       setData(result);
       setLastFetched(new Date());
     } catch (err: any) {
@@ -50,17 +75,18 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
       console.error(err);
     }
     setLoading(false);
-  }, [sheetId]);
+  }, [sheetId, selectedTab]);
 
   useEffect(() => {
-    fetchReport();
-  }, [fetchReport]);
+    if (selectedTab) fetchReport();
+  }, [selectedTab, fetchReport]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
+    if (!selectedTab) return;
     const interval = setInterval(fetchReport, 30000);
     return () => clearInterval(interval);
-  }, [fetchReport]);
+  }, [fetchReport, selectedTab]);
 
   const handleUpdateBase = async () => {
     if (!data || data.contacts.length === 0) return;
