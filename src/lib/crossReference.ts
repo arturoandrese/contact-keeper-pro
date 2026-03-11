@@ -139,6 +139,21 @@ export interface ExistingDelivered {
 
 const COOLDOWN_DAYS = 15;
 
+function generateEmailFromPattern(pattern: string, nombre: string, apellido: string, domain: string): string | null {
+  if (!nombre || !apellido || !domain) return null;
+  const n = nombre.toLowerCase();
+  const a = apellido.toLowerCase();
+  switch (pattern) {
+    case "first.last": return `${n}.${a}@${domain}`;
+    case "initial_last": return `${n[0]}${a}@${domain}`;
+    case "initial.last": return `${n[0]}.${a}@${domain}`;
+    case "last.first": return `${a}.${n}@${domain}`;
+    case "first": return `${n}@${domain}`;
+    case "first_last_initial": return `${n}${a[0]}@${domain}`;
+    default: return null;
+  }
+}
+
 export function crossReference(
   contacts: CleanedContact[],
   emailLog: EmailLogEntry[],
