@@ -60,10 +60,13 @@ export async function fetchSheetReport(sheetId: string, range = "A:Z"): Promise<
 
   const stats: Record<string, number> = {};
   const contacts: Array<Record<string, string>> = [];
+  const rawStatusDebug: Record<string, number> = {};
 
   for (const row of dataRows) {
-    const rawStatus = mergeIdx >= 0 ? (row[mergeIdx] || "").toString() : "";
-    const status = normalizeYammStatus(rawStatus);
+    const rawStatus = mergeIdx >= 0 && mergeIdx < row.length ? (row[mergeIdx] || "").toString() : "";
+    rawStatusDebug[rawStatus || "(EMPTY)"] = (rawStatusDebug[rawStatus || "(EMPTY)"] || 0) + 1;
+    
+    const status = rawStatus.trim() ? normalizeYammStatus(rawStatus) : "EMAIL_NOT_SENT";
     stats[status] = (stats[status] || 0) + 1;
 
     const contact: Record<string, string> = {};
@@ -74,6 +77,9 @@ export async function fetchSheetReport(sheetId: string, range = "A:Z"): Promise<
     contact._status = status;
     contacts.push(contact);
   }
+
+  console.log("📊 RAW status values from sheet:", rawStatusDebug);
+  console.log("📊 Normalized stats:", stats);
 
   return { headers, total: dataRows.length, stats, contacts };
 }
