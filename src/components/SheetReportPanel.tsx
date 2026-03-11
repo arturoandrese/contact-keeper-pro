@@ -14,11 +14,17 @@ interface SheetReportPanelProps {
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   EMAIL_SENT: { bg: "bg-primary/10", text: "text-primary", icon: <MailCheck className="h-4 w-4" /> },
+  SENT: { bg: "bg-primary/10", text: "text-primary", icon: <MailCheck className="h-4 w-4" /> },
   EMAIL_DELIVERED: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", icon: <MailCheck className="h-4 w-4" /> },
+  DELIVERED: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", icon: <MailCheck className="h-4 w-4" /> },
   EMAIL_OPENED: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", icon: <MailCheck className="h-4 w-4" /> },
+  OPENED: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", icon: <MailCheck className="h-4 w-4" /> },
   EMAIL_CLICKED: { bg: "bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", icon: <MailCheck className="h-4 w-4" /> },
+  CLICKED: { bg: "bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", icon: <MailCheck className="h-4 w-4" /> },
   EMAIL_BOUNCED: { bg: "bg-destructive/10", text: "text-destructive", icon: <MailX className="h-4 w-4" /> },
+  BOUNCED: { bg: "bg-destructive/10", text: "text-destructive", icon: <MailX className="h-4 w-4" /> },
   EMAIL_NOT_SENT: { bg: "bg-muted", text: "text-muted-foreground", icon: <Clock className="h-4 w-4" /> },
+  NOT_SENT: { bg: "bg-muted", text: "text-muted-foreground", icon: <Clock className="h-4 w-4" /> },
   MAIL_MERGE_COMPLETE: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", icon: <MailCheck className="h-4 w-4" /> },
 };
 

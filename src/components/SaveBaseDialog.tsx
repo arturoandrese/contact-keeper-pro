@@ -20,10 +20,12 @@ interface SaveBaseDialogProps {
 
 function getDatePrefix(): string {
   const now = new Date();
-  const d = now.getDate();
-  const m = now.getMonth() + 1;
+  const d = String(now.getDate()).padStart(2, "0");
+  const m = String(now.getMonth() + 1).padStart(2, "0");
   const y = String(now.getFullYear()).slice(-2);
-  return `${d}-${m}-${y}_`;
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  return `${d}-${m}-${y}_${hh}-${mm}_`;
 }
 
 const SaveBaseDialog = ({ open, onOpenChange, onSave, defaultName }: SaveBaseDialogProps) => {

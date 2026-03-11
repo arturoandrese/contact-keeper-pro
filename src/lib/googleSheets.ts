@@ -7,6 +7,22 @@ export interface SheetData {
   contacts: Array<Record<string, string>>;
 }
 
+function normalizeYammStatus(rawStatus: string): string {
+  const raw = rawStatus.toUpperCase().trim();
+  const normalized = raw.replace(/\s+/g, "_");
+
+  if (!normalized) return "EMAIL_NOT_SENT";
+  if (normalized.includes("BOUNC") || normalized.includes("REBOT")) return "EMAIL_BOUNCED";
+  if (normalized.includes("CLICK") || normalized.includes("CLIC")) return "EMAIL_CLICKED";
+  if (normalized.includes("OPEN") || normalized.includes("ABIERT")) return "EMAIL_OPENED";
+  if (normalized.includes("DELIVER")) return "EMAIL_DELIVERED";
+  if (normalized.includes("NOT_SENT") || normalized.includes("NO_ENVIAD")) return "EMAIL_NOT_SENT";
+  if (normalized.includes("MAIL_MERGE_COMPLETE") || normalized.includes("MERGE_COMPLETE")) return "MAIL_MERGE_COMPLETE";
+  if (normalized.includes("SENT") || normalized.includes("ENVIAD")) return "EMAIL_SENT";
+
+  return "UNKNOWN";
+}
+
 export async function fetchSheetReport(sheetId: string, range = "A:Z"): Promise<SheetData> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?key=${GOOGLE_SHEETS_API_KEY}`;
 
@@ -42,18 +58,19 @@ export async function fetchSheetReport(sheetId: string, range = "A:Z"): Promise<
   console.log("📊 Sheet headers:", headers);
   console.log("📊 Merge status column index:", mergeIdx, mergeIdx >= 0 ? `(${headers[mergeIdx]})` : "(NOT FOUND)");
 
-  // Calculate stats from merge status
   const stats: Record<string, number> = {};
   const contacts: Array<Record<string, string>> = [];
 
   for (const row of dataRows) {
-    const status = mergeIdx >= 0 ? (row[mergeIdx] || "UNKNOWN").toString().toUpperCase().trim() : "UNKNOWN";
+    const rawStatus = mergeIdx >= 0 ? (row[mergeIdx] || "").toString() : "";
+    const status = normalizeYammStatus(rawStatus);
     stats[status] = (stats[status] || 0) + 1;
 
     const contact: Record<string, string> = {};
     headers.forEach((h: string, i: number) => {
       contact[h] = row[i] || "";
     });
+
     contact._status = status;
     contacts.push(contact);
   }
