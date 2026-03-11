@@ -209,6 +209,7 @@ const Index = () => {
           <CrossReferencePanel
             baseId={selectedBase.id}
             baseName={selectedBase.name}
+            sheetId={selectedBase.sheetId}
             onBack={() => setView("preview")}
           />
         )}
