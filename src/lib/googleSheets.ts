@@ -7,6 +7,28 @@ export interface SheetData {
   contacts: Array<Record<string, string>>;
 }
 
+export interface SheetTab {
+  title: string;
+  index: number;
+  rowCount: number;
+}
+
+export async function fetchSheetTabs(sheetId: string): Promise<SheetTab[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties&key=${GOOGLE_SHEETS_API_KEY}`;
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(`Google Sheets API error [${response.status}]: ${data.error?.message || JSON.stringify(data)}`);
+  }
+
+  return (data.sheets || []).map((s: any) => ({
+    title: s.properties.title,
+    index: s.properties.index,
+    rowCount: s.properties.gridProperties?.rowCount || 0,
+  }));
+}
+
 function normalizeYammStatus(rawStatus: string): string {
   const raw = rawStatus.toUpperCase().trim();
   const normalized = raw.replace(/\s+/g, "_");
@@ -23,7 +45,8 @@ function normalizeYammStatus(rawStatus: string): string {
   return "UNKNOWN";
 }
 
-export async function fetchSheetReport(sheetId: string, range = "'Hoja 3'!A:Z"): Promise<SheetData> {
+export async function fetchSheetReport(sheetId: string, sheetName?: string): Promise<SheetData> {
+  const range = sheetName ? `'${sheetName}'!A:Z` : "A:Z";
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?key=${GOOGLE_SHEETS_API_KEY}`;
 
   const response = await fetch(url);
