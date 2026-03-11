@@ -95,11 +95,11 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
             const batch = patterns.slice(i, i + 500).map(p => ({
               domain: p.domain, pattern: p.pattern, example_email: p.example_email, confidence: 1
             }));
-            await supabase
-              .from("domain_patterns")
-              .upsert(batch, { onConflict: "domain,pattern" })
-              .then(() => {})
-              .catch(() => {}); // Table may not exist yet
+            try {
+              await supabase
+                .from("domain_patterns")
+                .upsert(batch, { onConflict: "domain,pattern" });
+            } catch {} // Table may not exist yet
           }
         }
 
