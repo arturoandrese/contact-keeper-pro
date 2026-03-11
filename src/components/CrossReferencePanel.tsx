@@ -248,7 +248,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             className="absolute inset-0 cursor-pointer opacity-0"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) processLog(file);
+              if (file) processFile(file);
             }}
           />
           <div className="flex flex-col items-center gap-4">
