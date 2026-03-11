@@ -77,6 +77,19 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
 
         const { filtered, patterns, delivered } = crossReference(contacts, log, allDelivered);
 
+        // Update empresa in contacts table with EMPRESA_SHORT from cross-reference
+        if (filtered.length > 0) {
+          for (const f of filtered) {
+            if (f.EMPRESA_SHORT) {
+              await supabase
+                .from("contacts")
+                .update({ empresa: f.EMPRESA_SHORT })
+                .eq("base_id", baseId)
+                .eq("mail1", f.MAIL1);
+            }
+          }
+        }
+
         if (patterns.length > 0) {
           for (let i = 0; i < patterns.length; i += 500) {
             const batch = patterns.slice(i, i + 500).map(p => ({

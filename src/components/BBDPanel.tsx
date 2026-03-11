@@ -3,6 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -246,7 +252,19 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                     {base.crossed && (
                       <>
                         <span className="text-xs text-muted-foreground">·</span>
-                        <span className="text-xs font-medium text-primary">✓ Cruzada</span>
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs font-medium text-primary cursor-help">✓ Cruzada</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs space-y-1">
+                              <p><strong>Creada:</strong> {format(new Date(base.created_at), "d MMM yyyy, HH:mm", { locale: es })}</p>
+                              {base.crossed_at && (
+                                <p><strong>Cruzada:</strong> {format(new Date(base.crossed_at), "d MMM yyyy, HH:mm", { locale: es })}</p>
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </>
                     )}
                   </div>
