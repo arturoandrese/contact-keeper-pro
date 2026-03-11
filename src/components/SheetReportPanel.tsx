@@ -223,8 +223,8 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
       {data && (
         <>
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Summary cards - Total + all statuses */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <div className="rounded-xl border border-border bg-card px-5 py-4">
               <div className="flex items-center gap-2 mb-1">
                 <Users className="h-4 w-4 text-muted-foreground" />
@@ -232,32 +232,22 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
               </div>
               <p className="font-display text-3xl font-bold">{data.total}</p>
             </div>
-            <div className="rounded-xl border border-border bg-card px-5 py-4">
-              <div className="flex items-center gap-2 mb-1">
-                <MailCheck className="h-4 w-4 text-primary" />
-                <p className="text-xs font-medium text-muted-foreground">Enviados</p>
-              </div>
-              <p className="font-display text-3xl font-bold text-primary">{totalSent}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card px-5 py-4">
-              <div className="flex items-center gap-2 mb-1">
-                <MailX className="h-4 w-4 text-destructive" />
-                <p className="text-xs font-medium text-muted-foreground">Rebotados</p>
-              </div>
-              <p className="font-display text-3xl font-bold text-destructive">{bounced}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card px-5 py-4">
-              <div className="flex items-center gap-2 mb-1">
-                <MailCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                <p className="text-xs font-medium text-muted-foreground">Abiertos</p>
-              </div>
-              <p className="font-display text-3xl font-bold text-emerald-600 dark:text-emerald-400">{opened}</p>
-              {totalSent > 0 && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {Math.round((opened / totalSent) * 100)}% open rate
-                </p>
-              )}
-            </div>
+            {sortedStats.map(([status, count]) => {
+              const display = getStatusDisplay(status);
+              const pct = data.total > 0 ? Math.round((count / data.total) * 100) : 0;
+              return (
+                <div key={status} className="rounded-xl border border-border bg-card px-5 py-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={display.text}>{display.icon}</span>
+                    <p className="text-xs font-medium text-muted-foreground truncate">
+                      {status.replace(/_/g, " ")}
+                    </p>
+                  </div>
+                  <p className={`font-display text-3xl font-bold ${display.text}`}>{count}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{pct}%</p>
+                </div>
+              );
+            })}
           </div>
 
           {/* Status breakdown */}
