@@ -15,46 +15,54 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === "development" && componentTagger(),
-    VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "robots.txt"],
-      workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/],
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2}"],
-      },
-      manifest: {
-        name: "CCP — Clean · Cross · Prospect",
-        short_name: "CCP",
-        description: "Clean · Cross · Prospect — Gestión de bases de contactos",
-        theme_color: "#0f172a",
-        background_color: "#0f172a",
-        display: "standalone",
-        start_url: "/",
-        icons: [
-          {
-            src: "/pwa-192x192.jpg",
-            sizes: "192x192",
-            type: "image/jpeg",
-          },
-          {
-            src: "/pwa-512x512.jpg",
-            sizes: "512x512",
-            type: "image/jpeg",
-          },
-          {
-            src: "/pwa-512x512.jpg",
-            sizes: "512x512",
-            type: "image/jpeg",
-            purpose: "maskable",
-          },
-        ],
-      },
-    }),
+    mode === "production" &&
+      VitePWA({
+        registerType: "autoUpdate",
+        includeAssets: ["favicon.jpg", "robots.txt", "pwa-192x192.jpg", "pwa-512x512.jpg"],
+        workbox: {
+          navigateFallbackDenylist: [/^\/~oauth/],
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2}"],
+        },
+        manifest: {
+          name: "CCP — Clean · Cross · Prospect",
+          short_name: "CCP",
+          description: "Clean · Cross · Prospect — Gestión de bases de contactos",
+          theme_color: "#0f172a",
+          background_color: "#0f172a",
+          display: "standalone",
+          start_url: "/",
+          icons: [
+            {
+              src: "/pwa-192x192.jpg",
+              sizes: "192x192",
+              type: "image/jpeg",
+            },
+            {
+              src: "/pwa-512x512.jpg",
+              sizes: "512x512",
+              type: "image/jpeg",
+            },
+            {
+              src: "/pwa-512x512.jpg",
+              sizes: "512x512",
+              type: "image/jpeg",
+              purpose: "maskable",
+            },
+          ],
+        },
+      }),
   ].filter(Boolean),
+  optimizeDeps: {
+    include: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      react: path.resolve(__dirname, "./node_modules/react"),
+      "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
+      "react/jsx-runtime": path.resolve(__dirname, "./node_modules/react/jsx-runtime.js"),
+      "react/jsx-dev-runtime": path.resolve(__dirname, "./node_modules/react/jsx-dev-runtime.js"),
     },
-    dedupe: ["react", "react-dom", "react/jsx-runtime"],
+    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
   },
 }));
