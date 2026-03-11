@@ -29,8 +29,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
   const [results, setResults] = useState<CrossReferencedContact[] | null>(null);
   const [stats, setStats] = useState({ original: 0, filtered: 0, patterns: 0 });
 
-  const processLog = useCallback(
-    async (file: File) => {
+  const runCrossReference = useCallback(
+    async (log: EmailLogEntry[]) => {
       setProcessing(true);
       try {
         const { data: dbContacts, error } = await supabase
@@ -56,10 +56,6 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           MAIL4: c.mail4,
         }));
 
-        const buffer = await file.arrayBuffer();
-        const log = parseEmailLog(buffer);
-
-        const logHash = hashEmailLog(log);
         const { data: baseData } = await supabase
           .from("bases")
           .select("crossed, crossed_at")
@@ -81,7 +77,6 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
 
         const { filtered, patterns, delivered } = crossReference(contacts, log, allDelivered);
 
-        // Update empresa in contacts table with EMPRESA_SHORT from cross-reference
         if (filtered.length > 0) {
           for (const f of filtered) {
             if (f.EMPRESA_SHORT) {
@@ -103,7 +98,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
               await supabase
                 .from("domain_patterns")
                 .upsert(batch, { onConflict: "domain,pattern" });
-            } catch {} // Table may not exist yet
+            } catch {}
           }
         }
 
@@ -120,17 +115,9 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             const batch = delivered.slice(i, i + 500).map((d) => {
               const prev = existingMap.get(d.mail);
               if (isDuplicate && prev) {
-                return {
-                  ...d,
-                  times_contacted: prev.times_contacted,
-                  last_contacted_at: prev.last_contacted_at,
-                };
+                return { ...d, times_contacted: prev.times_contacted, last_contacted_at: prev.last_contacted_at };
               }
-              return {
-                ...d,
-                times_contacted: (prev?.times_contacted || 0) + 1,
-                last_contacted_at: now,
-              };
+              return { ...d, times_contacted: (prev?.times_contacted || 0) + 1, last_contacted_at: now };
             });
             await supabase
               .from("delivered_contacts")
@@ -144,14 +131,10 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           .eq("id", baseId);
 
         setResults(filtered);
-        setStats({
-          original: contacts.length,
-          filtered: filtered.length,
-          patterns: patterns.length,
-        });
+        setStats({ original: contacts.length, filtered: filtered.length, patterns: patterns.length });
         toast.success(`Cruce completado: ${filtered.length} contactos válidos`);
       } catch (err) {
-        toast.error("Error procesando archivo de log");
+        toast.error("Error procesando cruce");
         console.error(err);
       }
       setProcessing(false);
@@ -159,14 +142,59 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     [baseId]
   );
 
+  const processFile = useCallback(
+    async (file: File) => {
+      const buffer = await file.arrayBuffer();
+      const log = parseEmailLog(buffer);
+      await runCrossReference(log);
+    },
+    [runCrossReference]
+  );
+
+  const processLiveReport = useCallback(async () => {
+    if (!sheetId) return;
+    setProcessing(true);
+    try {
+      // Fetch tabs and let user pick, or auto-pick last
+      const tabs = await fetchSheetTabs(sheetId);
+      if (tabs.length === 0) {
+        toast.error("No se encontraron pestañas en el Google Sheet");
+        setProcessing(false);
+        return;
+      }
+
+      // Use last tab by default
+      const tabName = tabs[tabs.length - 1].title;
+      const sheetData = await fetchSheetReport(sheetId, tabName);
+
+      // Convert sheet contacts to EmailLogEntry format
+      const log: EmailLogEntry[] = sheetData.contacts.map((c) => ({
+        NOMBRE: c["NOMBRE"] || c["First Name"] || c["nombre"] || "",
+        APELLIDO: c["APELLIDO"] || c["Last Name"] || c["apellido"] || "",
+        EMPRESA: c["EMPRESA"] || c["Company"] || c["empresa"] || "",
+        WEB: c["WEB"] || c["Website"] || c["web"] || "",
+        MAIL1: c["MAIL1"] || c["Email Address"] || c["email"] || c["mail"] || "",
+        MAIL2: c["MAIL2"] || c["email2"] || "",
+        status: c._status || "",
+      }));
+
+      toast.info(`📊 Cruzando con pestaña "${tabName}" (${log.length} contactos)`);
+      await runCrossReference(log);
+    } catch (err: any) {
+      toast.error("Error obteniendo reporte en vivo: " + (err.message || ""));
+      console.error(err);
+      setProcessing(false);
+    }
+  }, [sheetId, runCrossReference]);
+
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
       const file = e.dataTransfer.files[0];
-      if (file) processLog(file);
+      if (file) processFile(file);
     },
-    [processLog]
+    [processFile]
   );
 
   const columns: (keyof CrossReferencedContact)[] = [
