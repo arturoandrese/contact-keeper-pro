@@ -36,8 +36,16 @@ const Index = () => {
 
   const handleFile = (content: string) => {
     const lines = content.split("\n").filter((l) => l.trim()).length - 1;
-    setRawCount(lines);
+    setRawCount(Math.max(lines, 0));
+
     const cleaned = parseAndClean(content);
+    if (cleaned.length === 0) {
+      setContacts([]);
+      setSaveOpen(false);
+      toast.error("No se detectaron correos corporativos válidos (MAIL1/email1)");
+      return;
+    }
+
     setContacts(cleaned);
     setSaveOpen(true);
   };
