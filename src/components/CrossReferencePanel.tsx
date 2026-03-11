@@ -97,7 +97,9 @@ const CrossReferencePanel = ({ baseId, baseName, onBack }: CrossReferencePanelPr
             }));
             await supabase
               .from("domain_patterns")
-              .upsert(batch, { onConflict: "domain,pattern" });
+              .upsert(batch, { onConflict: "domain,pattern" })
+              .then(() => {})
+              .catch(() => {}); // Table may not exist yet
           }
         }
 
