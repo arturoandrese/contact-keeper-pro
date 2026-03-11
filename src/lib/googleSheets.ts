@@ -1,0 +1,50 @@
+const GOOGLE_SHEETS_API_KEY = "AIzaSyA-2kvUDWmPgJsVPLBXS35P6ihw_Gh0Tls";
+
+export interface SheetData {
+  headers: string[];
+  total: number;
+  stats: Record<string, number>;
+  contacts: Array<Record<string, string>>;
+}
+
+export async function fetchSheetReport(sheetId: string, range = "A:Z"): Promise<SheetData> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?key=${GOOGLE_SHEETS_API_KEY}`;
+
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(`Google Sheets API error [${response.status}]: ${data.error?.message || JSON.stringify(data)}`);
+  }
+
+  const rows = data.values || [];
+  if (rows.length === 0) {
+    return { headers: [], total: 0, stats: {}, contacts: [] };
+  }
+
+  const headers = rows[0] as string[];
+  const dataRows = rows.slice(1);
+
+  // Find the "Merge status" column (YAMM standard)
+  const mergeIdx = headers.findIndex(
+    (h: string) => h.toLowerCase().includes("merge status") || h.toLowerCase().includes("status")
+  );
+
+  // Calculate stats from merge status
+  const stats: Record<string, number> = {};
+  const contacts: Array<Record<string, string>> = [];
+
+  for (const row of dataRows) {
+    const status = mergeIdx >= 0 ? (row[mergeIdx] || "UNKNOWN").toString().toUpperCase().trim() : "UNKNOWN";
+    stats[status] = (stats[status] || 0) + 1;
+
+    const contact: Record<string, string> = {};
+    headers.forEach((h: string, i: number) => {
+      contact[h] = row[i] || "";
+    });
+    contact._status = status;
+    contacts.push(contact);
+  }
+
+  return { headers, total: dataRows.length, stats, contacts };
+}
