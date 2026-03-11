@@ -166,9 +166,24 @@ export function crossReference(
   const seenDelivered = new Set<string>();
 
   const existingMap = new Map<string, ExistingDelivered>();
+  // Build domain→pattern map from existing delivered (prioritize CLICKEADO > ABIERTO > ENVIADO)
+  const domainPatternMap = new Map<string, { pattern: string; status: string }>();
+  const STATUS_PRIORITY: Record<string, number> = { CLICKEADO: 3, ABIERTO: 2, ENVIADO: 1 };
+
   if (existingDelivered) {
     for (const e of existingDelivered) {
       existingMap.set(e.mail.toLowerCase(), e);
+      // Detect pattern from existing delivered emails
+      const domain = e.mail.split("@")[1]?.toLowerCase();
+      if (domain && !isFreeMail(e.mail)) {
+        const nameParts = (e.mail.split("@")[0] || "").toLowerCase();
+        // We'll store domain→status for priority, actual pattern detection happens below
+        const current = domainPatternMap.get(domain);
+        const priority = STATUS_PRIORITY[e.status] || 0;
+        if (!current || priority > (STATUS_PRIORITY[current.status] || 0)) {
+          // We need nombre/apellido to detect pattern - skip for now, will use emailLog patterns
+        }
+      }
     }
   }
 
@@ -187,6 +202,13 @@ export function crossReference(
         const pat = detectPattern(successMail, entry.NOMBRE, entry.APELLIDO);
         if (domain && pat) {
           patterns.push({ domain, pattern: pat, example_email: successMail });
+          // Track best pattern per domain
+          const classified = classifyStatus(status) || "ENVIADO";
+          const current = domainPatternMap.get(domain);
+          const priority = STATUS_PRIORITY[classified] || 0;
+          if (!current || priority > (STATUS_PRIORITY[current.status] || 0)) {
+            domainPatternMap.set(domain, { pattern: pat, status: classified });
+          }
         }
         
         const classified = classifyStatus(status) || "ENVIADO";
@@ -211,6 +233,26 @@ export function crossReference(
     if (isBounced(status)) {
       if (mail1) bouncedMails.add(mail1);
       if (mail2) bouncedMails.add(mail2);
+    }
+  }
+
+  // Also build patterns from existingDelivered using nombre/apellido
+  if (existingDelivered) {
+    for (const e of existingDelivered) {
+      const domain = e.mail.split("@")[1]?.toLowerCase();
+      if (!domain || isFreeMail(e.mail)) continue;
+      // Find a delivered entry with matching mail to get nombre/apellido
+      const deliveredEntry = delivered.find(d => d.mail === e.mail.toLowerCase());
+      if (deliveredEntry) {
+        const pat = detectPattern(e.mail, deliveredEntry.nombre, deliveredEntry.apellido);
+        if (pat) {
+          const current = domainPatternMap.get(domain);
+          const priority = STATUS_PRIORITY[e.status] || 0;
+          if (!current || priority > (STATUS_PRIORITY[current.status] || 0)) {
+            domainPatternMap.set(domain, { pattern: pat, status: e.status });
+          }
+        }
+      }
     }
   }
 
@@ -245,6 +287,15 @@ export function crossReference(
     const domain = finalMail.split("@")[1] || "";
     const web = (contact.WEB || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
     const empresaShort = extractCompanyFromDomain(web || domain);
+
+    // If we have a known working pattern for this domain, use it to generate the best email
+    const knownPattern = domainPatternMap.get(domain);
+    if (knownPattern) {
+      const generated = generateEmailFromPattern(knownPattern.pattern, contact.NOMBRE, contact.APELLIDO, domain);
+      if (generated && isValidEmail(generated) && !bouncedMails.has(generated) && !deliveredMails.has(generated)) {
+        finalMail = generated;
+      }
+    }
 
     const key = `${contact.NOMBRE}|${contact.APELLIDO}|${finalMail}`.toLowerCase();
     if (seenKeys.has(key)) continue;
