@@ -218,7 +218,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
             Volver
           </Button>
           <h2 className="font-display text-2xl font-bold">📊 Reporte en vivo: {baseName}</h2>
-          <div className="flex items-center gap-3 mt-1">
+        <div className="flex items-center gap-3 mt-1">
             <p className="text-sm text-muted-foreground">
               Datos de YAMM en tiempo real
             </p>
@@ -230,6 +230,20 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {!loadingTabs && tabs.length > 1 && (
+            <Select value={selectedTab} onValueChange={setSelectedTab}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Pestaña..." />
+              </SelectTrigger>
+              <SelectContent>
+                {tabs.map((tab) => (
+                  <SelectItem key={tab.index} value={tab.title}>
+                    {tab.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {data && (
             <Button size="sm" variant="default" onClick={handleUpdateBase} disabled={updating}>
               {updating ? (
