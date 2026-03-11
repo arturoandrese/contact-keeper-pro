@@ -108,8 +108,14 @@ const Index = () => {
     setView("bbd");
   };
 
-  const handleSelectBase = (baseId: string, baseName: string, crossed: boolean) => {
-    setSelectedBase({ id: baseId, name: baseName, crossed });
+  const handleSelectBase = async (baseId: string, baseName: string, crossed: boolean) => {
+    // Fetch sheetId for the base
+    let baseSheetId: string | undefined;
+    try {
+      const { data } = await supabase.from("bases").select("sheet_id").eq("id", baseId).single();
+      if (data && (data as any).sheet_id) baseSheetId = (data as any).sheet_id;
+    } catch {}
+    setSelectedBase({ id: baseId, name: baseName, crossed, sheetId: baseSheetId });
     setView("preview");
   };
 
