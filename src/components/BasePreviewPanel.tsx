@@ -430,6 +430,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
         />
       )}
     </div>
+  );
 };
 
 export default BasePreviewPanel;
