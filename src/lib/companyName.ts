@@ -112,7 +112,21 @@ export function extractCompanyFromDomain(domain: string): string {
   return splitDomainWord(base);
 }
 
-export function simplifyCompanyName(name: string): string {
+export function simplifyCompanyName(name: string, web?: string): string {
   if (!name || !name.trim()) return name;
-  return name.trim().toUpperCase();
+  const upper = name.trim().toUpperCase();
+  // If short enough and no weird long suffix, keep as-is
+  if (upper.length <= 25) return upper;
+  // Try to derive from web/domain instead
+  if (web) {
+    const fromDomain = extractCompanyFromDomain(web);
+    if (fromDomain && fromDomain.length >= 3) return fromDomain;
+  }
+  // Fallback: take first meaningful word(s), drop suffixes like "S.A.", "LTDA", "DE CHILE", etc.
+  const cleaned = upper
+    .replace(/\s*[-–—]\s*.*/g, "") // drop everything after dash
+    .replace(/\s*\(.*\)/, "") // drop parentheses
+    .replace(/\s+(S\.?A\.?|LTDA\.?|SPA|E\.?I\.?R\.?L\.?|CHILE|DE CHILE|CORPORACIÓN NACIONAL.*|CORPORACION NACIONAL.*)$/i, "")
+    .trim();
+  return cleaned.length > 40 ? cleaned.substring(0, 40).trim() : cleaned;
 }
