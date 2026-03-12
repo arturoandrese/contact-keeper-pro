@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Upload, Loader2, Download, Info, ArrowLeft, BarChart3 } from "lucide-react";
+import { Upload, Loader2, Download, Info, ArrowLeft, BarChart3, ClipboardCopy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -281,10 +281,23 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           </p>
         </div>
         {results && (
-          <Button size="sm" onClick={() => exportCrossReferenced(results)}>
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Exportar corregidos
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => {
+              const headers = ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL ORIGINAL", "MAIL CORREGIDO"];
+              const rows = results.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT, r.WEB, r.MAIL_ORIGINAL, r.MAIL1].join("\t"));
+              const tsv = [headers.join("\t"), ...rows].join("\n");
+              navigator.clipboard.writeText(tsv).then(() => {
+                toast.success("📋 Copiado. Pega en una pestaña nueva de Google Sheets (Ctrl+V)");
+              }).catch(() => toast.error("No se pudo copiar"));
+            }}>
+              <ClipboardCopy className="mr-1.5 h-3.5 w-3.5" />
+              Copiar para Sheets
+            </Button>
+            <Button size="sm" onClick={() => exportCrossReferenced(results)}>
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              Exportar XLSX
+            </Button>
+          </div>
         )}
       </div>
 
