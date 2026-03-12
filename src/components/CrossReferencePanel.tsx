@@ -155,25 +155,20 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           }
 
           const now = new Date().toISOString();
-          const isDuplicate = baseData?.crossed === true;
+          const campaignKey = sheetId ? `${sheetId}:cross` : `base:${baseId}`;
 
           const deliveredPayload = delivered.map((d) => {
             const mail = d.mail.toLowerCase();
             const prev = existingMap.get(mail);
-            if (isDuplicate && prev) {
-              return {
-                ...d,
-                mail,
-                times_contacted: prev.times_contacted,
-                last_contacted_at: prev.last_contacted_at,
-              };
-            }
+            const prevCampaign = prev?.last_campaign || "";
+            const isNewCampaign = prevCampaign !== campaignKey;
 
             return {
               ...d,
               mail,
-              times_contacted: (prev?.times_contacted || 0) + 1,
+              times_contacted: isNewCampaign ? (prev?.times_contacted || 0) + 1 : (prev?.times_contacted || 1),
               last_contacted_at: now,
+              last_campaign: campaignKey,
             };
           });
 
