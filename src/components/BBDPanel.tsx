@@ -152,7 +152,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         return;
       }
 
-      const { extractCompanyFromDomain } = await import("@/lib/companyName");
+      
       let rows: Record<string, string>[];
 
       if (type === "crossed") {
