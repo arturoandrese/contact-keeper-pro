@@ -139,6 +139,10 @@ export interface ExistingDelivered {
 
 const COOLDOWN_DAYS = 15;
 
+export interface CrossReferenceOptions {
+  onlyBounced?: boolean;
+}
+
 function generateEmailFromPattern(pattern: string, nombre: string, apellido: string, domain: string): string | null {
   if (!nombre || !apellido || !domain) return null;
   const n = nombre.toLowerCase();
@@ -157,8 +161,10 @@ function generateEmailFromPattern(pattern: string, nombre: string, apellido: str
 export function crossReference(
   contacts: CleanedContact[],
   emailLog: EmailLogEntry[],
-  existingDelivered?: ExistingDelivered[]
+  existingDelivered?: ExistingDelivered[],
+  options: CrossReferenceOptions = {}
 ): { filtered: CrossReferencedContact[]; patterns: DomainPatternEntry[]; delivered: DeliveredContactEntry[] } {
+  const onlyBounced = options.onlyBounced === true;
   const deliveredMails = new Set<string>();
   const bouncedMails = new Set<string>();
   const patterns: DomainPatternEntry[] = [];
