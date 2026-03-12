@@ -95,6 +95,43 @@ function detectPattern(email: string, nombre: string, apellido: string): string 
   return null;
 }
 
+function buildBaseDomainPatternMap(contacts: CleanedContact[]): Map<string, string> {
+  const patternCounts = new Map<string, Map<string, number>>();
+
+  for (const contact of contacts) {
+    const mails = [contact.MAIL1, contact.MAIL2, contact.MAIL3, contact.MAIL4]
+      .map((m) => (m || "").toLowerCase().trim())
+      .filter((m) => isValidEmail(m) && !isFreeMail(m));
+
+    for (const mail of mails) {
+      const domain = mail.split("@")[1];
+      const pattern = detectPattern(mail, contact.NOMBRE, contact.APELLIDO);
+      if (!domain || !pattern) continue;
+
+      const byPattern = patternCounts.get(domain) || new Map<string, number>();
+      byPattern.set(pattern, (byPattern.get(pattern) || 0) + 1);
+      patternCounts.set(domain, byPattern);
+    }
+  }
+
+  const selected = new Map<string, string>();
+  for (const [domain, byPattern] of patternCounts) {
+    let bestPattern = "";
+    let bestCount = 0;
+
+    for (const [pattern, count] of byPattern) {
+      if (count > bestCount) {
+        bestPattern = pattern;
+        bestCount = count;
+      }
+    }
+
+    if (bestPattern) selected.set(domain, bestPattern);
+  }
+
+  return selected;
+}
+
 export function hashEmailLog(entries: EmailLogEntry[]): string {
   const mails = entries.map(e => (e.MAIL1 || "").toLowerCase()).sort();
   const str = mails.join("|");
