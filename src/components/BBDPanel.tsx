@@ -13,6 +13,9 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
+import type { CleanedContact } from "@/lib/contactCleaner";
+import { crossReference, type EmailLogEntry } from "@/lib/crossReference";
+import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
 
 interface Base {
   id: string;
@@ -22,6 +25,7 @@ interface Base {
   crossed: boolean;
   crossed_at: string | null;
   created_at: string;
+  sheet_id?: string | null;
 }
 
 interface BBDPanelProps {
@@ -109,31 +113,97 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     e.stopPropagation();
     setExporting(base.id);
     try {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
-        .eq("base_id", base.id);
+      const fetchAllBaseContacts = async () => {
+        const all: Array<{
+          nombre: string;
+          apellido: string;
+          apellido2: string;
+          empresa: string;
+          web: string;
+          mail1: string;
+          mail2: string;
+          mail3: string;
+          mail4: string;
+        }> = [];
 
-      if (error || !data) {
-        toast.error("Error descargando contactos");
+        const pageSize = 1000;
+        for (let from = 0; ; from += pageSize) {
+          const to = from + pageSize - 1;
+          const { data, error } = await supabase
+            .from("contacts")
+            .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
+            .eq("base_id", base.id)
+            .range(from, to);
+
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+
+          all.push(...(data as any[]));
+
+          if (data.length < pageSize) break;
+        }
+
+        return all;
+      };
+
+      const data = await fetchAllBaseContacts();
+      if (!data || data.length === 0) {
+        toast.error("No hay contactos para descargar");
         return;
       }
 
-      const { extractCompanyFromDomain } = await import("@/lib/companyName");
-      let rows;
+      
+      let rows: Record<string, string>[];
+
       if (type === "crossed") {
-        rows = data.map((c) => {
-          const web = (c.web || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-          const domain = (c.mail1 || "").split("@")[1] || "";
-          return {
-            NOMBRE: c.nombre,
-            APELLIDO: c.apellido,
-            APELLIDO2: c.apellido2,
-            EMPRESA: extractCompanyFromDomain(web || domain),
-            WEB: c.web,
-            MAIL1: c.mail1,
-          };
-        });
+        if (!base.sheet_id) {
+          toast.error("Esta base no tiene Google Sheet asociado para recalcular el cruce");
+          return;
+        }
+
+        const tabs = await fetchSheetTabs(base.sheet_id);
+        if (tabs.length === 0) {
+          toast.error("No se encontraron pestañas en el Google Sheet");
+          return;
+        }
+
+        const tabName = tabs[tabs.length - 1].title;
+        const sheetData = await fetchSheetReport(base.sheet_id, tabName);
+        const log: EmailLogEntry[] = sheetData.contacts.map((c) => ({
+          NOMBRE: c["NOMBRE"] || c["First Name"] || c["nombre"] || "",
+          APELLIDO: c["APELLIDO"] || c["Last Name"] || c["apellido"] || "",
+          EMPRESA: c["EMPRESA"] || c["Company"] || c["empresa"] || "",
+          WEB: c["WEB"] || c["Website"] || c["web"] || "",
+          MAIL1: c["MAIL1"] || c["Email Address"] || c["email"] || c["mail"] || "",
+          MAIL2: c["MAIL2"] || c["email2"] || "",
+          status: c._status || "",
+        }));
+
+        const contacts: CleanedContact[] = data.map((c) => ({
+          NOMBRE: c.nombre,
+          APELLIDO: c.apellido,
+          APELLIDO2: c.apellido2,
+          EMPRESA: c.empresa,
+          WEB: c.web,
+          MAIL1: c.mail1,
+          MAIL2: c.mail2,
+          MAIL3: c.mail3,
+          MAIL4: c.mail4,
+        }));
+
+        const { filtered } = crossReference(contacts, log, undefined, { onlyBounced: true });
+
+        rows = filtered.map((c) => ({
+          NOMBRE: c.NOMBRE,
+          APELLIDO: c.APELLIDO,
+          APELLIDO2: c.APELLIDO2,
+          EMPRESA: c.EMPRESA_SHORT || c.EMPRESA,
+          WEB: c.WEB,
+          MAIL_ORIGINAL: c.MAIL_ORIGINAL,
+          MAIL_CORREGIDO: c.MAIL1,
+        }));
+
+        toast.success(`Descarga cruzada lista: ${rows.length} bounced con mail corregido`);
       } else {
         rows = data.map((c) => ({
           NOMBRE: c.nombre,
@@ -165,6 +235,9 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       } else {
         XLSX.writeFile(wb, `${base.name}${suffix}.xlsx`);
       }
+    } catch (error: any) {
+      console.error("Error exportando base:", error);
+      toast.error("Error exportando base: " + (error?.message || "desconocido"));
     } finally {
       setExporting(null);
     }
