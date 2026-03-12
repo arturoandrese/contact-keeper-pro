@@ -149,6 +149,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
               existingMap.set((row.mail || "").toLowerCase(), {
                 times_contacted: row.times_contacted || 0,
                 last_contacted_at: row.last_contacted_at || "",
+                last_campaign: (row as any).last_campaign || "",
               });
             }
           }
