@@ -519,8 +519,12 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                   {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
                   CSV
                 </Button>
-                {base.crossed && (
+                {base.crossed && base.sheet_id && (
                   <>
+                    <Button variant="secondary" size="sm" onClick={(e) => handleDownloadGoodEmails(base, e)} disabled={exporting === base.id} className="text-xs">
+                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <MailCheck className="mr-1 h-3.5 w-3.5" />}
+                      Mails buenos
+                    </Button>
                     <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "crossed", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
                       {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
                       Cruzada
