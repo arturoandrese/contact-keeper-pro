@@ -513,7 +513,39 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
               <ArrowLeft className="mr-1 h-3.5 w-3.5" />
               Volver a empresas
             </Button>
-            <h2 className="font-display text-2xl font-bold">{selectedCompany}</h2>
+            <div className="flex items-center gap-2">
+              {editingName === selectedCompany ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={editNameValue}
+                    onChange={(e) => setEditNameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRenameCompany(selectedCompany, editNameValue);
+                      if (e.key === "Escape") setEditingName(null);
+                    }}
+                    className="font-display text-2xl font-bold bg-transparent border-b-2 border-primary outline-none w-64"
+                  />
+                  <button onClick={() => handleRenameCompany(selectedCompany, editNameValue)} className="rounded p-1 text-primary hover:bg-primary/10">
+                    <Check className="h-5 w-5" />
+                  </button>
+                  <button onClick={() => setEditingName(null)} className="rounded p-1 text-muted-foreground hover:bg-muted">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h2 className="font-display text-2xl font-bold">{selectedCompany}</h2>
+                  <button
+                    onClick={() => { setEditingName(selectedCompany); setEditNameValue(selectedCompany); }}
+                    className="rounded p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    title="Editar nombre (se memoriza para futuras bases)"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground mt-1">
               {filteredContacts.length} contactos corporativos
             </p>
