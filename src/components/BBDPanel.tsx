@@ -190,7 +190,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       const tabs = await fetchSheetTabs(base.sheet_id);
       if (tabs.length === 0) { toast.error("Sin pestañas"); return; }
 
-      const GOOD = ["SENT", "DELIVERED", "OPENED", "CLICKED", "EMAIL_SENT", "EMAIL_DELIVERED", "EMAIL_OPENED", "EMAIL_CLICKED", "MAIL_MERGE_COMPLETE", "RESPONDED"];
+      const GOOD_EXACT = new Set(["EMAIL_SENT", "EMAIL_DELIVERED", "EMAIL_OPENED", "EMAIL_CLICKED", "SENT", "DELIVERED", "OPENED", "CLICKED", "MAIL_MERGE_COMPLETE", "RESPONDED"]);
 
       // Fetch ALL tabs in parallel and deduplicate by email
       const allSheetData = await Promise.all(
@@ -198,33 +198,32 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       );
 
       const seenEmails = new Set<string>();
-      const allGoodContacts: Array<Record<string, string>> = [];
+      const allGoodContacts: Array<{ contact: Record<string, string>; tabIndex: number }> = [];
 
-      for (const sheetData of allSheetData) {
-        for (const c of sheetData.contacts) {
-          const s = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
-          if (!GOOD.some((g) => s.includes(g))) continue;
+      for (let ti = 0; ti < allSheetData.length; ti++) {
+        for (const c of allSheetData[ti].contacts) {
+          const raw = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
+          if (!GOOD_EXACT.has(raw)) continue;
 
-          const mail = (c["MAIL1"] || c["MAIL_CORREGIDO"] || c["Email Address"] || c["email"] || "").toString().toLowerCase().trim();
-          if (!mail || seenEmails.has(mail)) continue;
+          // Get the actual email column (prioritize MAIL_CORREGIDO for sheets that use it, then standard columns)
+          const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "").toString().toLowerCase().trim();
+          if (!mail || !mail.includes("@") || seenEmails.has(mail)) continue;
           seenEmails.add(mail);
-          allGoodContacts.push(c);
+          allGoodContacts.push({ contact: c, tabIndex: ti });
         }
       }
 
       if (allGoodContacts.length === 0) { toast.error("No hay mails buenos en esta base"); return; }
 
-      const rows = allGoodContacts.map((c) => ({
+      const rows = allGoodContacts.map(({ contact: c, tabIndex }) => ({
         NOMBRE: (c["NOMBRE"] || c["First Name"] || "").toString().trim(),
         APELLIDO: (c["APELLIDO"] || c["Last Name"] || "").toString().trim(),
         EMPRESA: (c["EMPRESA"] || c["Company"] || "").toString().trim(),
         WEB: (c["WEB"] || c["Website"] || "").toString().trim(),
-        MAIL: (c["MAIL1"] || c["MAIL_CORREGIDO"] || c["Email Address"] || c["email"] || "").toString().toLowerCase().trim(),
+        MAIL: (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "").toString().toLowerCase().trim(),
         MAIL2: (c["MAIL2"] || "").toString().trim(),
         ESTADO: (c._status || "").toString().trim(),
-        PESTAÑA: allSheetData.findIndex((sd) => sd.contacts.includes(c)) >= 0 
-          ? tabs[allSheetData.findIndex((sd) => sd.contacts.includes(c))]?.title || "" 
-          : "",
+        PESTAÑA: tabs[tabIndex]?.title || "",
       }));
 
       const ws = XLSX.utils.json_to_sheet(rows);
