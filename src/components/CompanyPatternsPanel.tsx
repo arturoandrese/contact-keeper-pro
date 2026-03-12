@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, ChevronRight, Download, Loader2, Users, Filter, Trash2, Mail, Save, Pencil, ArrowDownAZ, ArrowDown01, Check, X } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, Download, Loader2, Users, Filter, Trash2, Mail, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X } from "lucide-react";
 import { setCompanyOverride, getCompanyOverrides } from "@/lib/companyNameOverrides";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
