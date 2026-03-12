@@ -169,53 +169,88 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
 
         const tabName = tabs[tabs.length - 1].title;
         const sheetData = await fetchSheetReport(base.sheet_id, tabName);
-        const log: EmailLogEntry[] = sheetData.contacts.map((c) => {
-          const primaryEmail = (
-            c["MAIL1"] ||
-            c["Email Address"] ||
-            c["email"] ||
-            c["mail"] ||
-            Object.values(c).find((v) => typeof v === "string" && v.includes("@")) ||
-            ""
-          )
-            .toString()
-            .toLowerCase()
-            .trim();
+        
+        // Build pattern map from delivered emails in the sheet
+        const domainPatterns = new Map<string, Map<string, number>>();
+        const bouncedEntries: Array<{
+          nombre: string; apellido: string; apellido2: string;
+          empresa: string; web: string; mail1: string; mail2: string;
+        }> = [];
 
-          return {
-            NOMBRE: (c["NOMBRE"] || c["First Name"] || c["nombre"] || "").toString().trim(),
-            APELLIDO: (c["APELLIDO"] || c["Last Name"] || c["apellido"] || "").toString().trim(),
-            EMPRESA: (c["EMPRESA"] || c["Company"] || c["empresa"] || "").toString().trim(),
-            WEB: (c["WEB"] || c["Website"] || c["web"] || "").toString().trim(),
-            MAIL1: primaryEmail,
-            MAIL2: (c["MAIL2"] || c["email2"] || "").toString().toLowerCase().trim(),
-            status: (c._status || "").toString().trim(),
-          };
-        });
+        for (const c of sheetData.contacts) {
+          const nombre = (c["NOMBRE"] || c["First Name"] || "").toString().trim();
+          const apellido = (c["APELLIDO"] || c["Last Name"] || "").toString().trim();
+          const apellido2 = (c["APELLIDO2"] || "").toString().trim();
+          const empresa = (c["EMPRESA"] || c["Company"] || "").toString().trim();
+          const web = (c["WEB"] || c["Website"] || "").toString().trim();
+          const mail1 = (c["MAIL1"] || c["Email Address"] || "").toString().toLowerCase().trim();
+          const mail2 = (c["MAIL2"] || "").toString().toLowerCase().trim();
+          const status = ((c._status || "").toString().trim().toUpperCase());
 
-        const contacts: CleanedContact[] = data.map((c) => ({
-          NOMBRE: c.nombre,
-          APELLIDO: c.apellido,
-          APELLIDO2: c.apellido2,
-          EMPRESA: c.empresa,
-          WEB: c.web,
-          MAIL1: c.mail1,
-          MAIL2: c.mail2,
-          MAIL3: c.mail3,
-          MAIL4: c.mail4,
-        }));
+          if (status.includes("BOUNCE")) {
+            bouncedEntries.push({ nombre, apellido, apellido2, empresa, web, mail1, mail2 });
+          } else if (mail1 && mail1.includes("@")) {
+            // Learn pattern from delivered emails
+            const domain = mail1.split("@")[1];
+            if (domain && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(domain)) {
+              const local = mail1.split("@")[0];
+              const n = nombre.toLowerCase();
+              const a = apellido.toLowerCase();
+              let pat = "";
+              if (local === `${n}.${a}`) pat = "first.last";
+              else if (local === `${n[0]}${a}`) pat = "initial_last";
+              if (pat) {
+                const m = domainPatterns.get(domain) || new Map<string, number>();
+                m.set(pat, (m.get(pat) || 0) + 1);
+                domainPatterns.set(domain, m);
+              }
+            }
+          }
+        }
 
-        const { filtered } = crossReference(contacts, log, undefined, { onlyBounced: true });
+        // Pick best pattern per domain
+        const bestPatterns = new Map<string, string>();
+        for (const [domain, pats] of domainPatterns) {
+          let best = ""; let bestCount = 0;
+          for (const [p, c] of pats) { if (c > bestCount) { best = p; bestCount = c; } }
+          if (best) bestPatterns.set(domain, best);
+        }
 
-        rows = filtered.map((c) => ({
-          NOMBRE: c.NOMBRE,
-          APELLIDO: c.APELLIDO,
-          APELLIDO2: c.APELLIDO2,
-          EMPRESA: c.EMPRESA_SHORT || c.EMPRESA,
-          WEB: c.WEB,
-          MAIL_ORIGINAL: c.MAIL_ORIGINAL,
-          MAIL_CORREGIDO: c.MAIL1,
-        }));
+        // Generate corrections for bounced
+        rows = [];
+        for (const b of bouncedEntries) {
+          const domain = b.mail1.split("@")[1] || b.web?.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") || "";
+          if (!domain) continue;
+
+          // Try MAIL2 if corporate
+          let corrected = "";
+          if (b.mail2 && b.mail2.includes("@") && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(b.mail2.split("@")[1])) {
+            corrected = b.mail2;
+          }
+
+          // If no valid MAIL2, generate from pattern
+          if (!corrected) {
+            const pat = bestPatterns.get(domain);
+            if (pat && b.nombre && b.apellido) {
+              const n = b.nombre.toLowerCase();
+              const a = b.apellido.toLowerCase();
+              if (pat === "first.last") corrected = `${n}.${a}@${domain}`;
+              else if (pat === "initial_last") corrected = `${n[0]}${a}@${domain}`;
+            }
+          }
+
+          if (!corrected || corrected === b.mail1) continue;
+
+          rows.push({
+            NOMBRE: b.nombre,
+            APELLIDO: b.apellido,
+            APELLIDO2: b.apellido2,
+            EMPRESA: empresa || b.empresa,
+            WEB: b.web,
+            MAIL_ORIGINAL: b.mail1,
+            MAIL_CORREGIDO: corrected,
+          });
+        }
 
         if (rows.length === 0) {
           toast.error("No se generaron correcciones en esta base cruzada");
