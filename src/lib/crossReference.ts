@@ -202,8 +202,9 @@ export function crossReference(
     const status = entry.status;
 
     if (isDelivered(status)) {
+      // Track delivered using the original attempted email (MAIL1) to avoid
+      // contaminating contact-level matching with alternative columns.
       if (mail1) deliveredMails.add(mail1);
-      if (mail2) deliveredMails.add(mail2);
       
       const successMail = mail1 || mail2;
       if (successMail && !isFreeMail(successMail)) {
@@ -240,8 +241,8 @@ export function crossReference(
     }
 
     if (isBounced(status)) {
+      // Only mark original attempted email as bounced.
       if (mail1) bouncedMails.add(mail1);
-      if (mail2) bouncedMails.add(mail2);
     }
   }
 
@@ -288,7 +289,7 @@ export function crossReference(
     if (bouncedMails.has(m1)) {
       const alternatives = [contact.MAIL2, contact.MAIL3, contact.MAIL4]
         .map((m) => (m || "").toLowerCase())
-        .filter((m) => isValidEmail(m) && !bouncedMails.has(m) && !deliveredMails.has(m) && !isFreeMail(m));
+        .filter((m) => m !== m1 && isValidEmail(m) && !bouncedMails.has(m) && !deliveredMails.has(m) && !isFreeMail(m));
 
       if (alternatives.length === 0) continue;
       finalMail = alternatives[0];
@@ -296,6 +297,7 @@ export function crossReference(
       continue;
     }
 
+    if (onlyBounced && finalMail === m1) continue;
     if (!isValidEmail(finalMail)) continue;
     if (isFreeMail(finalMail)) continue;
 

@@ -28,6 +28,42 @@ const chunkArray = <T,>(arr: T[], size: number): T[][] => {
   return chunks;
 };
 
+const CONTACTS_PAGE_SIZE = 1000;
+
+interface DbContactRow {
+  nombre: string;
+  apellido: string;
+  apellido2: string;
+  empresa: string;
+  web: string;
+  mail1: string;
+  mail2: string;
+  mail3: string;
+  mail4: string;
+}
+
+async function fetchAllContacts(baseId: string): Promise<DbContactRow[]> {
+  const all: DbContactRow[] = [];
+
+  for (let from = 0; ; from += CONTACTS_PAGE_SIZE) {
+    const to = from + CONTACTS_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
+      .eq("base_id", baseId)
+      .range(from, to);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    all.push(...(data as DbContactRow[]));
+
+    if (data.length < CONTACTS_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
 const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferencePanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -38,11 +74,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     async (log: EmailLogEntry[]) => {
       setProcessing(true);
       try {
-        const [{ data: dbContacts, error }, { data: baseData }] = await Promise.all([
-          supabase
-            .from("contacts")
-            .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
-            .eq("base_id", baseId),
+        const [dbContacts, baseResponse] = await Promise.all([
+          fetchAllContacts(baseId),
           supabase
             .from("bases")
             .select("crossed, crossed_at")
@@ -50,11 +83,17 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             .single(),
         ]);
 
-        if (error || !dbContacts) {
+        if (!dbContacts || dbContacts.length === 0) {
           toast.error("Error cargando contactos de la base");
           setProcessing(false);
           return;
         }
+
+        if (baseResponse.error) {
+          console.warn("No se pudo leer estado de cruce previo:", baseResponse.error.message);
+        }
+
+        const baseData = baseResponse.data;
 
         const contacts: CleanedContact[] = dbContacts.map((c) => ({
           NOMBRE: c.nombre,
