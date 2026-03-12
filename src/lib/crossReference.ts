@@ -214,6 +214,7 @@ export function crossReference(
   const existingMap = new Map<string, ExistingDelivered>();
   // Build domain→pattern map from existing delivered (prioritize CLICKEADO > ABIERTO > ENVIADO)
   const domainPatternMap = new Map<string, { pattern: string; status: string }>();
+  const baseDomainPatternMap = buildBaseDomainPatternMap(contacts);
   const STATUS_PRIORITY: Record<string, number> = { CLICKEADO: 3, ABIERTO: 2, ENVIADO: 1 };
 
   if (existingDelivered) {
