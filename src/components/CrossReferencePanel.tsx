@@ -28,6 +28,42 @@ const chunkArray = <T,>(arr: T[], size: number): T[][] => {
   return chunks;
 };
 
+const CONTACTS_PAGE_SIZE = 1000;
+
+interface DbContactRow {
+  nombre: string;
+  apellido: string;
+  apellido2: string;
+  empresa: string;
+  web: string;
+  mail1: string;
+  mail2: string;
+  mail3: string;
+  mail4: string;
+}
+
+async function fetchAllContacts(baseId: string): Promise<DbContactRow[]> {
+  const all: DbContactRow[] = [];
+
+  for (let from = 0; ; from += CONTACTS_PAGE_SIZE) {
+    const to = from + CONTACTS_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
+      .eq("base_id", baseId)
+      .range(from, to);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    all.push(...(data as DbContactRow[]));
+
+    if (data.length < CONTACTS_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
 const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferencePanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
