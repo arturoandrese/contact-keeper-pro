@@ -590,11 +590,11 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setSortABC(!sortABC)}
-            title={sortABC ? "Ordenar por cantidad" : "Ordenar A-Z"}
+            onClick={() => setSortMode(prev => prev === "count" ? "asc" : prev === "asc" ? "desc" : "count")}
+            title={sortMode === "count" ? "Ordenar A-Z" : sortMode === "asc" ? "Ordenar Z-A" : "Ordenar por cantidad"}
           >
-            {sortABC ? <ArrowDown01 className="mr-1.5 h-3.5 w-3.5" /> : <ArrowDownAZ className="mr-1.5 h-3.5 w-3.5" />}
-            {sortABC ? "Por cantidad" : "A-Z"}
+            {sortMode === "asc" ? <ArrowDownAZ className="mr-1.5 h-3.5 w-3.5" /> : sortMode === "desc" ? <ArrowUpZA className="mr-1.5 h-3.5 w-3.5" /> : <ArrowDown01 className="mr-1.5 h-3.5 w-3.5" />}
+            {sortMode === "asc" ? "A-Z" : sortMode === "desc" ? "Z-A" : "Por cantidad"}
           </Button>
           {bulkMode && selectedCompanies.size > 0 && (
             <Button
