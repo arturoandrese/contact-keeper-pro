@@ -173,7 +173,12 @@ export function parseAndClean(csvText: string): CleanedContact[] {
     );
 
     let empresa = "";
-    if (web) {
+    // Check if there's a user override for this domain
+    const domainForOverride = web || email1.split("@")[1] || "";
+    const override = getOverriddenName(domainForOverride);
+    if (override) {
+      empresa = override;
+    } else if (web) {
       empresa = extractCompanyFromWeb(web);
     }
 

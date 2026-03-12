@@ -135,6 +135,15 @@ const Index = () => {
               variant="ghost"
               size="icon"
               className="h-8 w-8"
+              onClick={() => window.location.reload()}
+              title="Actualizar app"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
               onClick={() => setDark(!dark)}
             >
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
