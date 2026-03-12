@@ -64,7 +64,9 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODOS");
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "company" | "contact"; id?: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "company" | "contact" | "bulk"; id?: string; name: string } | null>(null);
+  const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
 
   const [companyPatterns, setCompanyPatterns] = useState<DomainPattern[]>([]);
   const [editingPattern, setEditingPattern] = useState(false);
