@@ -68,7 +68,7 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   const [deleteTarget, setDeleteTarget] = useState<{ type: "company" | "contact" | "bulk"; id?: string; name: string } | null>(null);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [bulkMode, setBulkMode] = useState(false);
-  const [sortABC, setSortABC] = useState(false);
+  const [sortMode, setSortMode] = useState<"count" | "asc" | "desc">("count");
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
 
