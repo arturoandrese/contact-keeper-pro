@@ -583,6 +583,10 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={handleDownloadGoodEmails}>
+              <MailCheck className="mr-1.5 h-3.5 w-3.5" />
+              Mails buenos
+            </Button>
             <Button size="sm" onClick={handleDownload} disabled={filteredContacts.length === 0}>
               <Download className="mr-1.5 h-3.5 w-3.5" />
               Descargar
