@@ -181,6 +181,7 @@ const COOLDOWN_DAYS = 15;
 
 export interface CrossReferenceOptions {
   onlyBounced?: boolean;
+  savedPatterns?: DomainPatternEntry[];
 }
 
 function generateEmailFromPattern(pattern: string, nombre: string, apellido: string, domain: string): string | null {
