@@ -43,7 +43,18 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   const [sheetInput, setSheetInput] = useState("");
   const [savingSheet, setSavingSheet] = useState(false);
   const [showReport, setShowReport] = useState(false);
-
+  const [campaignSummary, setCampaignSummary] = useState<{
+    total: number;
+    sent: number;
+    delivered: number;
+    opened: number;
+    clicked: number;
+    bounced: number;
+    responded: number;
+    notSent: number;
+    tabs: number;
+  } | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
