@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
 import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
+import { extractCompanyFromDomain } from "@/lib/companyName";
 
 interface Base {
   id: string;
