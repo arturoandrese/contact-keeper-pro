@@ -702,7 +702,28 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                   <Building2 className="h-4 w-4 text-primary" />
                 </div>
-                <p className="font-display font-medium text-sm">{empresa_short}</p>
+                {editingName === empresa_short ? (
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      autoFocus
+                      value={editNameValue}
+                      onChange={(e) => setEditNameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRenameCompany(empresa_short, editNameValue);
+                        if (e.key === "Escape") setEditingName(null);
+                      }}
+                      className="font-display font-medium text-sm bg-transparent border-b-2 border-primary outline-none w-48"
+                    />
+                    <button onClick={() => handleRenameCompany(empresa_short, editNameValue)} className="rounded p-1 text-primary hover:bg-primary/10">
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => setEditingName(null)} className="rounded p-1 text-muted-foreground hover:bg-muted">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="font-display font-medium text-sm">{empresa_short}</p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
