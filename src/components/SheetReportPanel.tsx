@@ -547,7 +547,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
           {/* Auto-refresh indicator */}
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/60">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
             Se actualiza automáticamente cada 30 segundos
           </div>
         </>
