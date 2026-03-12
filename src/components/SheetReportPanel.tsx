@@ -37,6 +37,99 @@ const getStatusDisplay = (status: string) => {
   return STATUS_COLORS[normalized] || { bg: "bg-muted", text: "text-muted-foreground", icon: <AlertCircle className="h-4 w-4" /> };
 };
 
+const CONTACTS_PAGE_SIZE = 1000;
+
+interface ExistingContactRow {
+  id: string;
+  nombre: string;
+  apellido: string;
+  apellido2: string;
+  empresa: string;
+  web: string;
+  mail1: string;
+  mail2: string;
+  mail3: string;
+  mail4: string;
+}
+
+const normalizeStatusKey = (status: string): string => {
+  const normalized = (status || "").replace(/\s+/g, "_").toUpperCase().trim();
+  if (normalized.includes("BOUNC")) return "BOUNCED";
+  if (normalized.includes("CLICK")) return "CLICKED";
+  if (normalized.includes("OPEN")) return "OPENED";
+  if (normalized.includes("DELIVER")) return "DELIVERED";
+  if (normalized.includes("NOT_SENT") || normalized.includes("NO_ENVIAD")) return "NOT_SENT";
+  if (normalized.includes("MERGE_COMPLETE")) return "MERGE_COMPLETE";
+  if (normalized.includes("SENT")) return "SENT";
+  return normalized || "UNKNOWN";
+};
+
+const getSheetContactEmail = (contact: Record<string, string>): string => {
+  const value =
+    contact["Email Address"] ||
+    contact["email"] ||
+    contact["MAIL1"] ||
+    contact["mail"] ||
+    Object.values(contact).find((v) => typeof v === "string" && v.includes("@")) ||
+    "";
+  return value.toString().toLowerCase().trim();
+};
+
+const getSheetContactName = (contact: Record<string, string>): string =>
+  (
+    contact["First Name"] ||
+    contact["NOMBRE"] ||
+    contact["nombre"] ||
+    ""
+  )
+    .toString()
+    .trim();
+
+const toEmailLog = (contacts: Array<Record<string, string>>): EmailLogEntry[] =>
+  contacts.map((c) => ({
+    NOMBRE: (c["NOMBRE"] || c["First Name"] || c["nombre"] || "").toString().trim(),
+    APELLIDO: (c["APELLIDO"] || c["Last Name"] || c["apellido"] || "").toString().trim(),
+    EMPRESA: (c["EMPRESA"] || c["Company"] || c["empresa"] || "").toString().trim(),
+    WEB: (c["WEB"] || c["Website"] || c["web"] || "").toString().trim(),
+    MAIL1: getSheetContactEmail(c),
+    MAIL2: (c["MAIL2"] || c["email2"] || "").toString().trim().toLowerCase(),
+    status: (c._status || "").toString().trim(),
+  }));
+
+const toCleanedContacts = (rows: ExistingContactRow[]): CleanedContact[] =>
+  rows.map((c) => ({
+    NOMBRE: c.nombre || "",
+    APELLIDO: c.apellido || "",
+    APELLIDO2: c.apellido2 || "",
+    EMPRESA: c.empresa || "",
+    WEB: c.web || "",
+    MAIL1: c.mail1 || "",
+    MAIL2: c.mail2 || "",
+    MAIL3: c.mail3 || "",
+    MAIL4: c.mail4 || "",
+  }));
+
+async function fetchAllContacts(baseId: string): Promise<ExistingContactRow[]> {
+  const all: ExistingContactRow[] = [];
+
+  for (let from = 0; ; from += CONTACTS_PAGE_SIZE) {
+    const to = from + CONTACTS_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("id, nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
+      .eq("base_id", baseId)
+      .range(from, to);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    all.push(...(data as ExistingContactRow[]));
+    if (data.length < CONTACTS_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
 const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPanelProps) => {
   const [data, setData] = useState<SheetData | null>(null);
   const [loading, setLoading] = useState(false);
