@@ -13,6 +13,9 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
+import type { CleanedContact } from "@/lib/contactCleaner";
+import { crossReference, type EmailLogEntry } from "@/lib/crossReference";
+import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
 
 interface Base {
   id: string;
@@ -22,6 +25,7 @@ interface Base {
   crossed: boolean;
   crossed_at: string | null;
   created_at: string;
+  sheet_id?: string | null;
 }
 
 interface BBDPanelProps {
