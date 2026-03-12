@@ -133,7 +133,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
 
         if (delivered.length > 0) {
           const deliveredMails = Array.from(new Set(delivered.map((d) => d.mail.toLowerCase())));
-          const existingMap = new Map<string, { times_contacted: number; last_contacted_at: string }>();
+          const existingMap = new Map<string, { times_contacted: number; last_contacted_at: string; last_campaign?: string }>();
 
           const existingResponses = await Promise.all(
             chunkArray(deliveredMails, 300).map((mailChunk) =>
