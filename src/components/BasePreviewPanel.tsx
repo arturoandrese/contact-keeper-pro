@@ -250,19 +250,28 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
       {/* Campaign Summary */}
       {sheetId && (
         <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold">Resumen de campaña</h3>
-            {loadingSummary && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">Resumen de campaña</h3>
+              {loadingSummary && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            </div>
+            {campaignSummary && (
+              <Button size="sm" variant="outline" onClick={handleDownloadFullSummary}>
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                Descargar resumen
+              </Button>
+            )}
           </div>
           {campaignSummary ? (
             <>
+              <p className="text-xs text-muted-foreground mb-3">Haz click en cualquier métrica para ver y descargar los contactos</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <p className="text-2xl font-bold font-mono">{campaignSummary.total}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">Total contactos</p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <div className="rounded-lg bg-muted/50 p-3 text-center cursor-pointer hover:bg-muted/80 transition-colors ring-1 ring-transparent hover:ring-primary/30" onClick={() => openStatusDialog("sent")}>
                   <div className="flex items-center justify-center gap-1.5">
                     <Send className="h-3.5 w-3.5 text-blue-500" />
                     <p className="text-2xl font-bold font-mono text-blue-600">{campaignSummary.sent}</p>
@@ -276,7 +285,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                     )}
                   </p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <div className="rounded-lg bg-muted/50 p-3 text-center cursor-pointer hover:bg-muted/80 transition-colors ring-1 ring-transparent hover:ring-primary/30" onClick={() => openStatusDialog("opened")}>
                   <div className="flex items-center justify-center gap-1.5">
                     <MailOpen className="h-3.5 w-3.5 text-emerald-500" />
                     <p className="text-2xl font-bold font-mono text-emerald-600">{campaignSummary.opened}</p>
@@ -290,7 +299,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                     )}
                   </p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <div className="rounded-lg bg-muted/50 p-3 text-center cursor-pointer hover:bg-muted/80 transition-colors ring-1 ring-transparent hover:ring-primary/30" onClick={() => openStatusDialog("clicked")}>
                   <div className="flex items-center justify-center gap-1.5">
                     <MousePointerClick className="h-3.5 w-3.5 text-violet-500" />
                     <p className="text-2xl font-bold font-mono text-violet-600">{campaignSummary.clicked}</p>
@@ -306,7 +315,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <div className="rounded-lg bg-muted/50 p-3 text-center cursor-pointer hover:bg-muted/80 transition-colors ring-1 ring-transparent hover:ring-primary/30" onClick={() => openStatusDialog("bounced")}>
                   <div className="flex items-center justify-center gap-1.5">
                     <MailX className="h-3.5 w-3.5 text-destructive" />
                     <p className="text-2xl font-bold font-mono text-destructive">{campaignSummary.bounced}</p>
@@ -320,7 +329,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                     )}
                   </p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <div className="rounded-lg bg-muted/50 p-3 text-center cursor-pointer hover:bg-muted/80 transition-colors ring-1 ring-transparent hover:ring-primary/30" onClick={() => openStatusDialog("responded")}>
                   <div className="flex items-center justify-center gap-1.5">
                     <MessageSquareReply className="h-3.5 w-3.5 text-amber-500" />
                     <p className="text-2xl font-bold font-mono text-amber-600">{campaignSummary.responded}</p>
@@ -334,7 +343,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                     )}
                   </p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <div className="rounded-lg bg-muted/50 p-3 text-center cursor-pointer hover:bg-muted/80 transition-colors ring-1 ring-transparent hover:ring-primary/30" onClick={() => openStatusDialog("notSent")}>
                   <div className="flex items-center justify-center gap-1.5">
                     <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
                     <p className="text-2xl font-bold font-mono">{campaignSummary.notSent}</p>
