@@ -284,6 +284,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         for (const row of response.data || []) {
           existingDeliveredMap.set((row.mail || "").toLowerCase(), {
             times_contacted: row.times_contacted || 0,
+            last_campaign: (row as any).last_campaign || "",
           });
         }
       }
