@@ -237,21 +237,42 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                     <Send className="h-3.5 w-3.5 text-blue-500" />
                     <p className="text-2xl font-bold font-mono text-blue-600">{campaignSummary.sent}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">Enviados</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Enviados
+                    {campaignSummary.total > 0 && (
+                      <span className="ml-1 text-blue-600 font-medium">
+                        ({Math.round((campaignSummary.sent / campaignSummary.total) * 100)}%)
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <div className="flex items-center justify-center gap-1.5">
                     <MailOpen className="h-3.5 w-3.5 text-emerald-500" />
                     <p className="text-2xl font-bold font-mono text-emerald-600">{campaignSummary.opened}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">Abiertos</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Abiertos
+                    {campaignSummary.total > 0 && (
+                      <span className="ml-1 text-emerald-600 font-medium">
+                        ({Math.round((campaignSummary.opened / campaignSummary.total) * 100)}%)
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <div className="flex items-center justify-center gap-1.5">
                     <MousePointerClick className="h-3.5 w-3.5 text-violet-500" />
                     <p className="text-2xl font-bold font-mono text-violet-600">{campaignSummary.clicked}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">Clicks</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Clicks
+                    {campaignSummary.total > 0 && (
+                      <span className="ml-1 text-violet-600 font-medium">
+                        ({Math.round((campaignSummary.clicked / campaignSummary.total) * 100)}%)
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -260,21 +281,42 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                     <MailX className="h-3.5 w-3.5 text-destructive" />
                     <p className="text-2xl font-bold font-mono text-destructive">{campaignSummary.bounced}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">Rebotados</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Rebotados
+                    {campaignSummary.total > 0 && (
+                      <span className="ml-1 text-destructive font-medium">
+                        ({Math.round((campaignSummary.bounced / campaignSummary.total) * 100)}%)
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <div className="flex items-center justify-center gap-1.5">
                     <MessageSquareReply className="h-3.5 w-3.5 text-amber-500" />
                     <p className="text-2xl font-bold font-mono text-amber-600">{campaignSummary.responded}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">Respondidos</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Respondidos
+                    {campaignSummary.total > 0 && (
+                      <span className="ml-1 text-amber-600 font-medium">
+                        ({Math.round((campaignSummary.responded / campaignSummary.total) * 100)}%)
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <div className="flex items-center justify-center gap-1.5">
                     <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
                     <p className="text-2xl font-bold font-mono">{campaignSummary.notSent}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">No enviados</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    No enviados
+                    {campaignSummary.total > 0 && (
+                      <span className="ml-1 font-medium">
+                        ({Math.round((campaignSummary.notSent / campaignSummary.total) * 100)}%)
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <p className="text-2xl font-bold font-mono">{campaignSummary.tabs}</p>
