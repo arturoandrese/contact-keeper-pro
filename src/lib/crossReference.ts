@@ -218,6 +218,15 @@ export function crossReference(
   const baseDomainPatternMap = buildBaseDomainPatternMap(contacts);
   const STATUS_PRIORITY: Record<string, number> = { CLICKEADO: 3, ABIERTO: 2, ENVIADO: 1 };
 
+  // Seed domainPatternMap with saved patterns from DB (lowest priority, will be overridden by campaign data)
+  if (options.savedPatterns) {
+    for (const sp of options.savedPatterns) {
+      if (!domainPatternMap.has(sp.domain)) {
+        domainPatternMap.set(sp.domain, { pattern: sp.pattern, status: "SAVED" });
+      }
+    }
+  }
+
   if (existingDelivered) {
     for (const e of existingDelivered) {
       existingMap.set(e.mail.toLowerCase(), e);
