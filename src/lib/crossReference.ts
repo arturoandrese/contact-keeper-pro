@@ -202,8 +202,9 @@ export function crossReference(
     const status = entry.status;
 
     if (isDelivered(status)) {
+      // Track delivered using the original attempted email (MAIL1) to avoid
+      // contaminating contact-level matching with alternative columns.
       if (mail1) deliveredMails.add(mail1);
-      if (mail2) deliveredMails.add(mail2);
       
       const successMail = mail1 || mail2;
       if (successMail && !isFreeMail(successMail)) {
@@ -240,8 +241,8 @@ export function crossReference(
     }
 
     if (isBounced(status)) {
+      // Only mark original attempted email as bounced.
       if (mail1) bouncedMails.add(mail1);
-      if (mail2) bouncedMails.add(mail2);
     }
   }
 
