@@ -322,6 +322,12 @@ export function crossReference(
     const existing = m1 ? existingMap.get(m1) : undefined;
     if (existing) {
       if (existing.status === "ABIERTO" || existing.status === "CLICKEADO") continue;
+      // Cooldown: skip if contacted in last 15 days
+      if (existing.last_contacted_at) {
+        const lastDate = new Date(existing.last_contacted_at);
+        const diffDays = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (diffDays < COOLDOWN_DAYS) continue;
+      }
     }
 
     if (m1 && deliveredMails.has(m1) && !existing && !onlyBounced) {
