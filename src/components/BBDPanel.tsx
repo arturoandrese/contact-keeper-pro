@@ -254,8 +254,9 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
           const nombre = (c["NOMBRE"] || c["First Name"] || "").toString().trim();
           const apellido = (c["APELLIDO"] || c["Last Name"] || "").toString().trim();
           const apellido2 = (c["APELLIDO2"] || "").toString().trim();
-          const empresa = (c["EMPRESA"] || c["Company"] || "").toString().trim();
           const web = (c["WEB"] || c["Website"] || "").toString().trim();
+          const rawEmpresa = (c["EMPRESA"] || c["Company"] || "").toString().trim();
+          const empresa = web ? extractCompanyFromDomain(web) || rawEmpresa.toUpperCase() : rawEmpresa.toUpperCase();
           const mail1 = (c["MAIL1"] || c["Email Address"] || "").toString().toLowerCase().trim();
           const mail2 = (c["MAIL2"] || "").toString().toLowerCase().trim();
           const status = ((c._status || "").toString().trim().toUpperCase());
