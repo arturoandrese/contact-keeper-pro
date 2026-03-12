@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import { Upload, Loader2, Download, Info, ArrowLeft, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { CleanedContact } from "@/lib/contactCleaner";
@@ -9,12 +8,11 @@ import {
   parseEmailLog,
   crossReference,
   exportCrossReferenced,
-  hashEmailLog,
   type CrossReferencedContact,
   type ExistingDelivered,
   type EmailLogEntry,
 } from "@/lib/crossReference";
-import { fetchSheetReport, fetchSheetTabs, type SheetTab } from "@/lib/googleSheets";
+import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
 
 interface CrossReferencePanelProps {
   baseId: string;
@@ -22,6 +20,14 @@ interface CrossReferencePanelProps {
   sheetId?: string;
   onBack: () => void;
 }
+
+const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+};
 
 const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferencePanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -33,10 +39,17 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     async (log: EmailLogEntry[]) => {
       setProcessing(true);
       try {
-        const { data: dbContacts, error } = await supabase
-          .from("contacts")
-          .select("*")
-          .eq("base_id", baseId);
+        const [{ data: dbContacts, error }, { data: baseData }] = await Promise.all([
+          supabase
+            .from("contacts")
+            .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
+            .eq("base_id", baseId),
+          supabase
+            .from("bases")
+            .select("crossed, crossed_at")
+            .eq("id", baseId)
+            .single(),
+        ]);
 
         if (error || !dbContacts) {
           toast.error("Error cargando contactos de la base");
@@ -56,92 +69,82 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           MAIL4: c.mail4,
         }));
 
-        const { data: baseData } = await supabase
-          .from("bases")
-          .select("crossed, crossed_at")
-          .eq("id", baseId)
-          .single();
-
-        // Fetch all delivered contacts in parallel batches
-        const PAGE_SIZE = 5000;
-        // First, get a count estimate by fetching first batch
-        const { data: firstBatch } = await supabase
-          .from("delivered_contacts")
-          .select("mail, times_contacted, last_contacted_at, status")
-          .range(0, PAGE_SIZE - 1);
-        
-        let allDelivered: ExistingDelivered[] = firstBatch || [];
-        
-        if (firstBatch && firstBatch.length === PAGE_SIZE) {
-          // There might be more - fetch remaining in parallel
-          const parallelFetches = [];
-          for (let offset = PAGE_SIZE; offset < PAGE_SIZE * 20; offset += PAGE_SIZE) {
-            parallelFetches.push(
-              supabase
-                .from("delivered_contacts")
-                .select("mail, times_contacted, last_contacted_at, status")
-                .range(offset, offset + PAGE_SIZE - 1)
-            );
-          }
-          const results = await Promise.all(parallelFetches);
-          for (const r of results) {
-            if (r.data && r.data.length > 0) allDelivered.push(...r.data);
-            if (!r.data || r.data.length < PAGE_SIZE) break;
-          }
-        }
-
-        const { filtered, patterns, delivered } = crossReference(contacts, log, allDelivered);
-
-        // Batch empresa updates in parallel (groups of 50 concurrent)
-        if (filtered.length > 0) {
-          const updates = filtered
-            .filter(f => f.EMPRESA_SHORT)
-            .map(f => 
-              supabase
-                .from("contacts")
-                .update({ empresa: f.EMPRESA_SHORT })
-                .eq("base_id", baseId)
-                .eq("mail1", f.MAIL1)
-            );
-          for (let i = 0; i < updates.length; i += 50) {
-            await Promise.all(updates.slice(i, i + 50));
-          }
-        }
+        const { filtered, patterns, delivered } = crossReference(contacts, log, undefined, { onlyBounced: true });
 
         if (patterns.length > 0) {
-          for (let i = 0; i < patterns.length; i += 500) {
-            const batch = patterns.slice(i, i + 500).map(p => ({
-              domain: p.domain, pattern: p.pattern, example_email: p.example_email, confidence: 1
-            }));
-            try {
-              await supabase
+          const uniquePatterns = Array.from(
+            new Map(patterns.map((p) => [`${p.domain}|${p.pattern}`, p])).values()
+          );
+
+          await Promise.all(
+            chunkArray(uniquePatterns, 500).map((batch) =>
+              supabase
                 .from("domain_patterns")
-                .upsert(batch, { onConflict: "domain,pattern" });
-            } catch {}
-          }
+                .upsert(
+                  batch.map((p) => ({
+                    domain: p.domain,
+                    pattern: p.pattern,
+                    example_email: p.example_email,
+                    confidence: 1,
+                  })),
+                  { onConflict: "domain,pattern" }
+                )
+            )
+          );
         }
 
         if (delivered.length > 0) {
+          const deliveredMails = Array.from(new Set(delivered.map((d) => d.mail.toLowerCase())));
           const existingMap = new Map<string, { times_contacted: number; last_contacted_at: string }>();
-          for (const e of allDelivered) {
-            existingMap.set(e.mail, { times_contacted: e.times_contacted, last_contacted_at: e.last_contacted_at });
+
+          const existingResponses = await Promise.all(
+            chunkArray(deliveredMails, 300).map((mailChunk) =>
+              supabase
+                .from("delivered_contacts")
+                .select("mail, times_contacted, last_contacted_at")
+                .in("mail", mailChunk)
+            )
+          );
+
+          for (const response of existingResponses) {
+            for (const row of response.data || []) {
+              existingMap.set((row.mail || "").toLowerCase(), {
+                times_contacted: row.times_contacted || 0,
+                last_contacted_at: row.last_contacted_at || "",
+              });
+            }
           }
 
           const now = new Date().toISOString();
           const isDuplicate = baseData?.crossed === true;
 
-          for (let i = 0; i < delivered.length; i += 500) {
-            const batch = delivered.slice(i, i + 500).map((d) => {
-              const prev = existingMap.get(d.mail);
-              if (isDuplicate && prev) {
-                return { ...d, times_contacted: prev.times_contacted, last_contacted_at: prev.last_contacted_at };
-              }
-              return { ...d, times_contacted: (prev?.times_contacted || 0) + 1, last_contacted_at: now };
-            });
-            await supabase
-              .from("delivered_contacts")
-              .upsert(batch as any, { onConflict: "mail" });
-          }
+          const deliveredPayload = delivered.map((d) => {
+            const mail = d.mail.toLowerCase();
+            const prev = existingMap.get(mail);
+            if (isDuplicate && prev) {
+              return {
+                ...d,
+                mail,
+                times_contacted: prev.times_contacted,
+                last_contacted_at: prev.last_contacted_at,
+              };
+            }
+
+            return {
+              ...d,
+              mail,
+              times_contacted: (prev?.times_contacted || 0) + 1,
+              last_contacted_at: now,
+            };
+          });
+
+          await Promise.all(
+            chunkArray(deliveredPayload, 500).map((batch) =>
+              supabase
+                .from("delivered_contacts")
+                .upsert(batch as any, { onConflict: "mail" })
+            )
+          );
         }
 
         await supabase
@@ -151,7 +154,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
 
         setResults(filtered);
         setStats({ original: contacts.length, filtered: filtered.length, patterns: patterns.length });
-        toast.success(`Cruce completado: ${filtered.length} contactos válidos`);
+        toast.success(`Cruce completado: ${filtered.length} rebotados corregidos`);
       } catch (err) {
         toast.error("Error procesando cruce");
         console.error(err);
@@ -174,7 +177,6 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     if (!sheetId) return;
     setProcessing(true);
     try {
-      // Fetch tabs and let user pick, or auto-pick last
       const tabs = await fetchSheetTabs(sheetId);
       if (tabs.length === 0) {
         toast.error("No se encontraron pestañas en el Google Sheet");
@@ -182,11 +184,9 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
         return;
       }
 
-      // Use last tab by default
       const tabName = tabs[tabs.length - 1].title;
       const sheetData = await fetchSheetReport(sheetId, tabName);
 
-      // Convert sheet contacts to EmailLogEntry format
       const log: EmailLogEntry[] = sheetData.contacts.map((c) => ({
         NOMBRE: c["NOMBRE"] || c["First Name"] || c["nombre"] || "",
         APELLIDO: c["APELLIDO"] || c["Last Name"] || c["apellido"] || "",
@@ -197,7 +197,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
         status: c._status || "",
       }));
 
-      toast.info(`📊 Cruzando con pestaña "${tabName}" (${log.length} contactos)`);
+      toast.info(`📊 Cruzando solo rebotados de "${tabName}" (${log.length} filas)`);
       await runCrossReference(log);
     } catch (err: any) {
       toast.error("Error obteniendo reporte en vivo: " + (err.message || ""));
@@ -226,7 +226,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     APELLIDO2: "APELLIDO2",
     EMPRESA_SHORT: "EMPRESA",
     WEB: "WEB",
-    MAIL1: "MAIL1",
+    MAIL1: "MAIL CORREGIDO",
   };
 
   return (
@@ -238,25 +238,24 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             Volver a BBD
           </Button>
           <h2 className="font-display text-2xl font-bold">Cruzar: {baseName}</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Sube tu reporte de email (XLSX) para filtrar rebotes y ya contactados
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cruza solo rebotados y propone mail corregido por contacto
           </p>
         </div>
         {results && (
           <Button size="sm" onClick={() => exportCrossReferenced(results)}>
             <Download className="mr-1.5 h-3.5 w-3.5" />
-            Exportar filtrados
+            Exportar corregidos
           </Button>
         )}
       </div>
 
       {!results && !processing && (
         <div className="space-y-4">
-          {/* Live report option */}
           {sheetId && (
             <button
               onClick={processLiveReport}
-              className="w-full rounded-2xl border-2 border-primary/30 bg-primary/5 p-8 text-center transition-all duration-300 hover:border-primary hover:bg-primary/10 hover:scale-[1.01]"
+              className="w-full rounded-2xl border-2 border-primary/30 bg-primary/5 p-8 text-center transition-all duration-300 hover:scale-[1.01] hover:border-primary hover:bg-primary/10"
             >
               <div className="flex flex-col items-center gap-3">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20">
@@ -265,14 +264,13 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
                 <div>
                   <p className="text-lg font-semibold">Cruzar con reporte en vivo</p>
                   <p className="text-sm text-muted-foreground">
-                    Usa los datos directamente de Google Sheets (YAMM) sin subir archivo
+                    Usa Google Sheets (YAMM) y trae solo rebotados a corregir
                   </p>
                 </div>
               </div>
             </button>
           )}
 
-          {/* File upload option */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
@@ -312,7 +310,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
           <p className="text-lg font-semibold">Procesando cruce…</p>
           <p className="text-sm text-muted-foreground">
-            Verificando contactos previos, cooldown de 15 días…
+            Detectando rebotados y buscando mails alternativos válidos…
           </p>
         </div>
       )}
@@ -322,8 +320,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           <div className="flex flex-wrap gap-4">
             {[
               { label: "En la base", value: stats.original },
-              { label: "Después del cruce", value: stats.filtered },
-              { label: "Eliminados", value: stats.original - stats.filtered },
+              { label: "Rebotados corregidos", value: stats.filtered },
+              { label: "Sin corrección", value: stats.original - stats.filtered },
               { label: "Patrones aprendidos", value: stats.patterns },
             ].map((stat) => (
               <div key={stat.label} className="rounded-xl border border-border bg-card px-5 py-3">
@@ -333,10 +331,10 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             ))}
           </div>
 
-          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 flex items-start gap-2">
-            <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+          <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs text-muted-foreground">
-              Contactos con menos de 15 días desde último contacto fueron excluidos. Si la base ya fue cruzada antes, no se duplicó el contador.
+              Este cruce devuelve solo contactos rebotados con un mail alternativo corporativo válido.
             </p>
           </div>
 
