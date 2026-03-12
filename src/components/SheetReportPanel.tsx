@@ -424,29 +424,41 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
       {data && (
         <>
-          {/* Summary cards - Total + all statuses */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <div className="rounded-xl border border-border bg-card px-5 py-4">
-              <div className="flex items-center gap-2 mb-1">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setSelectedStatus(null)}
+              className={`rounded-xl border bg-card px-5 py-4 text-left transition-colors ${
+                selectedStatus === null ? "border-primary" : "border-border hover:border-primary/40"
+              }`}
+            >
+              <div className="mb-1 flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <p className="text-xs font-medium text-muted-foreground">Total</p>
               </div>
               <p className="font-display text-3xl font-bold">{data.total}</p>
-            </div>
+            </button>
             {sortedStats.map(([status, count]) => {
               const display = getStatusDisplay(status);
               const pct = data.total > 0 ? Math.round((count / data.total) * 100) : 0;
+              const normalized = normalizeStatusKey(status);
+              const isActive = selectedStatus === normalized;
               return (
-                <div key={status} className="rounded-xl border border-border bg-card px-5 py-4">
-                  <div className="flex items-center gap-2 mb-1">
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setSelectedStatus((prev) => (prev === normalized ? null : normalized))}
+                  className={`rounded-xl border bg-card px-5 py-4 text-left transition-colors ${
+                    isActive ? "border-primary" : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  <div className="mb-1 flex items-center gap-2">
                     <span className={display.text}>{display.icon}</span>
-                    <p className="text-xs font-medium text-muted-foreground truncate">
-                      {status.replace(/_/g, " ")}
-                    </p>
+                    <p className="truncate text-xs font-medium text-muted-foreground">{status.replace(/_/g, " ")}</p>
                   </div>
                   <p className={`font-display text-3xl font-bold ${display.text}`}>{count}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{pct}%</p>
-                </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{pct}%</p>
+                </button>
               );
             })}
           </div>
