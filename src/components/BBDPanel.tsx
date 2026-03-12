@@ -404,10 +404,16 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                   CSV
                 </Button>
                 {base.crossed && (
-                  <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "crossed", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
-                    {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                    Cruzada
-                  </Button>
+                  <>
+                    <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "crossed", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
+                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                      Cruzada
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={(e) => handleCopyCrossed(base, e)} disabled={exporting === base.id} className="text-xs">
+                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardCopy className="mr-1 h-3.5 w-3.5" />}
+                      Pegar
+                    </Button>
+                  </>
                 )}
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDelete(base.id, e)}>
                   <Trash2 className="h-3.5 w-3.5" />
