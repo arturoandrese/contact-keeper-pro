@@ -93,7 +93,6 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
     setUpdating(true);
 
     try {
-      // Get existing contacts from the base
       const { data: existingContacts, error: fetchErr } = await supabase
         .from("contacts")
         .select("id, mail1, mail2, mail3, mail4")
@@ -101,33 +100,35 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
       if (fetchErr) throw fetchErr;
 
-      // Build a map: email -> sheet status
       const emailStatusMap = new Map<string, string>();
       for (const sc of data.contacts) {
         const email = (
           sc["Email Address"] || sc["email"] || sc["MAIL1"] || sc["mail"] ||
           Object.values(sc).find((v) => typeof v === "string" && v.includes("@"))
         )?.toLowerCase().trim();
+
         if (email) {
           emailStatusMap.set(email, sc._status || "UNKNOWN");
         }
       }
 
-      // Find bounced emails
       const bouncedEmails = new Set<string>();
       const deliveredEmails = new Set<string>();
       for (const [email, status] of emailStatusMap) {
         if (status.includes("BOUNCED")) {
           bouncedEmails.add(email);
-        } else if (status.includes("DELIVERED") || status.includes("OPENED") || status.includes("CLICKED") || status === "EMAIL_SENT" || status === "MAIL_MERGE_COMPLETE") {
+        } else if (
+          status.includes("DELIVERED") ||
+          status.includes("OPENED") ||
+          status.includes("CLICKED") ||
+          status === "EMAIL_SENT" ||
+          status === "MAIL_MERGE_COMPLETE"
+        ) {
           deliveredEmails.add(email);
         }
       }
 
-      // For each contact, check if any of their emails bounced and clear them
-      let updatedCount = 0;
       const updates: Array<{ id: string; changes: Record<string, string> }> = [];
-
       for (const contact of existingContacts || []) {
         const changes: Record<string, string> = {};
         const mails = [
@@ -139,7 +140,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
         for (const m of mails) {
           if (m.val && bouncedEmails.has(m.val.toLowerCase().trim())) {
-            changes[m.key] = ""; // Clear bounced email
+            changes[m.key] = "";
           }
         }
 
@@ -148,46 +149,95 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         }
       }
 
-      // Batch update bounced emails
-      for (const u of updates) {
-        await supabase
-          .from("contacts")
-          .update(u.changes as any)
-          .eq("id", u.id);
-        updatedCount++;
+      await Promise.all(
+        updates.map((u) =>
+          supabase
+            .from("contacts")
+            .update(u.changes as any)
+            .eq("id", u.id)
+        )
+      );
+
+      const deliveredRows = data.contacts
+        .map((sc) => {
+          const email = (
+            sc["Email Address"] || sc["email"] || sc["MAIL1"] || sc["mail"] ||
+            Object.values(sc).find((v) => typeof v === "string" && v.includes("@"))
+          )?.toLowerCase().trim();
+
+          if (!email || !deliveredEmails.has(email)) return null;
+
+          const web = (sc["WEB"] || sc["Website"] || sc["web"] || "").toString().trim().toLowerCase();
+          const empresa = (sc["EMPRESA"] || sc["Company"] || sc["empresa"] || "").toString().trim().toUpperCase();
+          const empresaShort = empresa || (web ? web.split(".")[0].toUpperCase() : "");
+
+          return {
+            mail: email,
+            nombre: (sc["First Name"] || sc["NOMBRE"] || sc["nombre"] || "").toString().trim(),
+            apellido: (sc["Last Name"] || sc["APELLIDO"] || sc["apellido"] || "").toString().trim(),
+            empresa,
+            empresa_short: empresaShort,
+            web,
+            status: (sc._status || "EMAIL_SENT").toString().trim(),
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => !!row);
+
+      const uniqueDeliveredRows = Array.from(
+        new Map(deliveredRows.map((row) => [row.mail, row])).values()
+      );
+
+      const existingDeliveredMap = new Map<string, { times_contacted: number }>();
+      const emailChunks: string[][] = [];
+      for (let i = 0; i < uniqueDeliveredRows.length; i += 300) {
+        emailChunks.push(uniqueDeliveredRows.slice(i, i + 300).map((r) => r.mail));
       }
 
-      // Save delivered contacts to delivered_contacts table
-      let deliveredSaved = 0;
-      for (const sc of data.contacts) {
-        const email = (
-          sc["Email Address"] || sc["email"] || sc["MAIL1"] || sc["mail"] ||
-          Object.values(sc).find((v) => typeof v === "string" && v.includes("@"))
-        )?.toLowerCase().trim();
+      const existingDeliveredResponses = await Promise.all(
+        emailChunks.map((chunk) =>
+          supabase
+            .from("delivered_contacts")
+            .select("mail, times_contacted")
+            .in("mail", chunk)
+        )
+      );
 
-        if (email && deliveredEmails.has(email)) {
-          const name = sc["First Name"] || sc["NOMBRE"] || sc["nombre"] || "";
-          await supabase.from("delivered_contacts").upsert(
-            {
-              base_id: baseId,
-              email,
-              name,
-              status: sc._status,
-            } as any,
-            { onConflict: "base_id,email" }
-          );
-          deliveredSaved++;
+      for (const response of existingDeliveredResponses) {
+        for (const row of response.data || []) {
+          existingDeliveredMap.set((row.mail || "").toLowerCase(), {
+            times_contacted: row.times_contacted || 0,
+          });
         }
       }
 
-      // Mark base as crossed
+      const now = new Date().toISOString();
+      const deliveredPayload = uniqueDeliveredRows.map((row) => {
+        const prev = existingDeliveredMap.get(row.mail);
+        return {
+          ...row,
+          times_contacted: (prev?.times_contacted || 0) + 1,
+          last_contacted_at: now,
+        };
+      });
+
+      await Promise.all(
+        deliveredPayload.length === 0
+          ? []
+          : Array.from({ length: Math.ceil(deliveredPayload.length / 500) }, (_, i) => {
+              const batch = deliveredPayload.slice(i * 500, (i + 1) * 500);
+              return supabase
+                .from("delivered_contacts")
+                .upsert(batch as any, { onConflict: "mail" });
+            })
+      );
+
       await supabase
         .from("bases")
         .update({ crossed: true, crossed_at: new Date().toISOString() } as any)
         .eq("id", baseId);
 
       toast.success(
-        `✅ Base actualizada: ${updatedCount} emails rebotados limpiados, ${deliveredSaved} contactos entregados guardados`
+        `✅ Base actualizada: ${updates.length} emails rebotados limpiados, ${deliveredPayload.length} contactos entregados guardados`
       );
     } catch (err: any) {
       toast.error("Error actualizando base: " + (err.message || "Error desconocido"));
