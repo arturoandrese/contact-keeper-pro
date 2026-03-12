@@ -123,10 +123,11 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
     }
     const sorted = Object.entries(groups)
       .map(([empresa_short, { count, domain }]) => ({ empresa_short, count, domain }))
-      .sort((a, b) => sortABC
-        ? a.empresa_short.localeCompare(b.empresa_short, "es")
-        : b.count - a.count
-      );
+      .sort((a, b) => {
+        if (sortMode === "asc") return a.empresa_short.localeCompare(b.empresa_short, "es");
+        if (sortMode === "desc") return b.empresa_short.localeCompare(a.empresa_short, "es");
+        return b.count - a.count;
+      });
     setCompanies(sorted);
   };
 
