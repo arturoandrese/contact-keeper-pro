@@ -92,15 +92,19 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
 
         const { filtered, patterns, delivered } = crossReference(contacts, log, allDelivered);
 
+        // Batch empresa updates in parallel (groups of 50 concurrent)
         if (filtered.length > 0) {
-          for (const f of filtered) {
-            if (f.EMPRESA_SHORT) {
-              await supabase
+          const updates = filtered
+            .filter(f => f.EMPRESA_SHORT)
+            .map(f => 
+              supabase
                 .from("contacts")
                 .update({ empresa: f.EMPRESA_SHORT })
                 .eq("base_id", baseId)
-                .eq("mail1", f.MAIL1);
-            }
+                .eq("mail1", f.MAIL1)
+            );
+          for (let i = 0; i < updates.length; i += 50) {
+            await Promise.all(updates.slice(i, i + 50));
           }
         }
 
