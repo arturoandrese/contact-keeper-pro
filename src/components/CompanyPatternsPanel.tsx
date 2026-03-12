@@ -733,6 +733,13 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
                 {!bulkMode && (
                   <>
                     <button
+                      onClick={(e) => { e.stopPropagation(); setEditingName(empresa_short); setEditNameValue(empresa_short); }}
+                      className="rounded p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                      title="Editar nombre"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
                       onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "company", name: empresa_short }); }}
                       className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                     >
