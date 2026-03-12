@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, ChevronRight, Download, Loader2, Users, Filter, Trash2, Mail, Save, Pencil, ArrowDownAZ, ArrowDown01, Check, X } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, Download, Loader2, Users, Filter, Trash2, Mail, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X } from "lucide-react";
 import { setCompanyOverride, getCompanyOverrides } from "@/lib/companyNameOverrides";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -68,7 +68,7 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   const [deleteTarget, setDeleteTarget] = useState<{ type: "company" | "contact" | "bulk"; id?: string; name: string } | null>(null);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [bulkMode, setBulkMode] = useState(false);
-  const [sortABC, setSortABC] = useState(false);
+  const [sortMode, setSortMode] = useState<"count" | "asc" | "desc">("count");
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
 
@@ -84,7 +84,7 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
 
   useEffect(() => {
     if (allContacts.length > 0) buildCompanyList(allContacts);
-  }, [sortABC]);
+  }, [sortMode]);
 
   const fetchAllContacts = async () => {
     setLoading(true);
@@ -123,10 +123,11 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
     }
     const sorted = Object.entries(groups)
       .map(([empresa_short, { count, domain }]) => ({ empresa_short, count, domain }))
-      .sort((a, b) => sortABC
-        ? a.empresa_short.localeCompare(b.empresa_short, "es")
-        : b.count - a.count
-      );
+      .sort((a, b) => {
+        if (sortMode === "asc") return a.empresa_short.localeCompare(b.empresa_short, "es");
+        if (sortMode === "desc") return b.empresa_short.localeCompare(a.empresa_short, "es");
+        return b.count - a.count;
+      });
     setCompanies(sorted);
   };
 
@@ -589,11 +590,11 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setSortABC(!sortABC)}
-            title={sortABC ? "Ordenar por cantidad" : "Ordenar A-Z"}
+            onClick={() => setSortMode(prev => prev === "count" ? "asc" : prev === "asc" ? "desc" : "count")}
+            title={sortMode === "count" ? "Ordenar A-Z" : sortMode === "asc" ? "Ordenar Z-A" : "Ordenar por cantidad"}
           >
-            {sortABC ? <ArrowDown01 className="mr-1.5 h-3.5 w-3.5" /> : <ArrowDownAZ className="mr-1.5 h-3.5 w-3.5" />}
-            {sortABC ? "Por cantidad" : "A-Z"}
+            {sortMode === "asc" ? <ArrowDownAZ className="mr-1.5 h-3.5 w-3.5" /> : sortMode === "desc" ? <ArrowUpZA className="mr-1.5 h-3.5 w-3.5" /> : <ArrowDown01 className="mr-1.5 h-3.5 w-3.5" />}
+            {sortMode === "asc" ? "A-Z" : sortMode === "desc" ? "Z-A" : "Por cantidad"}
           </Button>
           {bulkMode && selectedCompanies.size > 0 && (
             <Button
