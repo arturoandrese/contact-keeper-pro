@@ -493,45 +493,55 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
           </div>
 
           {/* Contact detail table */}
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/60">
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Nombre</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.contacts.map((contact, i) => {
-                    const display = getStatusDisplay(contact._status || "UNKNOWN");
-                    const email =
-                      contact["Email Address"] ||
-                      contact["email"] ||
-                      contact["MAIL1"] ||
-                      contact["mail"] ||
-                      Object.values(contact).find((v) => typeof v === "string" && v.includes("@")) ||
-                      "—";
-                    const name =
-                      contact["First Name"] ||
-                      contact["NOMBRE"] ||
-                      contact["nombre"] ||
-                      "—";
-                    return (
-                      <tr key={i} className="border-b border-border/50 transition-colors hover:bg-muted/30">
-                        <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{email}</td>
-                        <td className="whitespace-nowrap px-4 py-2.5">
-                          <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ${display.bg} ${display.text}`}>
-                            {contact._status?.replace(/_/g, " ") || "—"}
-                          </span>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                Mostrando <span className="font-semibold text-foreground">{filteredContacts.length}</span> de {data.total} contactos · filtro: <span className="font-semibold text-foreground">{statusFilterLabel}</span>
+              </p>
+              {selectedStatus && (
+                <Button size="sm" variant="ghost" onClick={() => setSelectedStatus(null)}>
+                  Ver todos
+                </Button>
+              )}
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/60">
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Nombre</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredContacts.map((contact, i) => {
+                      const display = getStatusDisplay(contact._status || "UNKNOWN");
+                      const email = getSheetContactEmail(contact) || "—";
+                      const name = getSheetContactName(contact) || "—";
+                      return (
+                        <tr key={`${email}-${i}`} className="border-b border-border/50 transition-colors hover:bg-muted/30">
+                          <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{email}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5">
+                            <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ${display.bg} ${display.text}`}>
+                              {contact._status?.replace(/_/g, " ") || "—"}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{name}</td>
+                        </tr>
+                      );
+                    })}
+                    {filteredContacts.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                          No hay contactos para este filtro.
                         </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{name}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
