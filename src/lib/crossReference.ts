@@ -267,13 +267,17 @@ export function crossReference(
 
   for (const contact of contacts) {
     const m1 = (contact.MAIL1 || "").toLowerCase();
-    
+
+    if (onlyBounced && !bouncedMails.has(m1)) {
+      continue;
+    }
+
     const existing = existingMap.get(m1);
     if (existing) {
       if (existing.status === "ABIERTO" || existing.status === "CLICKEADO") continue;
     }
 
-    if (deliveredMails.has(m1) && !existing) {
+    if (deliveredMails.has(m1) && !existing && !onlyBounced) {
       continue;
     }
 
@@ -282,9 +286,11 @@ export function crossReference(
       const alternatives = [contact.MAIL2, contact.MAIL3, contact.MAIL4]
         .map((m) => (m || "").toLowerCase())
         .filter((m) => isValidEmail(m) && !bouncedMails.has(m) && !deliveredMails.has(m) && !isFreeMail(m));
-      
+
       if (alternatives.length === 0) continue;
       finalMail = alternatives[0];
+    } else if (onlyBounced) {
+      continue;
     }
 
     if (!isValidEmail(finalMail)) continue;
