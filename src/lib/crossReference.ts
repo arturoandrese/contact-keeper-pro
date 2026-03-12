@@ -342,31 +342,66 @@ export function crossReference(
           !isFreeMail(m)
       );
 
-      if (alternatives.length === 0) continue;
-      finalMail = alternatives[0];
+      if (alternatives.length > 0) {
+        finalMail = alternatives[0];
+      } else {
+        finalMail = "";
+      }
     } else if (onlyBounced) {
       continue;
+    }
+
+    const web = (contact.WEB || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+    const originalDomain = originalMail.split("@")[1] || "";
+    let domain = (finalMail.split("@")[1] || originalDomain || web || "").toLowerCase();
+
+    const getKnownPattern = (d: string): string | null => {
+      if (!d) return null;
+      const campaignPattern = domainPatternMap.get(d)?.pattern;
+      if (campaignPattern) return campaignPattern;
+      return baseDomainPatternMap.get(d) || null;
+    };
+
+    const shouldGeneratePatternMail =
+      !finalMail ||
+      !isValidEmail(finalMail) ||
+      (onlyBounced && finalMail === originalMail);
+
+    if (shouldGeneratePatternMail) {
+      const bestPattern =
+        getKnownPattern(domain) ||
+        getKnownPattern(originalDomain) ||
+        getKnownPattern(web);
+
+      const targetDomain = domain || originalDomain || web;
+      if (bestPattern && targetDomain) {
+        const generated = generateEmailFromPattern(bestPattern, contact.NOMBRE, contact.APELLIDO, targetDomain);
+        if (
+          generated &&
+          isValidEmail(generated) &&
+          !bouncedMails.has(generated) &&
+          !deliveredMails.has(generated) &&
+          !isFreeMail(generated)
+        ) {
+          finalMail = generated;
+          domain = generated.split("@")[1] || domain;
+        }
+      }
+    } else if (!onlyBounced) {
+      const knownPattern = getKnownPattern(domain);
+      if (knownPattern) {
+        const generated = generateEmailFromPattern(knownPattern, contact.NOMBRE, contact.APELLIDO, domain);
+        if (generated && isValidEmail(generated) && !bouncedMails.has(generated) && !deliveredMails.has(generated)) {
+          finalMail = generated;
+        }
+      }
     }
 
     if (onlyBounced && finalMail === originalMail) continue;
     if (!isValidEmail(finalMail)) continue;
     if (isFreeMail(finalMail)) continue;
 
-    const domain = finalMail.split("@")[1] || "";
-    const web = (contact.WEB || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
     const empresaShort = extractCompanyFromDomain(web || domain);
-
-    // Only use pattern generation if we DON'T already have a valid alternative
-    // and ONLY when NOT in onlyBounced mode (pattern emails may also bounce)
-    if (!onlyBounced) {
-      const knownPattern = domainPatternMap.get(domain);
-      if (knownPattern) {
-        const generated = generateEmailFromPattern(knownPattern.pattern, contact.NOMBRE, contact.APELLIDO, domain);
-        if (generated && isValidEmail(generated) && !bouncedMails.has(generated) && !deliveredMails.has(generated)) {
-          finalMail = generated;
-        }
-      }
-    }
 
     const key = `${contact.NOMBRE}|${contact.APELLIDO}|${originalMail}|${finalMail}`.toLowerCase();
     if (seenKeys.has(key)) continue;
