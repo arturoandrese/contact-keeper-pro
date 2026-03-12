@@ -265,7 +265,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         ).values()
       );
 
-      const existingDeliveredMap = new Map<string, { times_contacted: number }>();
+      const existingDeliveredMap = new Map<string, { times_contacted: number; last_campaign?: string }>();
       const emailChunks: string[][] = [];
       for (let i = 0; i < uniqueDeliveredRows.length; i += 300) {
         emailChunks.push(uniqueDeliveredRows.slice(i, i + 300).map((r) => r.mail));
