@@ -78,7 +78,10 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
       }
 
       if (baseRes.data && (baseRes.data as any).sheet_id) {
-        setSheetId((baseRes.data as any).sheet_id);
+        const sid = (baseRes.data as any).sheet_id;
+        setSheetId(sid);
+        // Fetch campaign summary across all tabs
+        fetchCampaignSummary(sid);
       }
 
       setLoading(false);
@@ -86,6 +89,37 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
     fetchData();
   }, [baseId]);
 
+  const fetchCampaignSummary = async (sid: string) => {
+    setLoadingSummary(true);
+    try {
+      const tabs = await fetchSheetTabs(sid);
+      if (tabs.length === 0) { setLoadingSummary(false); return; }
+
+      const allData = await Promise.all(tabs.map(t => fetchSheetReport(sid, t.title)));
+
+      let total = 0, sent = 0, delivered = 0, opened = 0, clicked = 0, bounced = 0, responded = 0, notSent = 0;
+
+      for (const sheet of allData) {
+        total += sheet.total;
+        for (const [status, count] of Object.entries(sheet.stats)) {
+          const s = status.toUpperCase();
+          if (s.includes("BOUNCE")) bounced += count;
+          else if (s.includes("CLICK")) clicked += count;
+          else if (s.includes("OPEN")) opened += count;
+          else if (s.includes("DELIVER")) delivered += count;
+          else if (s.includes("RESPOND")) responded += count;
+          else if (s.includes("NOT_SENT") || s.includes("NO_ENVIAD")) notSent += count;
+          else if (s.includes("SENT") || s.includes("ENVIAD") || s.includes("MERGE_COMPLETE")) sent += count;
+          else notSent += count;
+        }
+      }
+
+      setCampaignSummary({ total, sent, delivered, opened, clicked, bounced, responded, notSent, tabs: tabs.length });
+    } catch (err: any) {
+      console.error("Error fetching campaign summary:", err);
+    }
+    setLoadingSummary(false);
+  };
   const handleLinkSheet = async () => {
     const id = extractSheetId(sheetInput);
     if (!id) {
