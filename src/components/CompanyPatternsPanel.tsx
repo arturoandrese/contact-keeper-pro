@@ -586,6 +586,15 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSortABC(!sortABC)}
+            title={sortABC ? "Ordenar por cantidad" : "Ordenar A-Z"}
+          >
+            {sortABC ? <ArrowDown01 className="mr-1.5 h-3.5 w-3.5" /> : <ArrowDownAZ className="mr-1.5 h-3.5 w-3.5" />}
+            {sortABC ? "Por cantidad" : "A-Z"}
+          </Button>
           {bulkMode && selectedCompanies.size > 0 && (
             <Button
               size="sm"
