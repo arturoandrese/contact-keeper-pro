@@ -29,6 +29,7 @@ export interface CrossReferencedContact {
   EMPRESA: string;
   EMPRESA_SHORT: string;
   WEB: string;
+  MAIL_ORIGINAL: string;
   MAIL1: string;
 }
 
