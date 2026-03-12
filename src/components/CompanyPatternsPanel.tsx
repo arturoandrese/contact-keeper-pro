@@ -217,12 +217,50 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
 
   const confirmDelete = () => {
     if (!deleteTarget) return;
-    if (deleteTarget.type === "company") {
+    if (deleteTarget.type === "bulk") {
+      handleDeleteBulk();
+    } else if (deleteTarget.type === "company") {
       handleDeleteCompany(deleteTarget.name);
     } else if (deleteTarget.id) {
       handleDeleteContact(deleteTarget.id);
     }
     setDeleteTarget(null);
+  };
+
+  const handleToggleCompany = (empresa_short: string) => {
+    setSelectedCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(empresa_short)) next.delete(empresa_short);
+      else next.add(empresa_short);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedCompanies.size === companies.length) {
+      setSelectedCompanies(new Set());
+    } else {
+      setSelectedCompanies(new Set(companies.map((c) => c.empresa_short)));
+    }
+  };
+
+  const handleDeleteBulk = async () => {
+    const toDelete = Array.from(selectedCompanies);
+    const ids = allContacts
+      .filter((c) => toDelete.includes(c.empresa_short?.trim() || "Sin empresa"))
+      .map((c) => c.id);
+
+    for (let i = 0; i < ids.length; i += 500) {
+      await supabase.from("delivered_contacts").delete().in("id", ids.slice(i, i + 500));
+    }
+
+    const updated = allContacts.filter((c) => !toDelete.includes(c.empresa_short?.trim() || "Sin empresa"));
+    setAllContacts(updated);
+    buildCompanyList(updated);
+    setSelectedCompanies(new Set());
+    setBulkMode(false);
+    if (selectedCompany && toDelete.includes(selectedCompany)) setSelectedCompany(null);
+    toast.success(`${toDelete.length} empresas eliminadas`);
   };
 
   const scopedContacts = selectedCompany
