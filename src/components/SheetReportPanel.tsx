@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
+import { crossReference, type EmailLogEntry } from "@/lib/crossReference";
+import type { CleanedContact } from "@/lib/contactCleaner";
 
 interface SheetReportPanelProps {
   baseId: string;
@@ -34,6 +37,99 @@ const getStatusDisplay = (status: string) => {
   return STATUS_COLORS[normalized] || { bg: "bg-muted", text: "text-muted-foreground", icon: <AlertCircle className="h-4 w-4" /> };
 };
 
+const CONTACTS_PAGE_SIZE = 1000;
+
+interface ExistingContactRow {
+  id: string;
+  nombre: string;
+  apellido: string;
+  apellido2: string;
+  empresa: string;
+  web: string;
+  mail1: string;
+  mail2: string;
+  mail3: string;
+  mail4: string;
+}
+
+const normalizeStatusKey = (status: string): string => {
+  const normalized = (status || "").replace(/\s+/g, "_").toUpperCase().trim();
+  if (normalized.includes("BOUNC")) return "BOUNCED";
+  if (normalized.includes("CLICK")) return "CLICKED";
+  if (normalized.includes("OPEN")) return "OPENED";
+  if (normalized.includes("DELIVER")) return "DELIVERED";
+  if (normalized.includes("NOT_SENT") || normalized.includes("NO_ENVIAD")) return "NOT_SENT";
+  if (normalized.includes("MERGE_COMPLETE")) return "MERGE_COMPLETE";
+  if (normalized.includes("SENT")) return "SENT";
+  return normalized || "UNKNOWN";
+};
+
+const getSheetContactEmail = (contact: Record<string, string>): string => {
+  const value =
+    contact["Email Address"] ||
+    contact["email"] ||
+    contact["MAIL1"] ||
+    contact["mail"] ||
+    Object.values(contact).find((v) => typeof v === "string" && v.includes("@")) ||
+    "";
+  return value.toString().toLowerCase().trim();
+};
+
+const getSheetContactName = (contact: Record<string, string>): string =>
+  (
+    contact["First Name"] ||
+    contact["NOMBRE"] ||
+    contact["nombre"] ||
+    ""
+  )
+    .toString()
+    .trim();
+
+const toEmailLog = (contacts: Array<Record<string, string>>): EmailLogEntry[] =>
+  contacts.map((c) => ({
+    NOMBRE: (c["NOMBRE"] || c["First Name"] || c["nombre"] || "").toString().trim(),
+    APELLIDO: (c["APELLIDO"] || c["Last Name"] || c["apellido"] || "").toString().trim(),
+    EMPRESA: (c["EMPRESA"] || c["Company"] || c["empresa"] || "").toString().trim(),
+    WEB: (c["WEB"] || c["Website"] || c["web"] || "").toString().trim(),
+    MAIL1: getSheetContactEmail(c),
+    MAIL2: (c["MAIL2"] || c["email2"] || "").toString().trim().toLowerCase(),
+    status: (c._status || "").toString().trim(),
+  }));
+
+const toCleanedContacts = (rows: ExistingContactRow[]): CleanedContact[] =>
+  rows.map((c) => ({
+    NOMBRE: c.nombre || "",
+    APELLIDO: c.apellido || "",
+    APELLIDO2: c.apellido2 || "",
+    EMPRESA: c.empresa || "",
+    WEB: c.web || "",
+    MAIL1: c.mail1 || "",
+    MAIL2: c.mail2 || "",
+    MAIL3: c.mail3 || "",
+    MAIL4: c.mail4 || "",
+  }));
+
+async function fetchAllContacts(baseId: string): Promise<ExistingContactRow[]> {
+  const all: ExistingContactRow[] = [];
+
+  for (let from = 0; ; from += CONTACTS_PAGE_SIZE) {
+    const to = from + CONTACTS_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("id, nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
+      .eq("base_id", baseId)
+      .range(from, to);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    all.push(...(data as ExistingContactRow[]));
+    if (data.length < CONTACTS_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
 const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPanelProps) => {
   const [data, setData] = useState<SheetData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,6 +138,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const [tabs, setTabs] = useState<SheetTab[]>([]);
   const [selectedTab, setSelectedTab] = useState<string>("");
   const [loadingTabs, setLoadingTabs] = useState(true);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
 
   // Fetch available tabs on mount
   useEffect(() => {
@@ -93,53 +190,49 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
     setUpdating(true);
 
     try {
-      const { data: existingContacts, error: fetchErr } = await supabase
-        .from("contacts")
-        .select("id, mail1, mail2, mail3, mail4")
-        .eq("base_id", baseId);
-
-      if (fetchErr) throw fetchErr;
-
-      const emailStatusMap = new Map<string, string>();
-      for (const sc of data.contacts) {
-        const email = (
-          sc["Email Address"] || sc["email"] || sc["MAIL1"] || sc["mail"] ||
-          Object.values(sc).find((v) => typeof v === "string" && v.includes("@"))
-        )?.toLowerCase().trim();
-
-        if (email) {
-          emailStatusMap.set(email, sc._status || "UNKNOWN");
-        }
+      const existingContacts = await fetchAllContacts(baseId);
+      if (existingContacts.length === 0) {
+        toast.error("No hay contactos en esta base para actualizar");
+        setUpdating(false);
+        return;
       }
 
-      const bouncedEmails = new Set<string>();
-      const deliveredEmails = new Set<string>();
-      for (const [email, status] of emailStatusMap) {
-        if (status.includes("BOUNCED")) {
-          bouncedEmails.add(email);
-        } else if (
-          status.includes("DELIVERED") ||
-          status.includes("OPENED") ||
-          status.includes("CLICKED") ||
-          status === "EMAIL_SENT" ||
-          status === "MAIL_MERGE_COMPLETE"
-        ) {
-          deliveredEmails.add(email);
+      const log = toEmailLog(data.contacts);
+      const cleanedContacts = toCleanedContacts(existingContacts);
+      const { filtered, delivered } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true });
+
+      const correctionMap = new Map<string, string>();
+      for (const row of filtered) {
+        const key = `${row.NOMBRE}|${row.APELLIDO}|${row.MAIL_ORIGINAL}`.toLowerCase();
+        if (row.MAIL_ORIGINAL && row.MAIL1) {
+          correctionMap.set(key, row.MAIL1.toLowerCase());
         }
       }
 
       const updates: Array<{ id: string; changes: Record<string, string> }> = [];
-      for (const contact of existingContacts || []) {
-        const changes: Record<string, string> = {};
+      for (const contact of existingContacts) {
         const mails = [
-          { key: "mail1", val: contact.mail1 },
-          { key: "mail2", val: contact.mail2 },
-          { key: "mail3", val: contact.mail3 },
-          { key: "mail4", val: contact.mail4 },
-        ];
+          { key: "mail1", val: (contact.mail1 || "").toLowerCase().trim() },
+          { key: "mail2", val: (contact.mail2 || "").toLowerCase().trim() },
+          { key: "mail3", val: (contact.mail3 || "").toLowerCase().trim() },
+          { key: "mail4", val: (contact.mail4 || "").toLowerCase().trim() },
+        ] as const;
+
+        const nameKey = `${contact.nombre || ""}|${contact.apellido || ""}`.toLowerCase();
+        const matched = mails.find((m) => !!m.val && correctionMap.has(`${nameKey}|${m.val}`));
+        if (!matched) continue;
+
+        const correctedMail = correctionMap.get(`${nameKey}|${matched.val}`) || "";
+        if (!correctedMail) continue;
+
+        const changes: Record<string, string> = {};
+        if (correctedMail !== mails[0].val) {
+          changes.mail1 = correctedMail;
+        }
 
         for (const m of mails) {
-          if (m.val && bouncedEmails.has(m.val.toLowerCase().trim())) {
+          if (!m.val || m.key === "mail1") continue;
+          if (m.val === matched.val || m.val === correctedMail) {
             changes[m.key] = "";
           }
         }
@@ -158,33 +251,18 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         )
       );
 
-      const deliveredRows = data.contacts
-        .map((sc) => {
-          const email = (
-            sc["Email Address"] || sc["email"] || sc["MAIL1"] || sc["mail"] ||
-            Object.values(sc).find((v) => typeof v === "string" && v.includes("@"))
-          )?.toLowerCase().trim();
-
-          if (!email || !deliveredEmails.has(email)) return null;
-
-          const web = (sc["WEB"] || sc["Website"] || sc["web"] || "").toString().trim().toLowerCase();
-          const empresa = (sc["EMPRESA"] || sc["Company"] || sc["empresa"] || "").toString().trim().toUpperCase();
-          const empresaShort = empresa || (web ? web.split(".")[0].toUpperCase() : "");
-
-          return {
-            mail: email,
-            nombre: (sc["First Name"] || sc["NOMBRE"] || sc["nombre"] || "").toString().trim(),
-            apellido: (sc["Last Name"] || sc["APELLIDO"] || sc["apellido"] || "").toString().trim(),
-            empresa,
-            empresa_short: empresaShort,
-            web,
-            status: (sc._status || "EMAIL_SENT").toString().trim(),
-          };
-        })
-        .filter((row): row is NonNullable<typeof row> => !!row);
-
       const uniqueDeliveredRows = Array.from(
-        new Map(deliveredRows.map((row) => [row.mail, row])).values()
+        new Map(
+          delivered
+            .filter((d) => !!d.mail)
+            .map((d) => [
+              d.mail.toLowerCase(),
+              {
+                ...d,
+                mail: d.mail.toLowerCase(),
+              },
+            ])
+        ).values()
       );
 
       const existingDeliveredMap = new Map<string, { times_contacted: number }>();
@@ -237,7 +315,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         .eq("id", baseId);
 
       toast.success(
-        `✅ Base actualizada: ${updates.length} emails rebotados limpiados, ${deliveredPayload.length} contactos entregados guardados`
+        `✅ Base actualizada: ${updates.length} contactos corregidos, ${deliveredPayload.length} contactos entregados guardados`
       );
     } catch (err: any) {
       toast.error("Error actualizando base: " + (err.message || "Error desconocido"));
@@ -250,14 +328,35 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
     ? Object.entries(data.stats).sort(([, a], [, b]) => b - a)
     : [];
 
-  const totalSent = data
-    ? Object.entries(data.stats)
-        .filter(([k]) => !k.includes("NOT_SENT") && !k.includes("UNKNOWN"))
-        .reduce((sum, [, v]) => sum + v, 0)
-    : 0;
+  const filteredContacts = useMemo(() => {
+    if (!data) return [];
+    if (!selectedStatus) return data.contacts;
+    return data.contacts.filter((contact) => normalizeStatusKey(contact._status || "UNKNOWN") === selectedStatus);
+  }, [data, selectedStatus]);
 
-  const bounced = data?.stats["EMAIL_BOUNCED"] || data?.stats["BOUNCED"] || 0;
-  const opened = data?.stats["EMAIL_OPENED"] || data?.stats["OPENED"] || 0;
+  const statusFilterLabel = selectedStatus ? selectedStatus.replace(/_/g, " ") : "TODOS";
+
+  const handleDownloadCurrentView = () => {
+    if (!data) return;
+
+    const rows = filteredContacts.map((contact) => ({
+      EMAIL: getSheetContactEmail(contact) || "",
+      ESTADO: (contact._status || "UNKNOWN").toString().replace(/_/g, " "),
+      NOMBRE: getSheetContactName(contact),
+      APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
+      EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
+      WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
+      MAIL1: (contact["MAIL1"] || "").toString().trim(),
+      MAIL2: (contact["MAIL2"] || "").toString().trim(),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+
+    const suffix = selectedStatus ? normalizeStatusKey(selectedStatus).toLowerCase() : "todos";
+    XLSX.writeFile(wb, `reporte_${selectedTab || "sheet"}_${suffix}.xlsx`);
+  };
 
   return (
     <div className="space-y-6">
@@ -295,14 +394,20 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
             </Select>
           )}
           {data && (
-            <Button size="sm" variant="default" onClick={handleUpdateBase} disabled={updating}>
-              {updating ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
+            <>
+              <Button size="sm" variant="outline" onClick={handleDownloadCurrentView} disabled={filteredContacts.length === 0}>
                 <Download className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              Actualizar base con reporte
-            </Button>
+                Descargar {selectedStatus ? statusFilterLabel : "vista"}
+              </Button>
+              <Button size="sm" variant="default" onClick={handleUpdateBase} disabled={updating}>
+                {updating ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Actualizar base con reporte
+              </Button>
+            </>
           )}
           <Button size="sm" variant="outline" onClick={fetchReport} disabled={loading}>
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -319,29 +424,41 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
       {data && (
         <>
-          {/* Summary cards - Total + all statuses */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <div className="rounded-xl border border-border bg-card px-5 py-4">
-              <div className="flex items-center gap-2 mb-1">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setSelectedStatus(null)}
+              className={`rounded-xl border bg-card px-5 py-4 text-left transition-colors ${
+                selectedStatus === null ? "border-primary" : "border-border hover:border-primary/40"
+              }`}
+            >
+              <div className="mb-1 flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <p className="text-xs font-medium text-muted-foreground">Total</p>
               </div>
               <p className="font-display text-3xl font-bold">{data.total}</p>
-            </div>
+            </button>
             {sortedStats.map(([status, count]) => {
               const display = getStatusDisplay(status);
               const pct = data.total > 0 ? Math.round((count / data.total) * 100) : 0;
+              const normalized = normalizeStatusKey(status);
+              const isActive = selectedStatus === normalized;
               return (
-                <div key={status} className="rounded-xl border border-border bg-card px-5 py-4">
-                  <div className="flex items-center gap-2 mb-1">
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setSelectedStatus((prev) => (prev === normalized ? null : normalized))}
+                  className={`rounded-xl border bg-card px-5 py-4 text-left transition-colors ${
+                    isActive ? "border-primary" : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  <div className="mb-1 flex items-center gap-2">
                     <span className={display.text}>{display.icon}</span>
-                    <p className="text-xs font-medium text-muted-foreground truncate">
-                      {status.replace(/_/g, " ")}
-                    </p>
+                    <p className="truncate text-xs font-medium text-muted-foreground">{status.replace(/_/g, " ")}</p>
                   </div>
                   <p className={`font-display text-3xl font-bold ${display.text}`}>{count}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{pct}%</p>
-                </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{pct}%</p>
+                </button>
               );
             })}
           </div>
@@ -376,51 +493,61 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
           </div>
 
           {/* Contact detail table */}
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/60">
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Nombre</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.contacts.map((contact, i) => {
-                    const display = getStatusDisplay(contact._status || "UNKNOWN");
-                    const email =
-                      contact["Email Address"] ||
-                      contact["email"] ||
-                      contact["MAIL1"] ||
-                      contact["mail"] ||
-                      Object.values(contact).find((v) => typeof v === "string" && v.includes("@")) ||
-                      "—";
-                    const name =
-                      contact["First Name"] ||
-                      contact["NOMBRE"] ||
-                      contact["nombre"] ||
-                      "—";
-                    return (
-                      <tr key={i} className="border-b border-border/50 transition-colors hover:bg-muted/30">
-                        <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{email}</td>
-                        <td className="whitespace-nowrap px-4 py-2.5">
-                          <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ${display.bg} ${display.text}`}>
-                            {contact._status?.replace(/_/g, " ") || "—"}
-                          </span>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                Mostrando <span className="font-semibold text-foreground">{filteredContacts.length}</span> de {data.total} contactos · filtro: <span className="font-semibold text-foreground">{statusFilterLabel}</span>
+              </p>
+              {selectedStatus && (
+                <Button size="sm" variant="ghost" onClick={() => setSelectedStatus(null)}>
+                  Ver todos
+                </Button>
+              )}
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/60">
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">Nombre</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredContacts.map((contact, i) => {
+                      const display = getStatusDisplay(contact._status || "UNKNOWN");
+                      const email = getSheetContactEmail(contact) || "—";
+                      const name = getSheetContactName(contact) || "—";
+                      return (
+                        <tr key={`${email}-${i}`} className="border-b border-border/50 transition-colors hover:bg-muted/30">
+                          <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{email}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5">
+                            <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ${display.bg} ${display.text}`}>
+                              {contact._status?.replace(/_/g, " ") || "—"}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{name}</td>
+                        </tr>
+                      );
+                    })}
+                    {filteredContacts.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                          No hay contactos para este filtro.
                         </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{name}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
           {/* Auto-refresh indicator */}
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/60">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
             Se actualiza automáticamente cada 30 segundos
           </div>
         </>

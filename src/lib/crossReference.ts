@@ -270,26 +270,39 @@ export function crossReference(
   const seenKeys = new Set<string>();
 
   for (const contact of contacts) {
-    const m1 = (contact.MAIL1 || "").toLowerCase();
+    const mailCandidates = [contact.MAIL1, contact.MAIL2, contact.MAIL3, contact.MAIL4]
+      .map((m) => (m || "").toLowerCase().trim())
+      .filter(Boolean);
 
-    if (onlyBounced && !bouncedMails.has(m1)) {
+    const m1 = (contact.MAIL1 || "").toLowerCase().trim();
+    const bouncedMatch = mailCandidates.find((m) => bouncedMails.has(m));
+
+    if (onlyBounced && !bouncedMatch) {
       continue;
     }
 
-    const existing = existingMap.get(m1);
+    const existing = m1 ? existingMap.get(m1) : undefined;
     if (existing) {
       if (existing.status === "ABIERTO" || existing.status === "CLICKEADO") continue;
     }
 
-    if (deliveredMails.has(m1) && !existing && !onlyBounced) {
+    if (m1 && deliveredMails.has(m1) && !existing && !onlyBounced) {
       continue;
     }
 
+    let originalMail = m1;
     let finalMail = m1;
-    if (bouncedMails.has(m1)) {
-      const alternatives = [contact.MAIL2, contact.MAIL3, contact.MAIL4]
-        .map((m) => (m || "").toLowerCase())
-        .filter((m) => m !== m1 && isValidEmail(m) && !bouncedMails.has(m) && !deliveredMails.has(m) && !isFreeMail(m));
+
+    if (bouncedMatch) {
+      originalMail = bouncedMatch;
+      const alternatives = mailCandidates.filter(
+        (m) =>
+          m !== bouncedMatch &&
+          isValidEmail(m) &&
+          !bouncedMails.has(m) &&
+          !deliveredMails.has(m) &&
+          !isFreeMail(m)
+      );
 
       if (alternatives.length === 0) continue;
       finalMail = alternatives[0];
@@ -297,7 +310,7 @@ export function crossReference(
       continue;
     }
 
-    if (onlyBounced && finalMail === m1) continue;
+    if (onlyBounced && finalMail === originalMail) continue;
     if (!isValidEmail(finalMail)) continue;
     if (isFreeMail(finalMail)) continue;
 
@@ -317,7 +330,7 @@ export function crossReference(
       }
     }
 
-    const key = `${contact.NOMBRE}|${contact.APELLIDO}|${finalMail}`.toLowerCase();
+    const key = `${contact.NOMBRE}|${contact.APELLIDO}|${originalMail}|${finalMail}`.toLowerCase();
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
 
@@ -328,7 +341,7 @@ export function crossReference(
       EMPRESA: contact.EMPRESA,
       EMPRESA_SHORT: empresaShort,
       WEB: contact.WEB,
-      MAIL_ORIGINAL: m1,
+      MAIL_ORIGINAL: originalMail,
       MAIL1: finalMail,
     });
   }
