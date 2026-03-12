@@ -289,7 +289,7 @@ export function crossReference(
     if (bouncedMails.has(m1)) {
       const alternatives = [contact.MAIL2, contact.MAIL3, contact.MAIL4]
         .map((m) => (m || "").toLowerCase())
-        .filter((m) => isValidEmail(m) && !bouncedMails.has(m) && !deliveredMails.has(m) && !isFreeMail(m));
+        .filter((m) => m !== m1 && isValidEmail(m) && !bouncedMails.has(m) && !deliveredMails.has(m) && !isFreeMail(m));
 
       if (alternatives.length === 0) continue;
       finalMail = alternatives[0];
@@ -297,6 +297,7 @@ export function crossReference(
       continue;
     }
 
+    if (onlyBounced && finalMail === m1) continue;
     if (!isValidEmail(finalMail)) continue;
     if (isFreeMail(finalMail)) continue;
 
