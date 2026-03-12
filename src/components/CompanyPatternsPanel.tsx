@@ -139,6 +139,44 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
     setCompanyPatterns((data as DomainPattern[]) || []);
   };
 
+  const handleRenameCompany = async (oldName: string, newName: string) => {
+    const trimmed = newName.trim().toUpperCase();
+    if (!trimmed || trimmed === oldName) {
+      setEditingName(null);
+      return;
+    }
+
+    // Find the domain for this company to save override
+    const company = companies.find(c => c.empresa_short === oldName);
+    if (company?.domain) {
+      setCompanyOverride(company.domain, trimmed);
+    }
+
+    // Update in delivered_contacts
+    const ids = allContacts
+      .filter(c => (c.empresa_short?.trim() || "Sin empresa") === oldName)
+      .map(c => c.id);
+
+    for (let i = 0; i < ids.length; i += 500) {
+      await supabase
+        .from("delivered_contacts")
+        .update({ empresa_short: trimmed })
+        .in("id", ids.slice(i, i + 500));
+    }
+
+    // Update local state
+    const updated = allContacts.map(c =>
+      (c.empresa_short?.trim() || "Sin empresa") === oldName
+        ? { ...c, empresa_short: trimmed }
+        : c
+    );
+    setAllContacts(updated);
+    buildCompanyList(updated);
+    if (selectedCompany === oldName) setSelectedCompany(trimmed);
+    setEditingName(null);
+    toast.success(`Empresa renombrada a "${trimmed}" (memorizado para futuras bases)`);
+  };
+
   const handleSelectCompany = (empresa_short: string) => {
     setSelectedCompany(empresa_short);
     setStatusFilter("TODOS");
