@@ -57,6 +57,34 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
     tabs: number;
   } | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<StatusCategory>("sent");
+
+  const openStatusDialog = (cat: StatusCategory) => {
+    setSelectedCategory(cat);
+    setStatusDialogOpen(true);
+  };
+
+  const handleDownloadFullSummary = () => {
+    if (!campaignSummary) return;
+    const data = [
+      { Métrica: "Total contactos", Valor: campaignSummary.total, Porcentaje: "100%" },
+      { Métrica: "Enviados", Valor: campaignSummary.sent, Porcentaje: `${Math.round((campaignSummary.sent / campaignSummary.total) * 100)}%` },
+      { Métrica: "Entregados", Valor: campaignSummary.delivered, Porcentaje: `${Math.round((campaignSummary.delivered / campaignSummary.total) * 100)}%` },
+      { Métrica: "Abiertos", Valor: campaignSummary.opened, Porcentaje: `${Math.round((campaignSummary.opened / campaignSummary.total) * 100)}%` },
+      { Métrica: "Clicks", Valor: campaignSummary.clicked, Porcentaje: `${Math.round((campaignSummary.clicked / campaignSummary.total) * 100)}%` },
+      { Métrica: "Rebotados", Valor: campaignSummary.bounced, Porcentaje: `${Math.round((campaignSummary.bounced / campaignSummary.total) * 100)}%` },
+      { Métrica: "Respondidos", Valor: campaignSummary.responded, Porcentaje: `${Math.round((campaignSummary.responded / campaignSummary.total) * 100)}%` },
+      { Métrica: "No enviados", Valor: campaignSummary.notSent, Porcentaje: `${Math.round((campaignSummary.notSent / campaignSummary.total) * 100)}%` },
+      { Métrica: "Pestañas", Valor: campaignSummary.tabs, Porcentaje: "" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Resumen");
+    XLSX.writeFile(wb, `${baseName}_resumen_campaña.xlsx`);
+    toast.success("Resumen descargado");
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
