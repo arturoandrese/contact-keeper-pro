@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, ClipboardCopy } from "lucide-react";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, ClipboardCopy, MailCheck } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -175,6 +175,46 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       if (tsvRows.length <= 1) { toast.error("No hay correcciones para copiar"); return; }
       await navigator.clipboard.writeText(tsvRows.join("\n"));
       toast.success(`${tsvRows.length - 1} contactos copiados — pega en Google Sheets con Ctrl+V`);
+    } catch (err: any) {
+      toast.error("Error: " + (err?.message || "desconocido"));
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleDownloadGoodEmails = async (base: Base, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!base.sheet_id) { toast.error("Sin Google Sheet asociado"); return; }
+    setExporting(base.id);
+    try {
+      const tabs = await fetchSheetTabs(base.sheet_id);
+      if (tabs.length === 0) { toast.error("Sin pestañas"); return; }
+      const tabName = tabs[tabs.length - 1].title;
+      const sheetData = await fetchSheetReport(base.sheet_id, tabName);
+
+      const GOOD = ["SENT", "DELIVERED", "OPENED", "CLICKED", "EMAIL_SENT", "EMAIL_DELIVERED", "EMAIL_OPENED", "EMAIL_CLICKED", "MAIL_MERGE_COMPLETE"];
+      const goodContacts = sheetData.contacts.filter((c) => {
+        const s = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
+        return GOOD.some((g) => s.includes(g));
+      });
+
+      if (goodContacts.length === 0) { toast.error("No hay mails buenos en esta campaña"); return; }
+
+      const rows = goodContacts.map((c) => ({
+        NOMBRE: (c["NOMBRE"] || c["First Name"] || "").toString().trim(),
+        APELLIDO: (c["APELLIDO"] || c["Last Name"] || "").toString().trim(),
+        EMPRESA: (c["EMPRESA"] || c["Company"] || "").toString().trim(),
+        WEB: (c["WEB"] || c["Website"] || "").toString().trim(),
+        MAIL: (c["MAIL1"] || c["Email Address"] || c["email"] || "").toString().toLowerCase().trim(),
+        MAIL2: (c["MAIL2"] || "").toString().trim(),
+        ESTADO: (c._status || "").toString().trim(),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Mails Buenos");
+      XLSX.writeFile(wb, `${base.name}_mails_buenos.xlsx`);
+      toast.success(`${rows.length} mails buenos descargados`);
     } catch (err: any) {
       toast.error("Error: " + (err?.message || "desconocido"));
     } finally {
@@ -479,8 +519,12 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                   {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
                   CSV
                 </Button>
-                {base.crossed && (
+                {base.crossed && base.sheet_id && (
                   <>
+                    <Button variant="secondary" size="sm" onClick={(e) => handleDownloadGoodEmails(base, e)} disabled={exporting === base.id} className="text-xs">
+                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <MailCheck className="mr-1 h-3.5 w-3.5" />}
+                      Mails buenos
+                    </Button>
                     <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "crossed", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
                       {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
                       Cruzada
