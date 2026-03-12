@@ -64,7 +64,9 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODOS");
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "company" | "contact"; id?: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "company" | "contact" | "bulk"; id?: string; name: string } | null>(null);
+  const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
 
   const [companyPatterns, setCompanyPatterns] = useState<DomainPattern[]>([]);
   const [editingPattern, setEditingPattern] = useState(false);
@@ -215,12 +217,50 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
 
   const confirmDelete = () => {
     if (!deleteTarget) return;
-    if (deleteTarget.type === "company") {
+    if (deleteTarget.type === "bulk") {
+      handleDeleteBulk();
+    } else if (deleteTarget.type === "company") {
       handleDeleteCompany(deleteTarget.name);
     } else if (deleteTarget.id) {
       handleDeleteContact(deleteTarget.id);
     }
     setDeleteTarget(null);
+  };
+
+  const handleToggleCompany = (empresa_short: string) => {
+    setSelectedCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(empresa_short)) next.delete(empresa_short);
+      else next.add(empresa_short);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedCompanies.size === companies.length) {
+      setSelectedCompanies(new Set());
+    } else {
+      setSelectedCompanies(new Set(companies.map((c) => c.empresa_short)));
+    }
+  };
+
+  const handleDeleteBulk = async () => {
+    const toDelete = Array.from(selectedCompanies);
+    const ids = allContacts
+      .filter((c) => toDelete.includes(c.empresa_short?.trim() || "Sin empresa"))
+      .map((c) => c.id);
+
+    for (let i = 0; i < ids.length; i += 500) {
+      await supabase.from("delivered_contacts").delete().in("id", ids.slice(i, i + 500));
+    }
+
+    const updated = allContacts.filter((c) => !toDelete.includes(c.empresa_short?.trim() || "Sin empresa"));
+    setAllContacts(updated);
+    buildCompanyList(updated);
+    setSelectedCompanies(new Set());
+    setBulkMode(false);
+    if (selectedCompany && toDelete.includes(selectedCompany)) setSelectedCompany(null);
+    toast.success(`${toDelete.length} empresas eliminadas`);
   };
 
   const scopedContacts = selectedCompany
@@ -464,13 +504,64 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
             {companies.length} empresas · {allContacts.length} contactos corporativos
           </p>
         </div>
-        <Button size="sm" onClick={handleDownload} disabled={filteredContacts.length === 0}>
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          Descargar todo
-        </Button>
+        <div className="flex items-center gap-2">
+          {bulkMode && selectedCompanies.size > 0 && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() =>
+                setDeleteTarget({
+                  type: "bulk",
+                  name: `${selectedCompanies.size} empresas`,
+                })
+              }
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              Eliminar ({selectedCompanies.size})
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant={bulkMode ? "secondary" : "outline"}
+            onClick={() => {
+              setBulkMode(!bulkMode);
+              if (bulkMode) setSelectedCompanies(new Set());
+            }}
+          >
+            {bulkMode ? "Cancelar selección" : "Seleccionar"}
+          </Button>
+          <Button size="sm" onClick={handleDownload} disabled={filteredContacts.length === 0}>
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            Descargar todo
+          </Button>
+        </div>
       </div>
 
       <StatusFilterBar />
+
+      {bulkMode && companies.length > 0 && (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSelectAll}
+            className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary/30 transition-colors"
+          >
+            <div
+              className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
+                selectedCompanies.size === companies.length
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "border-muted-foreground/40"
+              }`}
+            >
+              {selectedCompanies.size === companies.length && (
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </div>
+            {selectedCompanies.size === companies.length ? "Deseleccionar todas" : "Seleccionar todas"}
+          </button>
+        </div>
+      )}
 
       {statusFilter !== "TODOS" ? (
         <div className="space-y-4">
@@ -494,7 +585,30 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
               key={empresa_short}
               className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 cursor-pointer transition-all hover:shadow-sm hover:border-primary/30"
             >
-              <div className="flex items-center gap-3 flex-1" onClick={() => handleSelectCompany(empresa_short)}>
+              <div className="flex items-center gap-3 flex-1" onClick={() => !bulkMode && handleSelectCompany(empresa_short)}>
+                {bulkMode && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleCompany(empresa_short);
+                    }}
+                    className="flex-shrink-0"
+                  >
+                    <div
+                      className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
+                        selectedCompanies.has(empresa_short)
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : "border-muted-foreground/40"
+                      }`}
+                    >
+                      {selectedCompanies.has(empresa_short) && (
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                )}
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                   <Building2 className="h-4 w-4 text-primary" />
                 </div>
@@ -505,13 +619,17 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
                   <Users className="h-3.5 w-3.5" />
                   {count}
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "company", name: empresa_short }); }}
-                  className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                {!bulkMode && (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "company", name: empresa_short }); }}
+                      className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -528,9 +646,13 @@ function DeleteDialog({ target, onConfirm, onCancel }: { target: { type: string;
     <AlertDialog open={!!target} onOpenChange={(open) => !open && onCancel()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Eliminar {target?.type === "company" ? "empresa" : "contacto"}?</AlertDialogTitle>
+          <AlertDialogTitle>
+            ¿Eliminar {target?.type === "bulk" ? target?.name : target?.type === "company" ? "empresa" : "contacto"}?
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            {target?.type === "company"
+            {target?.type === "bulk"
+              ? `Se eliminarán todos los contactos de ${target?.name}. Esta acción no se puede deshacer.`
+              : target?.type === "company"
               ? `Se eliminarán todos los contactos de "${target?.name}". Esta acción no se puede deshacer.`
               : `Se eliminará a "${target?.name}". Esta acción no se puede deshacer.`}
           </AlertDialogDescription>
