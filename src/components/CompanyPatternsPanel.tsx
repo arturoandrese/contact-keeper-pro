@@ -646,9 +646,13 @@ function DeleteDialog({ target, onConfirm, onCancel }: { target: { type: string;
     <AlertDialog open={!!target} onOpenChange={(open) => !open && onCancel()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Eliminar {target?.type === "company" ? "empresa" : "contacto"}?</AlertDialogTitle>
+          <AlertDialogTitle>
+            ¿Eliminar {target?.type === "bulk" ? target?.name : target?.type === "company" ? "empresa" : "contacto"}?
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            {target?.type === "company"
+            {target?.type === "bulk"
+              ? `Se eliminarán todos los contactos de ${target?.name}. Esta acción no se puede deshacer.`
+              : target?.type === "company"
               ? `Se eliminarán todos los contactos de "${target?.name}". Esta acción no se puede deshacer.`
               : `Se eliminará a "${target?.name}". Esta acción no se puede deshacer.`}
           </AlertDialogDescription>
