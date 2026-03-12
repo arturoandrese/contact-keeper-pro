@@ -652,6 +652,10 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
           >
             {bulkMode ? "Cancelar selección" : "Seleccionar"}
           </Button>
+          <Button size="sm" variant="secondary" onClick={handleDownloadGoodEmails}>
+            <MailCheck className="mr-1.5 h-3.5 w-3.5" />
+            Descargar mails buenos
+          </Button>
           <Button size="sm" onClick={handleDownload} disabled={filteredContacts.length === 0}>
             <Download className="mr-1.5 h-3.5 w-3.5" />
             Descargar todo
