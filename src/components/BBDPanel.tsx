@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X } from "lucide-react";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, ClipboardCopy } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -104,6 +104,79 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     } else {
       setBases((prev) => prev.filter((b) => b.id !== id));
       toast.success("Base eliminada");
+    }
+  };
+
+  const handleCopyCrossed = async (base: Base, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExporting(base.id);
+    try {
+      if (!base.sheet_id) { toast.error("Sin Google Sheet asociado"); return; }
+      const tabs = await fetchSheetTabs(base.sheet_id);
+      if (tabs.length === 0) { toast.error("Sin pestañas"); return; }
+      const tabName = tabs[tabs.length - 1].title;
+      const sheetData = await fetchSheetReport(base.sheet_id, tabName);
+
+      const domainPatterns = new Map<string, Map<string, number>>();
+      const bouncedEntries: Array<{ nombre: string; apellido: string; apellido2: string; empresa: string; web: string; mail1: string; mail2: string }> = [];
+
+      for (const c of sheetData.contacts) {
+        const nombre = (c["NOMBRE"] || "").toString().trim();
+        const apellido = (c["APELLIDO"] || "").toString().trim();
+        const apellido2 = (c["APELLIDO2"] || "").toString().trim();
+        const empresa = (c["EMPRESA"] || "").toString().trim();
+        const web = (c["WEB"] || "").toString().trim();
+        const mail1 = (c["MAIL1"] || "").toString().toLowerCase().trim();
+        const mail2 = (c["MAIL2"] || "").toString().toLowerCase().trim();
+        const status = ((c._status || "").toString().trim().toUpperCase());
+
+        if (status.includes("BOUNCE")) {
+          bouncedEntries.push({ nombre, apellido, apellido2, empresa, web, mail1, mail2 });
+        } else if (mail1 && mail1.includes("@")) {
+          const domain = mail1.split("@")[1];
+          if (domain && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(domain)) {
+            const local = mail1.split("@")[0];
+            const n = nombre.toLowerCase(); const a = apellido.toLowerCase();
+            let pat = "";
+            if (local === `${n}.${a}`) pat = "first.last";
+            else if (local === `${n[0]}${a}`) pat = "initial_last";
+            if (pat) { const m = domainPatterns.get(domain) || new Map(); m.set(pat, (m.get(pat) || 0) + 1); domainPatterns.set(domain, m); }
+          }
+        }
+      }
+
+      const bestPatterns = new Map<string, string>();
+      for (const [domain, pats] of domainPatterns) {
+        let best = ""; let bestCount = 0;
+        for (const [p, c] of pats) { if (c > bestCount) { best = p; bestCount = c; } }
+        if (best) bestPatterns.set(domain, best);
+      }
+
+      const tsvRows = ["NOMBRE\tAPELLIDO\tAPELLIDO2\tEMPRESA\tWEB\tMAIL_CORREGIDO"];
+      for (const b of bouncedEntries) {
+        const domain = b.mail1.split("@")[1] || b.web?.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") || "";
+        if (!domain) continue;
+        let corrected = "";
+        if (b.mail2 && b.mail2.includes("@") && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(b.mail2.split("@")[1])) corrected = b.mail2;
+        if (!corrected) {
+          const pat = bestPatterns.get(domain);
+          if (pat && b.nombre && b.apellido) {
+            const n = b.nombre.toLowerCase(); const a = b.apellido.toLowerCase();
+            if (pat === "first.last") corrected = `${n}.${a}@${domain}`;
+            else if (pat === "initial_last") corrected = `${n[0]}${a}@${domain}`;
+          }
+        }
+        if (!corrected || corrected === b.mail1) continue;
+        tsvRows.push(`${b.nombre}\t${b.apellido}\t${b.apellido2}\t${b.empresa}\t${b.web}\t${corrected}`);
+      }
+
+      if (tsvRows.length <= 1) { toast.error("No hay correcciones para copiar"); return; }
+      await navigator.clipboard.writeText(tsvRows.join("\n"));
+      toast.success(`${tsvRows.length - 1} contactos copiados — pega en Google Sheets con Ctrl+V`);
+    } catch (err: any) {
+      toast.error("Error: " + (err?.message || "desconocido"));
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -245,7 +318,6 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
             APELLIDO2: b.apellido2,
             EMPRESA: b.empresa,
             WEB: b.web,
-            MAIL_ORIGINAL: b.mail1,
             MAIL_CORREGIDO: corrected,
           });
         }
@@ -405,10 +477,16 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                   CSV
                 </Button>
                 {base.crossed && (
-                  <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "crossed", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
-                    {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                    Cruzada
-                  </Button>
+                  <>
+                    <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "crossed", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
+                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                      Cruzada
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={(e) => handleCopyCrossed(base, e)} disabled={exporting === base.id} className="text-xs">
+                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardCopy className="mr-1 h-3.5 w-3.5" />}
+                      Pegar
+                    </Button>
+                  </>
                 )}
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDelete(base.id, e)}>
                   <Trash2 className="h-3.5 w-3.5" />
