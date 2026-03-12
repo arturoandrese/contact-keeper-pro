@@ -62,30 +62,49 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           .eq("id", baseId)
           .single();
 
-        const allDelivered: ExistingDelivered[] = [];
-        let offset = 0;
-        while (true) {
-          const { data: batch } = await supabase
-            .from("delivered_contacts")
-            .select("mail, times_contacted, last_contacted_at, status")
-            .range(offset, offset + 999);
-          if (!batch || batch.length === 0) break;
-          allDelivered.push(...batch);
-          if (batch.length < 1000) break;
-          offset += 1000;
+        // Fetch all delivered contacts in parallel batches
+        const PAGE_SIZE = 5000;
+        // First, get a count estimate by fetching first batch
+        const { data: firstBatch } = await supabase
+          .from("delivered_contacts")
+          .select("mail, times_contacted, last_contacted_at, status")
+          .range(0, PAGE_SIZE - 1);
+        
+        let allDelivered: ExistingDelivered[] = firstBatch || [];
+        
+        if (firstBatch && firstBatch.length === PAGE_SIZE) {
+          // There might be more - fetch remaining in parallel
+          const parallelFetches = [];
+          for (let offset = PAGE_SIZE; offset < PAGE_SIZE * 20; offset += PAGE_SIZE) {
+            parallelFetches.push(
+              supabase
+                .from("delivered_contacts")
+                .select("mail, times_contacted, last_contacted_at, status")
+                .range(offset, offset + PAGE_SIZE - 1)
+            );
+          }
+          const results = await Promise.all(parallelFetches);
+          for (const r of results) {
+            if (r.data && r.data.length > 0) allDelivered.push(...r.data);
+            if (!r.data || r.data.length < PAGE_SIZE) break;
+          }
         }
 
         const { filtered, patterns, delivered } = crossReference(contacts, log, allDelivered);
 
+        // Batch empresa updates in parallel (groups of 50 concurrent)
         if (filtered.length > 0) {
-          for (const f of filtered) {
-            if (f.EMPRESA_SHORT) {
-              await supabase
+          const updates = filtered
+            .filter(f => f.EMPRESA_SHORT)
+            .map(f => 
+              supabase
                 .from("contacts")
                 .update({ empresa: f.EMPRESA_SHORT })
                 .eq("base_id", baseId)
-                .eq("mail1", f.MAIL1);
-            }
+                .eq("mail1", f.MAIL1)
+            );
+          for (let i = 0; i < updates.length; i += 50) {
+            await Promise.all(updates.slice(i, i + 50));
           }
         }
 
