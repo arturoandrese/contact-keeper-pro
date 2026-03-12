@@ -84,7 +84,7 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
 
   useEffect(() => {
     if (allContacts.length > 0) buildCompanyList(allContacts);
-  }, [sortABC]);
+  }, [sortMode]);
 
   const fetchAllContacts = async () => {
     setLoading(true);
