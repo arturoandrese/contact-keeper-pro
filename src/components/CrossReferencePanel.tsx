@@ -216,15 +216,15 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
   );
 
   const columns: (keyof CrossReferencedContact)[] = [
-    "NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA_SHORT", "WEB", "MAIL1",
+    "NOMBRE", "APELLIDO", "EMPRESA_SHORT", "WEB", "MAIL_ORIGINAL", "MAIL1",
   ];
 
   const columnLabels: Record<string, string> = {
     NOMBRE: "NOMBRE",
     APELLIDO: "APELLIDO",
-    APELLIDO2: "APELLIDO2",
     EMPRESA_SHORT: "EMPRESA",
     WEB: "WEB",
+    MAIL_ORIGINAL: "MAIL ORIGINAL",
     MAIL1: "MAIL CORREGIDO",
   };
 
