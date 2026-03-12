@@ -217,6 +217,87 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
         </p>
       </div>
 
+      {/* Campaign Summary */}
+      {sheetId && (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold">Resumen de campaña</h3>
+            {loadingSummary && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          </div>
+          {campaignSummary ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                  <p className="text-2xl font-bold font-mono">{campaignSummary.total}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Total contactos</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <Send className="h-3.5 w-3.5 text-blue-500" />
+                    <p className="text-2xl font-bold font-mono text-blue-600">{campaignSummary.sent}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">Enviados</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <MailOpen className="h-3.5 w-3.5 text-emerald-500" />
+                    <p className="text-2xl font-bold font-mono text-emerald-600">{campaignSummary.opened}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">Abiertos</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <MousePointerClick className="h-3.5 w-3.5 text-violet-500" />
+                    <p className="text-2xl font-bold font-mono text-violet-600">{campaignSummary.clicked}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">Clicks</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <MailX className="h-3.5 w-3.5 text-destructive" />
+                    <p className="text-2xl font-bold font-mono text-destructive">{campaignSummary.bounced}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">Rebotados</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <MessageSquareReply className="h-3.5 w-3.5 text-amber-500" />
+                    <p className="text-2xl font-bold font-mono text-amber-600">{campaignSummary.responded}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">Respondidos</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-2xl font-bold font-mono">{campaignSummary.notSent}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">No enviados</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 text-center">
+                  <p className="text-2xl font-bold font-mono">{campaignSummary.tabs}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Pestañas</p>
+                </div>
+              </div>
+              {campaignSummary.total > 0 && (
+                <div className="mt-3 h-3 rounded-full bg-muted overflow-hidden flex">
+                  {campaignSummary.clicked > 0 && <div className="bg-violet-500 h-full" style={{ width: `${(campaignSummary.clicked / campaignSummary.total) * 100}%` }} />}
+                  {campaignSummary.opened > 0 && <div className="bg-emerald-500 h-full" style={{ width: `${(campaignSummary.opened / campaignSummary.total) * 100}%` }} />}
+                  {campaignSummary.responded > 0 && <div className="bg-amber-500 h-full" style={{ width: `${(campaignSummary.responded / campaignSummary.total) * 100}%` }} />}
+                  {campaignSummary.sent > 0 && <div className="bg-blue-500 h-full" style={{ width: `${(campaignSummary.sent / campaignSummary.total) * 100}%` }} />}
+                  {campaignSummary.bounced > 0 && <div className="bg-destructive h-full" style={{ width: `${(campaignSummary.bounced / campaignSummary.total) * 100}%` }} />}
+                  {campaignSummary.notSent > 0 && <div className="bg-muted-foreground/30 h-full" style={{ width: `${(campaignSummary.notSent / campaignSummary.total) * 100}%` }} />}
+                </div>
+              )}
+            </>
+          ) : !loadingSummary ? (
+            <p className="text-xs text-muted-foreground">No se pudo cargar el resumen.</p>
+          ) : null}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
