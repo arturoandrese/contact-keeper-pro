@@ -182,6 +182,46 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     }
   };
 
+  const handleDownloadGoodEmails = async (base: Base, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!base.sheet_id) { toast.error("Sin Google Sheet asociado"); return; }
+    setExporting(base.id);
+    try {
+      const tabs = await fetchSheetTabs(base.sheet_id);
+      if (tabs.length === 0) { toast.error("Sin pestañas"); return; }
+      const tabName = tabs[tabs.length - 1].title;
+      const sheetData = await fetchSheetReport(base.sheet_id, tabName);
+
+      const GOOD = ["SENT", "DELIVERED", "OPENED", "CLICKED", "EMAIL_SENT", "EMAIL_DELIVERED", "EMAIL_OPENED", "EMAIL_CLICKED", "MAIL_MERGE_COMPLETE"];
+      const goodContacts = sheetData.contacts.filter((c) => {
+        const s = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
+        return GOOD.some((g) => s.includes(g));
+      });
+
+      if (goodContacts.length === 0) { toast.error("No hay mails buenos en esta campaña"); return; }
+
+      const rows = goodContacts.map((c) => ({
+        NOMBRE: (c["NOMBRE"] || c["First Name"] || "").toString().trim(),
+        APELLIDO: (c["APELLIDO"] || c["Last Name"] || "").toString().trim(),
+        EMPRESA: (c["EMPRESA"] || c["Company"] || "").toString().trim(),
+        WEB: (c["WEB"] || c["Website"] || "").toString().trim(),
+        MAIL: (c["MAIL1"] || c["Email Address"] || c["email"] || "").toString().toLowerCase().trim(),
+        MAIL2: (c["MAIL2"] || "").toString().trim(),
+        ESTADO: (c._status || "").toString().trim(),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Mails Buenos");
+      XLSX.writeFile(wb, `${base.name}_mails_buenos.xlsx`);
+      toast.success(`${rows.length} mails buenos descargados`);
+    } catch (err: any) {
+      toast.error("Error: " + (err?.message || "desconocido"));
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const doDownload = async (base: Base, type: "clean" | "crossed", fmt: "xlsx" | "csv", e: React.MouseEvent) => {
     e.stopPropagation();
     setExporting(base.id);
