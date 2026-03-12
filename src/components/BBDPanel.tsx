@@ -169,15 +169,29 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
 
         const tabName = tabs[tabs.length - 1].title;
         const sheetData = await fetchSheetReport(base.sheet_id, tabName);
-        const log: EmailLogEntry[] = sheetData.contacts.map((c) => ({
-          NOMBRE: c["NOMBRE"] || c["First Name"] || c["nombre"] || "",
-          APELLIDO: c["APELLIDO"] || c["Last Name"] || c["apellido"] || "",
-          EMPRESA: c["EMPRESA"] || c["Company"] || c["empresa"] || "",
-          WEB: c["WEB"] || c["Website"] || c["web"] || "",
-          MAIL1: c["MAIL1"] || c["Email Address"] || c["email"] || c["mail"] || "",
-          MAIL2: c["MAIL2"] || c["email2"] || "",
-          status: c._status || "",
-        }));
+        const log: EmailLogEntry[] = sheetData.contacts.map((c) => {
+          const primaryEmail = (
+            c["MAIL1"] ||
+            c["Email Address"] ||
+            c["email"] ||
+            c["mail"] ||
+            Object.values(c).find((v) => typeof v === "string" && v.includes("@")) ||
+            ""
+          )
+            .toString()
+            .toLowerCase()
+            .trim();
+
+          return {
+            NOMBRE: (c["NOMBRE"] || c["First Name"] || c["nombre"] || "").toString().trim(),
+            APELLIDO: (c["APELLIDO"] || c["Last Name"] || c["apellido"] || "").toString().trim(),
+            EMPRESA: (c["EMPRESA"] || c["Company"] || c["empresa"] || "").toString().trim(),
+            WEB: (c["WEB"] || c["Website"] || c["web"] || "").toString().trim(),
+            MAIL1: primaryEmail,
+            MAIL2: (c["MAIL2"] || c["email2"] || "").toString().toLowerCase().trim(),
+            status: (c._status || "").toString().trim(),
+          };
+        });
 
         const contacts: CleanedContact[] = data.map((c) => ({
           NOMBRE: c.nombre,
@@ -202,6 +216,11 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
           MAIL_ORIGINAL: c.MAIL_ORIGINAL,
           MAIL_CORREGIDO: c.MAIL1,
         }));
+
+        if (rows.length === 0) {
+          toast.error("No se generaron correcciones en esta base cruzada");
+          return;
+        }
 
         toast.success(`Descarga cruzada lista: ${rows.length} bounced con mail corregido`);
       } else {
