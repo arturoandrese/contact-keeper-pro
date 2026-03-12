@@ -29,6 +29,7 @@ export interface CrossReferencedContact {
   EMPRESA: string;
   EMPRESA_SHORT: string;
   WEB: string;
+  MAIL_ORIGINAL: string;
   MAIL1: string;
 }
 
@@ -59,6 +60,8 @@ function normalizeStatus(status: string): string {
 
 function classifyStatus(status: string): "ABIERTO" | "CLICKEADO" | "ENVIADO" | null {
   const s = normalizeStatus(status);
+  // Exclude NOT_SENT / NO_ENVIADO before checking SENT
+  if (s.includes("NOT_SENT") || s.includes("NO_SENT") || s.includes("NO_ENVIAD")) return null;
   if (s.includes("CLICK") || s.includes("RESPOND")) return "CLICKEADO";
   if (s.includes("OPEN")) return "ABIERTO";
   if (s.includes("SENT") || s.includes("DELIVER")) return "ENVIADO";
@@ -300,12 +303,15 @@ export function crossReference(
     const web = (contact.WEB || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
     const empresaShort = extractCompanyFromDomain(web || domain);
 
-    // If we have a known working pattern for this domain, use it to generate the best email
-    const knownPattern = domainPatternMap.get(domain);
-    if (knownPattern) {
-      const generated = generateEmailFromPattern(knownPattern.pattern, contact.NOMBRE, contact.APELLIDO, domain);
-      if (generated && isValidEmail(generated) && !bouncedMails.has(generated) && !deliveredMails.has(generated)) {
-        finalMail = generated;
+    // Only use pattern generation if we DON'T already have a valid alternative
+    // and ONLY when NOT in onlyBounced mode (pattern emails may also bounce)
+    if (!onlyBounced) {
+      const knownPattern = domainPatternMap.get(domain);
+      if (knownPattern) {
+        const generated = generateEmailFromPattern(knownPattern.pattern, contact.NOMBRE, contact.APELLIDO, domain);
+        if (generated && isValidEmail(generated) && !bouncedMails.has(generated) && !deliveredMails.has(generated)) {
+          finalMail = generated;
+        }
       }
     }
 
@@ -320,6 +326,7 @@ export function crossReference(
       EMPRESA: contact.EMPRESA,
       EMPRESA_SHORT: empresaShort,
       WEB: contact.WEB,
+      MAIL_ORIGINAL: m1,
       MAIL1: finalMail,
     });
   }
@@ -328,7 +335,17 @@ export function crossReference(
 }
 
 export function exportCrossReferenced(contacts: CrossReferencedContact[]) {
-  const ws = XLSX.utils.json_to_sheet(contacts);
+  // Export with clean column names, excluding internal fields
+  const exportData = contacts.map(c => ({
+    NOMBRE: c.NOMBRE,
+    APELLIDO: c.APELLIDO,
+    APELLIDO2: c.APELLIDO2,
+    EMPRESA: c.EMPRESA_SHORT || c.EMPRESA,
+    WEB: c.WEB,
+    MAIL_ORIGINAL: c.MAIL_ORIGINAL,
+    MAIL_CORREGIDO: c.MAIL1,
+  }));
+  const ws = XLSX.utils.json_to_sheet(exportData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Filtrados");
   XLSX.writeFile(wb, "contactos_filtrados.xlsx");
