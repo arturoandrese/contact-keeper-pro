@@ -138,6 +138,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const [tabs, setTabs] = useState<SheetTab[]>([]);
   const [selectedTab, setSelectedTab] = useState<string>("");
   const [loadingTabs, setLoadingTabs] = useState(true);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
 
   // Fetch available tabs on mount
   useEffect(() => {
