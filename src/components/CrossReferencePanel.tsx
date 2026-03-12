@@ -74,13 +74,16 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     async (log: EmailLogEntry[]) => {
       setProcessing(true);
       try {
-        const [dbContacts, baseResponse] = await Promise.all([
+        const [dbContacts, baseResponse, savedPatternsRes] = await Promise.all([
           fetchAllContacts(baseId),
           supabase
             .from("bases")
             .select("crossed, crossed_at")
             .eq("id", baseId)
             .single(),
+          supabase
+            .from("domain_patterns")
+            .select("domain, pattern, example_email"),
         ]);
 
         if (!dbContacts || dbContacts.length === 0) {
@@ -94,6 +97,11 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
         }
 
         const baseData = baseResponse.data;
+        const savedPatterns = (savedPatternsRes.data || []).map((p: any) => ({
+          domain: p.domain,
+          pattern: p.pattern,
+          example_email: p.example_email,
+        }));
 
         const contacts: CleanedContact[] = dbContacts.map((c) => ({
           NOMBRE: c.nombre,
@@ -107,7 +115,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           MAIL4: c.mail4,
         }));
 
-        const { filtered, patterns, delivered } = crossReference(contacts, log, undefined, { onlyBounced: true });
+        const { filtered, patterns, delivered } = crossReference(contacts, log, undefined, { onlyBounced: true, savedPatterns });
 
         if (patterns.length > 0) {
           const uniquePatterns = Array.from(

@@ -181,6 +181,7 @@ const COOLDOWN_DAYS = 15;
 
 export interface CrossReferenceOptions {
   onlyBounced?: boolean;
+  savedPatterns?: DomainPatternEntry[];
 }
 
 function generateEmailFromPattern(pattern: string, nombre: string, apellido: string, domain: string): string | null {
@@ -216,6 +217,15 @@ export function crossReference(
   const domainPatternMap = new Map<string, { pattern: string; status: string }>();
   const baseDomainPatternMap = buildBaseDomainPatternMap(contacts);
   const STATUS_PRIORITY: Record<string, number> = { CLICKEADO: 3, ABIERTO: 2, ENVIADO: 1 };
+
+  // Seed domainPatternMap with saved patterns from DB (lowest priority, will be overridden by campaign data)
+  if (options.savedPatterns) {
+    for (const sp of options.savedPatterns) {
+      if (!domainPatternMap.has(sp.domain)) {
+        domainPatternMap.set(sp.domain, { pattern: sp.pattern, status: "SAVED" });
+      }
+    }
+  }
 
   if (existingDelivered) {
     for (const e of existingDelivered) {
