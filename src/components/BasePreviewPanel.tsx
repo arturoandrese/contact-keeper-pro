@@ -420,8 +420,16 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
           )}
         </div>
       )}
+      {sheetId && (
+        <CampaignStatusDialog
+          open={statusDialogOpen}
+          onOpenChange={setStatusDialogOpen}
+          sheetId={sheetId}
+          category={selectedCategory}
+          baseName={baseName}
+        />
+      )}
     </div>
-  );
 };
 
 export default BasePreviewPanel;
