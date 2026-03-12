@@ -303,12 +303,15 @@ export function crossReference(
     const web = (contact.WEB || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
     const empresaShort = extractCompanyFromDomain(web || domain);
 
-    // If we have a known working pattern for this domain, use it to generate the best email
-    const knownPattern = domainPatternMap.get(domain);
-    if (knownPattern) {
-      const generated = generateEmailFromPattern(knownPattern.pattern, contact.NOMBRE, contact.APELLIDO, domain);
-      if (generated && isValidEmail(generated) && !bouncedMails.has(generated) && !deliveredMails.has(generated)) {
-        finalMail = generated;
+    // Only use pattern generation if we DON'T already have a valid alternative
+    // and ONLY when NOT in onlyBounced mode (pattern emails may also bounce)
+    if (!onlyBounced) {
+      const knownPattern = domainPatternMap.get(domain);
+      if (knownPattern) {
+        const generated = generateEmailFromPattern(knownPattern.pattern, contact.NOMBRE, contact.APELLIDO, domain);
+        if (generated && isValidEmail(generated) && !bouncedMails.has(generated) && !deliveredMails.has(generated)) {
+          finalMail = generated;
+        }
       }
     }
 
@@ -323,6 +326,7 @@ export function crossReference(
       EMPRESA: contact.EMPRESA,
       EMPRESA_SHORT: empresaShort,
       WEB: contact.WEB,
+      MAIL_ORIGINAL: m1,
       MAIL1: finalMail,
     });
   }
