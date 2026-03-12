@@ -245,7 +245,6 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
             APELLIDO2: b.apellido2,
             EMPRESA: b.empresa,
             WEB: b.web,
-            MAIL_ORIGINAL: b.mail1,
             MAIL_CORREGIDO: corrected,
           });
         }
