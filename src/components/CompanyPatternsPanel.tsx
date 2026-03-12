@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, ChevronRight, Download, Loader2, Users, Filter, Trash2, Mail, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, Download, Loader2, Users, Filter, Trash2, Mail, MailCheck, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X } from "lucide-react";
 import { setCompanyOverride, getCompanyOverrides } from "@/lib/companyNameOverrides";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -326,6 +326,37 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
     return acc;
   }, {} as Record<string, number>);
 
+  const GOOD_STATUSES = ["ENVIADO", "ABIERTO", "CLICKEADO"];
+
+  const handleDownloadGoodEmails = () => {
+    const goodContacts = (selectedCompany
+      ? allContacts.filter((c) => (c.empresa_short?.trim() || "Sin empresa") === selectedCompany)
+      : allContacts
+    ).filter((c) => GOOD_STATUSES.includes(c.status));
+
+    if (goodContacts.length === 0) {
+      toast.error("No hay mails buenos para descargar");
+      return;
+    }
+
+    const rows = goodContacts.map((c) => ({
+      NOMBRE: c.nombre,
+      APELLIDO: c.apellido,
+      EMPRESA: c.empresa_short,
+      WEB: c.web,
+      MAIL: c.mail,
+      STATUS: c.status,
+      VECES_CONTACTADO: c.times_contacted,
+      ULTIMO_CONTACTO: c.last_contacted_at ? format(new Date(c.last_contacted_at), "dd/MM/yyyy", { locale: es }) : "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Mails Buenos");
+    const filename = selectedCompany ? `${selectedCompany}_mails_buenos.xlsx` : "todas_empresas_mails_buenos.xlsx";
+    XLSX.writeFile(wb, filename);
+    toast.success(`${goodContacts.length} mails buenos descargados`);
+  };
+
   const handleDownload = () => {
     const rows = filteredContacts.map((c) => ({
       NOMBRE: c.nombre,
@@ -552,6 +583,10 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={handleDownloadGoodEmails}>
+              <MailCheck className="mr-1.5 h-3.5 w-3.5" />
+              Mails buenos
+            </Button>
             <Button size="sm" onClick={handleDownload} disabled={filteredContacts.length === 0}>
               <Download className="mr-1.5 h-3.5 w-3.5" />
               Descargar
@@ -620,6 +655,10 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
             }}
           >
             {bulkMode ? "Cancelar selección" : "Seleccionar"}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={handleDownloadGoodEmails}>
+            <MailCheck className="mr-1.5 h-3.5 w-3.5" />
+            Descargar mails buenos
           </Button>
           <Button size="sm" onClick={handleDownload} disabled={filteredContacts.length === 0}>
             <Download className="mr-1.5 h-3.5 w-3.5" />
