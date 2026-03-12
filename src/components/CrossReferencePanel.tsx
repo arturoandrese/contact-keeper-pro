@@ -133,13 +133,13 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
 
         if (delivered.length > 0) {
           const deliveredMails = Array.from(new Set(delivered.map((d) => d.mail.toLowerCase())));
-          const existingMap = new Map<string, { times_contacted: number; last_contacted_at: string }>();
+          const existingMap = new Map<string, { times_contacted: number; last_contacted_at: string; last_campaign?: string }>();
 
           const existingResponses = await Promise.all(
             chunkArray(deliveredMails, 300).map((mailChunk) =>
               supabase
                 .from("delivered_contacts")
-                .select("mail, times_contacted, last_contacted_at")
+                .select("mail, times_contacted, last_contacted_at, last_campaign")
                 .in("mail", mailChunk)
             )
           );
@@ -149,30 +149,26 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
               existingMap.set((row.mail || "").toLowerCase(), {
                 times_contacted: row.times_contacted || 0,
                 last_contacted_at: row.last_contacted_at || "",
+                last_campaign: (row as any).last_campaign || "",
               });
             }
           }
 
           const now = new Date().toISOString();
-          const isDuplicate = baseData?.crossed === true;
+          const campaignKey = sheetId ? `${sheetId}:cross` : `base:${baseId}`;
 
           const deliveredPayload = delivered.map((d) => {
             const mail = d.mail.toLowerCase();
             const prev = existingMap.get(mail);
-            if (isDuplicate && prev) {
-              return {
-                ...d,
-                mail,
-                times_contacted: prev.times_contacted,
-                last_contacted_at: prev.last_contacted_at,
-              };
-            }
+            const prevCampaign = prev?.last_campaign || "";
+            const isNewCampaign = prevCampaign !== campaignKey;
 
             return {
               ...d,
               mail,
-              times_contacted: (prev?.times_contacted || 0) + 1,
+              times_contacted: isNewCampaign ? (prev?.times_contacted || 0) + 1 : (prev?.times_contacted || 1),
               last_contacted_at: now,
+              last_campaign: campaignKey,
             };
           });
 

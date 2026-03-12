@@ -265,7 +265,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         ).values()
       );
 
-      const existingDeliveredMap = new Map<string, { times_contacted: number }>();
+      const existingDeliveredMap = new Map<string, { times_contacted: number; last_campaign?: string }>();
       const emailChunks: string[][] = [];
       for (let i = 0; i < uniqueDeliveredRows.length; i += 300) {
         emailChunks.push(uniqueDeliveredRows.slice(i, i + 300).map((r) => r.mail));
@@ -275,7 +275,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         emailChunks.map((chunk) =>
           supabase
             .from("delivered_contacts")
-            .select("mail, times_contacted")
+            .select("mail, times_contacted, last_campaign")
             .in("mail", chunk)
         )
       );
@@ -284,17 +284,23 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         for (const row of response.data || []) {
           existingDeliveredMap.set((row.mail || "").toLowerCase(), {
             times_contacted: row.times_contacted || 0,
+            last_campaign: (row as any).last_campaign || "",
           });
         }
       }
 
       const now = new Date().toISOString();
+      const campaignKey = `${sheetId}:${selectedTab}`;
       const deliveredPayload = uniqueDeliveredRows.map((row) => {
         const prev = existingDeliveredMap.get(row.mail);
+        // Only increment if this is a different campaign (different sheet tab)
+        const prevCampaign = prev?.last_campaign || "";
+        const isNewCampaign = prevCampaign !== campaignKey;
         return {
           ...row,
-          times_contacted: (prev?.times_contacted || 0) + 1,
+          times_contacted: isNewCampaign ? (prev?.times_contacted || 0) + 1 : (prev?.times_contacted || 1),
           last_contacted_at: now,
+          last_campaign: campaignKey,
         };
       });
 
