@@ -139,6 +139,10 @@ export interface ExistingDelivered {
 
 const COOLDOWN_DAYS = 15;
 
+export interface CrossReferenceOptions {
+  onlyBounced?: boolean;
+}
+
 function generateEmailFromPattern(pattern: string, nombre: string, apellido: string, domain: string): string | null {
   if (!nombre || !apellido || !domain) return null;
   const n = nombre.toLowerCase();
@@ -157,8 +161,10 @@ function generateEmailFromPattern(pattern: string, nombre: string, apellido: str
 export function crossReference(
   contacts: CleanedContact[],
   emailLog: EmailLogEntry[],
-  existingDelivered?: ExistingDelivered[]
+  existingDelivered?: ExistingDelivered[],
+  options: CrossReferenceOptions = {}
 ): { filtered: CrossReferencedContact[]; patterns: DomainPatternEntry[]; delivered: DeliveredContactEntry[] } {
+  const onlyBounced = options.onlyBounced === true;
   const deliveredMails = new Set<string>();
   const bouncedMails = new Set<string>();
   const patterns: DomainPatternEntry[] = [];
@@ -261,13 +267,17 @@ export function crossReference(
 
   for (const contact of contacts) {
     const m1 = (contact.MAIL1 || "").toLowerCase();
-    
+
+    if (onlyBounced && !bouncedMails.has(m1)) {
+      continue;
+    }
+
     const existing = existingMap.get(m1);
     if (existing) {
       if (existing.status === "ABIERTO" || existing.status === "CLICKEADO") continue;
     }
 
-    if (deliveredMails.has(m1) && !existing) {
+    if (deliveredMails.has(m1) && !existing && !onlyBounced) {
       continue;
     }
 
@@ -276,9 +286,11 @@ export function crossReference(
       const alternatives = [contact.MAIL2, contact.MAIL3, contact.MAIL4]
         .map((m) => (m || "").toLowerCase())
         .filter((m) => isValidEmail(m) && !bouncedMails.has(m) && !deliveredMails.has(m) && !isFreeMail(m));
-      
+
       if (alternatives.length === 0) continue;
       finalMail = alternatives[0];
+    } else if (onlyBounced) {
+      continue;
     }
 
     if (!isValidEmail(finalMail)) continue;
