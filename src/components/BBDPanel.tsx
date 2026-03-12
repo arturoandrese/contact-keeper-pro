@@ -215,17 +215,15 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
 
       if (allGoodContacts.length === 0) { toast.error("No hay mails buenos en esta base"); return; }
 
-      const rows = allGoodContacts.map((c) => ({
+      const rows = allGoodContacts.map(({ contact: c, tabIndex }) => ({
         NOMBRE: (c["NOMBRE"] || c["First Name"] || "").toString().trim(),
         APELLIDO: (c["APELLIDO"] || c["Last Name"] || "").toString().trim(),
         EMPRESA: (c["EMPRESA"] || c["Company"] || "").toString().trim(),
         WEB: (c["WEB"] || c["Website"] || "").toString().trim(),
-        MAIL: (c["MAIL1"] || c["MAIL_CORREGIDO"] || c["Email Address"] || c["email"] || "").toString().toLowerCase().trim(),
+        MAIL: (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "").toString().toLowerCase().trim(),
         MAIL2: (c["MAIL2"] || "").toString().trim(),
         ESTADO: (c._status || "").toString().trim(),
-        PESTAÑA: allSheetData.findIndex((sd) => sd.contacts.includes(c)) >= 0 
-          ? tabs[allSheetData.findIndex((sd) => sd.contacts.includes(c))]?.title || "" 
-          : "",
+        PESTAÑA: tabs[tabIndex]?.title || "",
       }));
 
       const ws = XLSX.utils.json_to_sheet(rows);
