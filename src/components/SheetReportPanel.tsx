@@ -275,7 +275,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         emailChunks.map((chunk) =>
           supabase
             .from("delivered_contacts")
-            .select("mail, times_contacted")
+            .select("mail, times_contacted, last_campaign")
             .in("mail", chunk)
         )
       );
