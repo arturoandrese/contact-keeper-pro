@@ -190,53 +190,49 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
     setUpdating(true);
 
     try {
-      const { data: existingContacts, error: fetchErr } = await supabase
-        .from("contacts")
-        .select("id, mail1, mail2, mail3, mail4")
-        .eq("base_id", baseId);
-
-      if (fetchErr) throw fetchErr;
-
-      const emailStatusMap = new Map<string, string>();
-      for (const sc of data.contacts) {
-        const email = (
-          sc["Email Address"] || sc["email"] || sc["MAIL1"] || sc["mail"] ||
-          Object.values(sc).find((v) => typeof v === "string" && v.includes("@"))
-        )?.toLowerCase().trim();
-
-        if (email) {
-          emailStatusMap.set(email, sc._status || "UNKNOWN");
-        }
+      const existingContacts = await fetchAllContacts(baseId);
+      if (existingContacts.length === 0) {
+        toast.error("No hay contactos en esta base para actualizar");
+        setUpdating(false);
+        return;
       }
 
-      const bouncedEmails = new Set<string>();
-      const deliveredEmails = new Set<string>();
-      for (const [email, status] of emailStatusMap) {
-        if (status.includes("BOUNCED")) {
-          bouncedEmails.add(email);
-        } else if (
-          status.includes("DELIVERED") ||
-          status.includes("OPENED") ||
-          status.includes("CLICKED") ||
-          status === "EMAIL_SENT" ||
-          status === "MAIL_MERGE_COMPLETE"
-        ) {
-          deliveredEmails.add(email);
+      const log = toEmailLog(data.contacts);
+      const cleanedContacts = toCleanedContacts(existingContacts);
+      const { filtered, delivered } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true });
+
+      const correctionMap = new Map<string, string>();
+      for (const row of filtered) {
+        const key = `${row.NOMBRE}|${row.APELLIDO}|${row.MAIL_ORIGINAL}`.toLowerCase();
+        if (row.MAIL_ORIGINAL && row.MAIL1) {
+          correctionMap.set(key, row.MAIL1.toLowerCase());
         }
       }
 
       const updates: Array<{ id: string; changes: Record<string, string> }> = [];
-      for (const contact of existingContacts || []) {
-        const changes: Record<string, string> = {};
+      for (const contact of existingContacts) {
         const mails = [
-          { key: "mail1", val: contact.mail1 },
-          { key: "mail2", val: contact.mail2 },
-          { key: "mail3", val: contact.mail3 },
-          { key: "mail4", val: contact.mail4 },
-        ];
+          { key: "mail1", val: (contact.mail1 || "").toLowerCase().trim() },
+          { key: "mail2", val: (contact.mail2 || "").toLowerCase().trim() },
+          { key: "mail3", val: (contact.mail3 || "").toLowerCase().trim() },
+          { key: "mail4", val: (contact.mail4 || "").toLowerCase().trim() },
+        ] as const;
+
+        const nameKey = `${contact.nombre || ""}|${contact.apellido || ""}`.toLowerCase();
+        const matched = mails.find((m) => !!m.val && correctionMap.has(`${nameKey}|${m.val}`));
+        if (!matched) continue;
+
+        const correctedMail = correctionMap.get(`${nameKey}|${matched.val}`) || "";
+        if (!correctedMail) continue;
+
+        const changes: Record<string, string> = {};
+        if (correctedMail !== mails[0].val) {
+          changes.mail1 = correctedMail;
+        }
 
         for (const m of mails) {
-          if (m.val && bouncedEmails.has(m.val.toLowerCase().trim())) {
+          if (!m.val || m.key === "mail1") continue;
+          if (m.val === matched.val || m.val === correctedMail) {
             changes[m.key] = "";
           }
         }
@@ -255,33 +251,18 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         )
       );
 
-      const deliveredRows = data.contacts
-        .map((sc) => {
-          const email = (
-            sc["Email Address"] || sc["email"] || sc["MAIL1"] || sc["mail"] ||
-            Object.values(sc).find((v) => typeof v === "string" && v.includes("@"))
-          )?.toLowerCase().trim();
-
-          if (!email || !deliveredEmails.has(email)) return null;
-
-          const web = (sc["WEB"] || sc["Website"] || sc["web"] || "").toString().trim().toLowerCase();
-          const empresa = (sc["EMPRESA"] || sc["Company"] || sc["empresa"] || "").toString().trim().toUpperCase();
-          const empresaShort = empresa || (web ? web.split(".")[0].toUpperCase() : "");
-
-          return {
-            mail: email,
-            nombre: (sc["First Name"] || sc["NOMBRE"] || sc["nombre"] || "").toString().trim(),
-            apellido: (sc["Last Name"] || sc["APELLIDO"] || sc["apellido"] || "").toString().trim(),
-            empresa,
-            empresa_short: empresaShort,
-            web,
-            status: (sc._status || "EMAIL_SENT").toString().trim(),
-          };
-        })
-        .filter((row): row is NonNullable<typeof row> => !!row);
-
       const uniqueDeliveredRows = Array.from(
-        new Map(deliveredRows.map((row) => [row.mail, row])).values()
+        new Map(
+          delivered
+            .filter((d) => !!d.mail)
+            .map((d) => [
+              d.mail.toLowerCase(),
+              {
+                ...d,
+                mail: d.mail.toLowerCase(),
+              },
+            ])
+        ).values()
       );
 
       const existingDeliveredMap = new Map<string, { times_contacted: number }>();
@@ -334,7 +315,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         .eq("id", baseId);
 
       toast.success(
-        `✅ Base actualizada: ${updates.length} emails rebotados limpiados, ${deliveredPayload.length} contactos entregados guardados`
+        `✅ Base actualizada: ${updates.length} contactos corregidos, ${deliveredPayload.length} contactos entregados guardados`
       );
     } catch (err: any) {
       toast.error("Error actualizando base: " + (err.message || "Error desconocido"));
@@ -347,14 +328,35 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
     ? Object.entries(data.stats).sort(([, a], [, b]) => b - a)
     : [];
 
-  const totalSent = data
-    ? Object.entries(data.stats)
-        .filter(([k]) => !k.includes("NOT_SENT") && !k.includes("UNKNOWN"))
-        .reduce((sum, [, v]) => sum + v, 0)
-    : 0;
+  const filteredContacts = useMemo(() => {
+    if (!data) return [];
+    if (!selectedStatus) return data.contacts;
+    return data.contacts.filter((contact) => normalizeStatusKey(contact._status || "UNKNOWN") === selectedStatus);
+  }, [data, selectedStatus]);
 
-  const bounced = data?.stats["EMAIL_BOUNCED"] || data?.stats["BOUNCED"] || 0;
-  const opened = data?.stats["EMAIL_OPENED"] || data?.stats["OPENED"] || 0;
+  const statusFilterLabel = selectedStatus ? selectedStatus.replace(/_/g, " ") : "TODOS";
+
+  const handleDownloadCurrentView = () => {
+    if (!data) return;
+
+    const rows = filteredContacts.map((contact) => ({
+      EMAIL: getSheetContactEmail(contact) || "",
+      ESTADO: (contact._status || "UNKNOWN").toString().replace(/_/g, " "),
+      NOMBRE: getSheetContactName(contact),
+      APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
+      EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
+      WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
+      MAIL1: (contact["MAIL1"] || "").toString().trim(),
+      MAIL2: (contact["MAIL2"] || "").toString().trim(),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+
+    const suffix = selectedStatus ? normalizeStatusKey(selectedStatus).toLowerCase() : "todos";
+    XLSX.writeFile(wb, `reporte_${selectedTab || "sheet"}_${suffix}.xlsx`);
+  };
 
   return (
     <div className="space-y-6">
