@@ -394,14 +394,20 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
             </Select>
           )}
           {data && (
-            <Button size="sm" variant="default" onClick={handleUpdateBase} disabled={updating}>
-              {updating ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
+            <>
+              <Button size="sm" variant="outline" onClick={handleDownloadCurrentView} disabled={filteredContacts.length === 0}>
                 <Download className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              Actualizar base con reporte
-            </Button>
+                Descargar {selectedStatus ? statusFilterLabel : "vista"}
+              </Button>
+              <Button size="sm" variant="default" onClick={handleUpdateBase} disabled={updating}>
+                {updating ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Actualizar base con reporte
+              </Button>
+            </>
           )}
           <Button size="sm" variant="outline" onClick={fetchReport} disabled={loading}>
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
