@@ -139,7 +139,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             chunkArray(deliveredMails, 300).map((mailChunk) =>
               supabase
                 .from("delivered_contacts")
-                .select("mail, times_contacted, last_contacted_at")
+                .select("mail, times_contacted, last_contacted_at, last_campaign")
                 .in("mail", mailChunk)
             )
           );
