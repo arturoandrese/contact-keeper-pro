@@ -74,11 +74,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     async (log: EmailLogEntry[]) => {
       setProcessing(true);
       try {
-        const [{ data: dbContacts, error }, { data: baseData }] = await Promise.all([
-          supabase
-            .from("contacts")
-            .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
-            .eq("base_id", baseId),
+        const [dbContacts, baseResponse] = await Promise.all([
+          fetchAllContacts(baseId),
           supabase
             .from("bases")
             .select("crossed, crossed_at")
@@ -86,11 +83,17 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             .single(),
         ]);
 
-        if (error || !dbContacts) {
+        if (!dbContacts || dbContacts.length === 0) {
           toast.error("Error cargando contactos de la base");
           setProcessing(false);
           return;
         }
+
+        if (baseResponse.error) {
+          console.warn("No se pudo leer estado de cruce previo:", baseResponse.error.message);
+        }
+
+        const baseData = baseResponse.data;
 
         const contacts: CleanedContact[] = dbContacts.map((c) => ({
           NOMBRE: c.nombre,
