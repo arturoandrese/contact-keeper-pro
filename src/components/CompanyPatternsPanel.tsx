@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, ChevronRight, Download, Loader2, Users, Filter, Trash2, Mail, Save } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, Download, Loader2, Users, Filter, Trash2, Mail, Save, Pencil, ArrowDownAZ, ArrowDown01, Check, X } from "lucide-react";
+import { setCompanyOverride, getCompanyOverrides } from "@/lib/companyNameOverrides";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import {
@@ -67,6 +68,9 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   const [deleteTarget, setDeleteTarget] = useState<{ type: "company" | "contact" | "bulk"; id?: string; name: string } | null>(null);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [bulkMode, setBulkMode] = useState(false);
+  const [sortABC, setSortABC] = useState(false);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [editNameValue, setEditNameValue] = useState("");
 
   const [companyPatterns, setCompanyPatterns] = useState<DomainPattern[]>([]);
   const [editingPattern, setEditingPattern] = useState(false);
@@ -77,6 +81,10 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   useEffect(() => {
     fetchAllContacts();
   }, []);
+
+  useEffect(() => {
+    if (allContacts.length > 0) buildCompanyList(allContacts);
+  }, [sortABC]);
 
   const fetchAllContacts = async () => {
     setLoading(true);
@@ -115,7 +123,10 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
     }
     const sorted = Object.entries(groups)
       .map(([empresa_short, { count, domain }]) => ({ empresa_short, count, domain }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => sortABC
+        ? a.empresa_short.localeCompare(b.empresa_short, "es")
+        : b.count - a.count
+      );
     setCompanies(sorted);
   };
 
@@ -126,6 +137,44 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
       .select("domain, pattern, example_email")
       .eq("domain", domain);
     setCompanyPatterns((data as DomainPattern[]) || []);
+  };
+
+  const handleRenameCompany = async (oldName: string, newName: string) => {
+    const trimmed = newName.trim().toUpperCase();
+    if (!trimmed || trimmed === oldName) {
+      setEditingName(null);
+      return;
+    }
+
+    // Find the domain for this company to save override
+    const company = companies.find(c => c.empresa_short === oldName);
+    if (company?.domain) {
+      setCompanyOverride(company.domain, trimmed);
+    }
+
+    // Update in delivered_contacts
+    const ids = allContacts
+      .filter(c => (c.empresa_short?.trim() || "Sin empresa") === oldName)
+      .map(c => c.id);
+
+    for (let i = 0; i < ids.length; i += 500) {
+      await supabase
+        .from("delivered_contacts")
+        .update({ empresa_short: trimmed })
+        .in("id", ids.slice(i, i + 500));
+    }
+
+    // Update local state
+    const updated = allContacts.map(c =>
+      (c.empresa_short?.trim() || "Sin empresa") === oldName
+        ? { ...c, empresa_short: trimmed }
+        : c
+    );
+    setAllContacts(updated);
+    buildCompanyList(updated);
+    if (selectedCompany === oldName) setSelectedCompany(trimmed);
+    setEditingName(null);
+    toast.success(`Empresa renombrada a "${trimmed}" (memorizado para futuras bases)`);
   };
 
   const handleSelectCompany = (empresa_short: string) => {
@@ -464,7 +513,39 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
               <ArrowLeft className="mr-1 h-3.5 w-3.5" />
               Volver a empresas
             </Button>
-            <h2 className="font-display text-2xl font-bold">{selectedCompany}</h2>
+            <div className="flex items-center gap-2">
+              {editingName === selectedCompany ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={editNameValue}
+                    onChange={(e) => setEditNameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRenameCompany(selectedCompany, editNameValue);
+                      if (e.key === "Escape") setEditingName(null);
+                    }}
+                    className="font-display text-2xl font-bold bg-transparent border-b-2 border-primary outline-none w-64"
+                  />
+                  <button onClick={() => handleRenameCompany(selectedCompany, editNameValue)} className="rounded p-1 text-primary hover:bg-primary/10">
+                    <Check className="h-5 w-5" />
+                  </button>
+                  <button onClick={() => setEditingName(null)} className="rounded p-1 text-muted-foreground hover:bg-muted">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h2 className="font-display text-2xl font-bold">{selectedCompany}</h2>
+                  <button
+                    onClick={() => { setEditingName(selectedCompany); setEditNameValue(selectedCompany); }}
+                    className="rounded p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    title="Editar nombre (se memoriza para futuras bases)"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground mt-1">
               {filteredContacts.length} contactos corporativos
             </p>
@@ -505,6 +586,15 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSortABC(!sortABC)}
+            title={sortABC ? "Ordenar por cantidad" : "Ordenar A-Z"}
+          >
+            {sortABC ? <ArrowDown01 className="mr-1.5 h-3.5 w-3.5" /> : <ArrowDownAZ className="mr-1.5 h-3.5 w-3.5" />}
+            {sortABC ? "Por cantidad" : "A-Z"}
+          </Button>
           {bulkMode && selectedCompanies.size > 0 && (
             <Button
               size="sm"
@@ -612,7 +702,28 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                   <Building2 className="h-4 w-4 text-primary" />
                 </div>
-                <p className="font-display font-medium text-sm">{empresa_short}</p>
+                {editingName === empresa_short ? (
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      autoFocus
+                      value={editNameValue}
+                      onChange={(e) => setEditNameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRenameCompany(empresa_short, editNameValue);
+                        if (e.key === "Escape") setEditingName(null);
+                      }}
+                      className="font-display font-medium text-sm bg-transparent border-b-2 border-primary outline-none w-48"
+                    />
+                    <button onClick={() => handleRenameCompany(empresa_short, editNameValue)} className="rounded p-1 text-primary hover:bg-primary/10">
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => setEditingName(null)} className="rounded p-1 text-muted-foreground hover:bg-muted">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="font-display font-medium text-sm">{empresa_short}</p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -621,6 +732,13 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
                 </div>
                 {!bulkMode && (
                   <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingName(empresa_short); setEditNameValue(empresa_short); }}
+                      className="rounded p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                      title="Editar nombre"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "company", name: empresa_short }); }}
                       className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"

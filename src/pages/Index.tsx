@@ -10,7 +10,7 @@ import CompanyPatternsPanel from "@/components/CompanyPatternsPanel";
 import CrossReferencePanel from "@/components/CrossReferencePanel";
 import BasePreviewPanel from "@/components/BasePreviewPanel";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
@@ -131,6 +131,15 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => window.location.reload()}
+              title="Actualizar app"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
