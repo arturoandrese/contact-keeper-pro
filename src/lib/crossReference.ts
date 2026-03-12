@@ -60,6 +60,8 @@ function normalizeStatus(status: string): string {
 
 function classifyStatus(status: string): "ABIERTO" | "CLICKEADO" | "ENVIADO" | null {
   const s = normalizeStatus(status);
+  // Exclude NOT_SENT / NO_ENVIADO before checking SENT
+  if (s.includes("NOT_SENT") || s.includes("NO_SENT") || s.includes("NO_ENVIAD")) return null;
   if (s.includes("CLICK") || s.includes("RESPOND")) return "CLICKEADO";
   if (s.includes("OPEN")) return "ABIERTO";
   if (s.includes("SENT") || s.includes("DELIVER")) return "ENVIADO";
