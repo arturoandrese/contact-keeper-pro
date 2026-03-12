@@ -326,6 +326,37 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
     return acc;
   }, {} as Record<string, number>);
 
+  const GOOD_STATUSES = ["ENVIADO", "ABIERTO", "CLICKEADO"];
+
+  const handleDownloadGoodEmails = () => {
+    const goodContacts = (selectedCompany
+      ? allContacts.filter((c) => (c.empresa_short?.trim() || "Sin empresa") === selectedCompany)
+      : allContacts
+    ).filter((c) => GOOD_STATUSES.includes(c.status));
+
+    if (goodContacts.length === 0) {
+      toast.error("No hay mails buenos para descargar");
+      return;
+    }
+
+    const rows = goodContacts.map((c) => ({
+      NOMBRE: c.nombre,
+      APELLIDO: c.apellido,
+      EMPRESA: c.empresa_short,
+      WEB: c.web,
+      MAIL: c.mail,
+      STATUS: c.status,
+      VECES_CONTACTADO: c.times_contacted,
+      ULTIMO_CONTACTO: c.last_contacted_at ? format(new Date(c.last_contacted_at), "dd/MM/yyyy", { locale: es }) : "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Mails Buenos");
+    const filename = selectedCompany ? `${selectedCompany}_mails_buenos.xlsx` : "todas_empresas_mails_buenos.xlsx";
+    XLSX.writeFile(wb, filename);
+    toast.success(`${goodContacts.length} mails buenos descargados`);
+  };
+
   const handleDownload = () => {
     const rows = filteredContacts.map((c) => ({
       NOMBRE: c.nombre,
