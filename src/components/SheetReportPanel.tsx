@@ -289,12 +289,17 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
       }
 
       const now = new Date().toISOString();
+      const campaignKey = `${sheetId}:${selectedTab}`;
       const deliveredPayload = uniqueDeliveredRows.map((row) => {
         const prev = existingDeliveredMap.get(row.mail);
+        // Only increment if this is a different campaign (different sheet tab)
+        const prevCampaign = prev?.last_campaign || "";
+        const isNewCampaign = prevCampaign !== campaignKey;
         return {
           ...row,
-          times_contacted: (prev?.times_contacted || 0) + 1,
+          times_contacted: isNewCampaign ? (prev?.times_contacted || 0) + 1 : (prev?.times_contacted || 1),
           last_contacted_at: now,
+          last_campaign: campaignKey,
         };
       });
 
