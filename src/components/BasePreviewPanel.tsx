@@ -185,6 +185,14 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
 
   const columns = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4"];
 
+  const filteredContacts = searchQuery.trim()
+    ? contacts.filter((c) => {
+        const q = searchQuery.toLowerCase();
+        return [c.nombre, c.apellido, c.apellido2, c.empresa, c.web, c.mail1, c.mail2, c.mail3, c.mail4]
+          .some((val) => val?.toLowerCase().includes(q));
+      })
+    : contacts;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
