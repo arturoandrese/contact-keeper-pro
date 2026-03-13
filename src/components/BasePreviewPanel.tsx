@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, GitCompare, Link2, BarChart3, Mail, MailX, MailOpen, MousePointerClick, Send, MessageSquareReply, AlertCircle, Download } from "lucide-react";
+import { ArrowLeft, Loader2, GitCompare, Link2, BarChart3, Mail, MailX, MailOpen, MousePointerClick, Send, MessageSquareReply, AlertCircle, Download, Search } from "lucide-react";
 import { toast } from "sonner";
 import SheetReportPanel from "./SheetReportPanel";
 import CampaignStatusDialog, { type StatusCategory } from "./CampaignStatusDialog";
@@ -59,6 +59,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<StatusCategory>("sent");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const openStatusDialog = (cat: StatusCategory) => {
     setSelectedCategory(cat);
@@ -183,6 +184,14 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   }
 
   const columns = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4"];
+
+  const filteredContacts = searchQuery.trim()
+    ? contacts.filter((c) => {
+        const q = searchQuery.toLowerCase();
+        return [c.nombre, c.apellido, c.apellido2, c.empresa, c.web, c.mail1, c.mail2, c.mail3, c.mail4]
+          .some((val) => val?.toLowerCase().includes(q));
+      })
+    : contacts;
 
   return (
     <div className="space-y-6">
@@ -379,6 +388,22 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
         </div>
       )}
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por nombre, empresa o email..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9 text-sm"
+        />
+        {searchQuery && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+            {filteredContacts.length} resultado{filteredContacts.length !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -397,7 +422,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                 </tr>
               </thead>
               <tbody>
-                {contacts.map((c, i) => (
+                {filteredContacts.map((c, i) => (
                   <tr key={i} className="border-b border-border/50 transition-colors hover:bg-muted/30">
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.nombre || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.apellido || "—"}</td>
