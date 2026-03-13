@@ -238,6 +238,17 @@ const Index = () => {
                   ))}
                 </div>
                 <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={() => {
+                    const headers = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4"];
+                    const rows = contacts.map(c => [c.NOMBRE, c.APELLIDO, c.APELLIDO2, c.EMPRESA, c.WEB, c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].join("\t"));
+                    const tsv = [headers.join("\t"), ...rows].join("\n");
+                    navigator.clipboard.writeText(tsv).then(() => {
+                      toast.success("📋 Copiado. Pega en Google Sheets (Ctrl+V)");
+                    }).catch(() => toast.error("No se pudo copiar"));
+                  }}>
+                    <ClipboardCopy className="mr-1.5 h-3.5 w-3.5" />
+                    Copiar para Sheets
+                  </Button>
                   <Button size="sm" onClick={() => handleExport("xlsx")}>
                     <Download className="mr-1.5 h-3.5 w-3.5" />
                     Excel
