@@ -59,6 +59,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<StatusCategory>("sent");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const openStatusDialog = (cat: StatusCategory) => {
     setSelectedCategory(cat);
