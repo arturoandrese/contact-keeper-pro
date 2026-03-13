@@ -388,6 +388,22 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
         </div>
       )}
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por nombre, empresa o email..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9 text-sm"
+        />
+        {searchQuery && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+            {filteredContacts.length} resultado{filteredContacts.length !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
