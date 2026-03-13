@@ -10,7 +10,7 @@ import CompanyPatternsPanel from "@/components/CompanyPatternsPanel";
 import CrossReferencePanel from "@/components/CrossReferencePanel";
 import BasePreviewPanel from "@/components/BasePreviewPanel";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
@@ -34,7 +34,7 @@ const Index = () => {
     localStorage.setItem("theme", dark ? "dark" : "light");
   }, [dark]);
 
-  const handleFile = (content: string) => {
+  const handleFile = async (content: string) => {
     const lines = content.split("\n").filter((l) => l.trim()).length - 1;
     setRawCount(Math.max(lines, 0));
 
@@ -44,6 +44,53 @@ const Index = () => {
       setSaveOpen(false);
       toast.error("No se detectaron correos corporativos válidos (MAIL1/email1)");
       return;
+    }
+
+    // Cross-reference with delivered_contacts to prioritize verified emails
+    try {
+      const allMails = new Set<string>();
+      for (const c of cleaned) {
+        [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].forEach(m => {
+          if (m) allMails.add(m.toLowerCase());
+        });
+      }
+
+      const mailArray = Array.from(allMails);
+      const verifiedSet = new Set<string>();
+
+      // Fetch in chunks of 300
+      for (let i = 0; i < mailArray.length; i += 300) {
+        const chunk = mailArray.slice(i, i + 300);
+        const { data } = await supabase
+          .from("delivered_contacts")
+          .select("mail")
+          .in("mail", chunk);
+        if (data) data.forEach(r => verifiedSet.add((r.mail || "").toLowerCase()));
+      }
+
+      if (verifiedSet.size > 0) {
+        let promoted = 0;
+        for (const c of cleaned) {
+          const mails = [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].filter(Boolean);
+          // If MAIL1 is not verified but another one is, promote it
+          if (!verifiedSet.has((c.MAIL1 || "").toLowerCase())) {
+            const verifiedMail = mails.find(m => verifiedSet.has(m.toLowerCase()));
+            if (verifiedMail) {
+              const remaining = mails.filter(m => m.toLowerCase() !== verifiedMail.toLowerCase());
+              c.MAIL1 = verifiedMail;
+              c.MAIL2 = remaining[0] || "";
+              c.MAIL3 = remaining[1] || "";
+              c.MAIL4 = remaining[2] || "";
+              promoted++;
+            }
+          }
+        }
+        if (promoted > 0) {
+          toast.info(`✅ ${promoted} contactos con mail verificado promovido a MAIL1`);
+        }
+      }
+    } catch (err) {
+      console.warn("No se pudo cruzar con delivered_contacts:", err);
     }
 
     setContacts(cleaned);
@@ -191,6 +238,17 @@ const Index = () => {
                   ))}
                 </div>
                 <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={() => {
+                    const headers = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4"];
+                    const rows = contacts.map(c => [c.NOMBRE, c.APELLIDO, c.APELLIDO2, c.EMPRESA, c.WEB, c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].join("\t"));
+                    const tsv = [headers.join("\t"), ...rows].join("\n");
+                    navigator.clipboard.writeText(tsv).then(() => {
+                      toast.success("📋 Copiado. Pega en Google Sheets (Ctrl+V)");
+                    }).catch(() => toast.error("No se pudo copiar"));
+                  }}>
+                    <ClipboardCopy className="mr-1.5 h-3.5 w-3.5" />
+                    Copiar para Sheets
+                  </Button>
                   <Button size="sm" onClick={() => handleExport("xlsx")}>
                     <Download className="mr-1.5 h-3.5 w-3.5" />
                     Excel
