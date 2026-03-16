@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download, ClipboardCopy, GitCompare } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
-import { crossReference, type EmailLogEntry } from "@/lib/crossReference";
+import { crossReference, type EmailLogEntry, type CrossReferencedContact, type DeliveredHistoryEntry } from "@/lib/crossReference";
 import ExportDropdown from "./ExportDropdown";
 import type { CleanedContact } from "@/lib/contactCleaner";
 
