@@ -234,6 +234,22 @@ export function crossReference(
     }
   }
 
+  // Seed patterns from delivered_contacts history (medium priority — above SAVED, below campaign data)
+  if (options.deliveredHistory) {
+    for (const dh of options.deliveredHistory) {
+      const mail = dh.mail.toLowerCase();
+      const domain = mail.split("@")[1];
+      if (!domain || isFreeMail(mail)) continue;
+      const pat = detectPattern(mail, dh.nombre, dh.apellido);
+      if (pat) {
+        const current = domainPatternMap.get(domain);
+        if (!current || current.status === "SAVED") {
+          domainPatternMap.set(domain, { pattern: pat, status: "HISTORY" });
+        }
+      }
+    }
+  }
+
   if (existingDelivered) {
     for (const e of existingDelivered) {
       existingMap.set(e.mail.toLowerCase(), e);
