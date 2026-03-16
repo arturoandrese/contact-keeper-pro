@@ -179,9 +179,16 @@ export interface ExistingDelivered {
 
 const COOLDOWN_DAYS = 15;
 
+export interface DeliveredHistoryEntry {
+  mail: string;
+  nombre: string;
+  apellido: string;
+}
+
 export interface CrossReferenceOptions {
   onlyBounced?: boolean;
   savedPatterns?: DomainPatternEntry[];
+  deliveredHistory?: DeliveredHistoryEntry[];
 }
 
 function generateEmailFromPattern(pattern: string, nombre: string, apellido: string, domain: string): string | null {
