@@ -443,6 +443,24 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                 )}
                 Volver a cruzar
               </Button>
+              {crossedResults && crossedResults.length > 0 && (
+                <ExportDropdown
+                  label="Base cruzada"
+                  onDownload={() => {
+                    const ws = XLSX.utils.json_to_sheet(crossedResults.map(r => ({
+                      NOMBRE: r.NOMBRE, APELLIDO: r.APELLIDO, EMPRESA: r.EMPRESA_SHORT || r.EMPRESA,
+                      WEB: r.WEB, MAIL_ORIGINAL: r.MAIL_ORIGINAL, MAIL_CORREGIDO: r.MAIL1,
+                    })));
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Cruzada");
+                    XLSX.writeFile(wb, `cruzada_${baseName}.xlsx`);
+                  }}
+                  getData={() => ({
+                    headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL ORIGINAL", "MAIL CORREGIDO"],
+                    rows: crossedResults.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT || r.EMPRESA, r.WEB, r.MAIL_ORIGINAL, r.MAIL1]),
+                  })}
+                />
+              )}
             </>
           )}
           <Button size="sm" variant="outline" onClick={fetchReport} disabled={loading}>
