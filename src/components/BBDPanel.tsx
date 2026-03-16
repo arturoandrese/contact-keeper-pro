@@ -175,7 +175,43 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       rows.push([b.nombre, b.apellido, b.apellido2, b.empresa, b.web, corrected]);
     }
 
-    if (rows.length === 0) { toast.error("No hay correcciones en esta base cruzada"); return null; }
+    if (rows.length === 0) {
+      const fallbackRows: string[][] = [];
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("nombre, apellido, apellido2, empresa, web, mail1")
+          .eq("base_id", base.id)
+          .range(from, to);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        for (const c of data as Array<any>) {
+          fallbackRows.push([
+            c.nombre || "",
+            c.apellido || "",
+            c.apellido2 || "",
+            c.empresa || "",
+            c.web || "",
+            c.mail1 || "",
+          ]);
+        }
+
+        if (data.length < pageSize) break;
+      }
+
+      if (fallbackRows.length === 0) {
+        toast.error("No hay contactos para exportar en esta base");
+        return null;
+      }
+
+      toast.info("No hubo correcciones: exportando base con MAIL1 actual");
+      return fallbackRows;
+    }
+
     return rows;
   };
 
