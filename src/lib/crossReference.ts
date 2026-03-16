@@ -346,13 +346,6 @@ export function crossReference(
     }
   }
 
-  // Build set of all emails that appeared in the log (any status)
-  const logMails = new Set<string>();
-  for (const entry of emailLog) {
-    const m = (entry.MAIL1 || "").toLowerCase().trim();
-    if (m) logMails.add(m);
-  }
-
   const filtered: CrossReferencedContact[] = [];
   const seenKeys = new Set<string>();
 
@@ -364,11 +357,8 @@ export function crossReference(
     const m1 = (contact.MAIL1 || "").toLowerCase().trim();
     const bouncedMatch = mailCandidates.find((m) => bouncedMails.has(m));
     const notSentMatch = mailCandidates.find((m) => notSentMails.has(m));
-    const wasInLog = mailCandidates.some((m) => logMails.has(m));
-
-    // In onlyBounced mode: include bounced, not-sent (in log), OR not-in-log contacts
-    if (onlyBounced && !bouncedMatch && !notSentMatch && wasInLog) {
-      // Was in log with a delivered/success status — skip
+    // In onlyBounced mode: include only contacts that appear as bounced or not sent in the report
+    if (onlyBounced && !bouncedMatch && !notSentMatch) {
       continue;
     }
 
@@ -389,7 +379,7 @@ export function crossReference(
 
     let originalMail = m1;
     let finalMail = m1;
-    const isNotSent = (!wasInLog && !bouncedMatch) || !!notSentMatch;
+    const isNotSent = !!notSentMatch;
 
     if (bouncedMatch) {
       originalMail = bouncedMatch;
@@ -462,8 +452,7 @@ export function crossReference(
       }
     }
 
-    // For not-sent contacts, skip if we couldn't improve the email
-    if (isNotSent && finalMail === originalMail) continue;
+    // Keep NOT_SENT in output even if mail doesn't change; for bounced we require a different correction
     if (onlyBounced && !isNotSent && finalMail === originalMail) continue;
     if (!isValidEmail(finalMail)) continue;
     if (isFreeMail(finalMail)) continue;
