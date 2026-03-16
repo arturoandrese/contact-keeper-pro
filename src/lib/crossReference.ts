@@ -179,9 +179,16 @@ export interface ExistingDelivered {
 
 const COOLDOWN_DAYS = 15;
 
+export interface DeliveredHistoryEntry {
+  mail: string;
+  nombre: string;
+  apellido: string;
+}
+
 export interface CrossReferenceOptions {
   onlyBounced?: boolean;
   savedPatterns?: DomainPatternEntry[];
+  deliveredHistory?: DeliveredHistoryEntry[];
 }
 
 function generateEmailFromPattern(pattern: string, nombre: string, apellido: string, domain: string): string | null {
@@ -223,6 +230,22 @@ export function crossReference(
     for (const sp of options.savedPatterns) {
       if (!domainPatternMap.has(sp.domain)) {
         domainPatternMap.set(sp.domain, { pattern: sp.pattern, status: "SAVED" });
+      }
+    }
+  }
+
+  // Seed patterns from delivered_contacts history (medium priority — above SAVED, below campaign data)
+  if (options.deliveredHistory) {
+    for (const dh of options.deliveredHistory) {
+      const mail = dh.mail.toLowerCase();
+      const domain = mail.split("@")[1];
+      if (!domain || isFreeMail(mail)) continue;
+      const pat = detectPattern(mail, dh.nombre, dh.apellido);
+      if (pat) {
+        const current = domainPatternMap.get(domain);
+        if (!current || current.status === "SAVED") {
+          domainPatternMap.set(domain, { pattern: pat, status: "HISTORY" });
+        }
       }
     }
   }
