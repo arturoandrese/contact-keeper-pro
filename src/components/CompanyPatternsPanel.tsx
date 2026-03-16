@@ -77,6 +77,13 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   const [selectedPattern, setSelectedPattern] = useState("");
   const [exampleEmail, setExampleEmail] = useState("");
   const [savingPattern, setSavingPattern] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+  const [addingCompany, setAddingCompany] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const [newCompanyDomain, setNewCompanyDomain] = useState("");
+  const [newCompanyPattern, setNewCompanyPattern] = useState("");
+  const [newCompanyExample, setNewCompanyExample] = useState("");
+  const [savingNewCompany, setSavingNewCompany] = useState(false);
 
   useEffect(() => {
     fetchAllContacts();
