@@ -384,7 +384,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs text-muted-foreground">
-              Este cruce devuelve solo contactos rebotados con un mail alternativo corporativo válido.
+              Este cruce devuelve contactos rebotados y no enviados con un mail alternativo corporativo válido.
             </p>
           </div>
 
