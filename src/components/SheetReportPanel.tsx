@@ -192,16 +192,29 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
     setUpdating(true);
 
     try {
-      const existingContacts = await fetchAllContacts(baseId);
+      const [existingContacts, savedPatternsRes, deliveredHistoryRes] = await Promise.all([
+        fetchAllContacts(baseId),
+        supabase.from("domain_patterns").select("domain, pattern, example_email"),
+        supabase.from("delivered_contacts").select("mail, nombre, apellido").limit(5000),
+      ]);
       if (existingContacts.length === 0) {
         toast.error("No hay contactos en esta base para actualizar");
         setUpdating(false);
         return;
       }
 
+      const savedPatterns = (savedPatternsRes.data || []).map((p: any) => ({
+        domain: p.domain, pattern: p.pattern, example_email: p.example_email,
+      }));
+      const deliveredHistory: DeliveredHistoryEntry[] = (deliveredHistoryRes.data || []).map((d: any) => ({
+        mail: d.mail || "", nombre: d.nombre || "", apellido: d.apellido || "",
+      }));
+
       const log = toEmailLog(data.contacts);
       const cleanedContacts = toCleanedContacts(existingContacts);
-      const { filtered, delivered } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true });
+      const { filtered, delivered } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true, savedPatterns, deliveredHistory });
+
+      setCrossedResults(filtered);
 
       const correctionMap = new Map<string, string>();
       for (const row of filtered) {
