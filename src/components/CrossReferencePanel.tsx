@@ -195,8 +195,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           .eq("id", baseId);
 
         setResults(filtered);
-        setStats({ original: contacts.length, filtered: filtered.length, patterns: patterns.length });
-        toast.success(`Cruce completado: ${filtered.length} rebotados corregidos`);
+        setStats({ original: contacts.length, filtered: filtered.length, patterns: patterns.length, delivered: delivered.length });
+        toast.success(`Cruce completado: ${filtered.length} rebotados corregidos, ${delivered.length} enviados registrados`);
       } catch (err) {
         toast.error("Error procesando cruce");
         console.error(err);
