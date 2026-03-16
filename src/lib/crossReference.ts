@@ -76,6 +76,11 @@ function isBounced(status: string): boolean {
   return normalizeStatus(status).includes("BOUNCE");
 }
 
+function isNotSentStatus(status: string): boolean {
+  const s = normalizeStatus(status);
+  return s.includes("NOT_SENT") || s.includes("NO_SENT") || s.includes("NO_ENVIAD") || s === "" || s === "ERROR";
+}
+
 function isValidEmail(email: string): boolean {
   if (!email) return false;
   const parts = email.split("@");
