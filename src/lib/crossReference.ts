@@ -31,6 +31,8 @@ export interface CrossReferencedContact {
   WEB: string;
   MAIL_ORIGINAL: string;
   MAIL1: string;
+  MAIL2: string;
+  MAIL3: string;
 }
 
 export interface DomainPatternEntry {
