@@ -11,6 +11,7 @@ import {
   exportCrossReferenced,
   type CrossReferencedContact,
   type EmailLogEntry,
+  type DeliveredHistoryEntry,
 } from "@/lib/crossReference";
 import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
 
