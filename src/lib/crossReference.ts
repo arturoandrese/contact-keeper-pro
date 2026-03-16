@@ -459,8 +459,7 @@ export function crossReference(
       }
     }
 
-    // For not-sent contacts, skip if we couldn't improve the email
-    if (isNotSent && finalMail === originalMail) continue;
+    // Keep NOT_SENT in output even if mail doesn't change; for bounced we require a different correction
     if (onlyBounced && !isNotSent && finalMail === originalMail) continue;
     if (!isValidEmail(finalMail)) continue;
     if (isFreeMail(finalMail)) continue;
