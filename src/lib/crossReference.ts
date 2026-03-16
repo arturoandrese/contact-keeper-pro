@@ -346,6 +346,20 @@ export function crossReference(
     }
   }
 
+  // Build name-based lookup for bounced/not-sent from log (fallback when emails were already updated in DB)
+  const nameStatusMap = new Map<string, { status: "bounced" | "not_sent"; mail: string }>();
+  for (const entry of emailLog) {
+    const mail = (entry.MAIL1 || "").toLowerCase().trim();
+    const status = entry.status;
+    const nameKey = `${(entry.NOMBRE || "").trim().toLowerCase()}|${(entry.APELLIDO || "").trim().toLowerCase()}`;
+    if (!nameKey || nameKey === "|") continue;
+    if (isBounced(status)) {
+      nameStatusMap.set(nameKey, { status: "bounced", mail });
+    } else if (isNotSentStatus(status)) {
+      nameStatusMap.set(nameKey, { status: "not_sent", mail });
+    }
+  }
+
   const filtered: CrossReferencedContact[] = [];
   const seenKeys = new Set<string>();
 
@@ -357,15 +371,24 @@ export function crossReference(
     const m1 = (contact.MAIL1 || "").toLowerCase().trim();
     const bouncedMatch = mailCandidates.find((m) => bouncedMails.has(m));
     const notSentMatch = mailCandidates.find((m) => notSentMails.has(m));
+
+    // Fallback: match by name if email doesn't match (emails may have been updated by previous crosses)
+    const contactNameKey = `${(contact.NOMBRE || "").trim().toLowerCase()}|${(contact.APELLIDO || "").trim().toLowerCase()}`;
+    const nameMatch = (!bouncedMatch && !notSentMatch) ? nameStatusMap.get(contactNameKey) : undefined;
+    const isBouncedByName = nameMatch?.status === "bounced";
+    const isNotSentByName = nameMatch?.status === "not_sent";
+
+    const effectiveBounced = !!bouncedMatch || isBouncedByName;
+    const effectiveNotSent = !!notSentMatch || isNotSentByName;
+
     // In onlyBounced mode: include only contacts that appear as bounced or not sent in the report
-    if (onlyBounced && !bouncedMatch && !notSentMatch) {
+    if (onlyBounced && !effectiveBounced && !effectiveNotSent) {
       continue;
     }
 
     const existing = m1 ? existingMap.get(m1) : undefined;
     if (existing) {
       if (existing.status === "ABIERTO" || existing.status === "CLICKEADO") continue;
-      // Cooldown: skip if contacted in last 15 days
       if (existing.last_contacted_at) {
         const lastDate = new Date(existing.last_contacted_at);
         const diffDays = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
@@ -379,13 +402,13 @@ export function crossReference(
 
     let originalMail = m1;
     let finalMail = m1;
-    const isNotSent = !!notSentMatch;
+    const isNotSent = effectiveNotSent && !effectiveBounced;
 
-    if (bouncedMatch) {
-      originalMail = bouncedMatch;
+    if (effectiveBounced) {
+      originalMail = bouncedMatch || nameMatch?.mail || m1;
       const alternatives = mailCandidates.filter(
         (m) =>
-          m !== bouncedMatch &&
+          m !== originalMail &&
           isValidEmail(m) &&
           !bouncedMails.has(m) &&
           !deliveredMails.has(m) &&
@@ -398,7 +421,6 @@ export function crossReference(
         finalMail = "";
       }
     } else if (isNotSent) {
-      // Contact not sent — keep original mail but try to generate a better one via pattern
       originalMail = m1;
       finalMail = m1;
     } else if (onlyBounced) {
@@ -452,10 +474,10 @@ export function crossReference(
       }
     }
 
-    // Keep NOT_SENT in output even if mail doesn't change; for bounced we require a different correction
-    if (onlyBounced && !isNotSent && finalMail === originalMail) continue;
+    // For bounced: require a different/corrected email. For not-sent: include always with valid email.
+    if (!isNotSent && onlyBounced && finalMail === originalMail) continue;
     if (!isValidEmail(finalMail)) continue;
-    if (isFreeMail(finalMail)) continue;
+    if (!isNotSent && isFreeMail(finalMail)) continue;
 
     const empresaShort = extractCompanyFromDomain(web || domain);
 
