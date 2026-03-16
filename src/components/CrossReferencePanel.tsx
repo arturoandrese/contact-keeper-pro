@@ -380,9 +380,9 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
               { label: "Sin corrección", value: stats.original - stats.filtered },
               { label: "Patrones aprendidos", value: stats.patterns },
             ].map((stat) => (
-              <div key={stat.label} className="rounded-xl border border-border bg-card px-5 py-3">
+              <div key={stat.label} className={`rounded-xl border px-5 py-3 ${stat.highlight ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}>
                 <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
-                <p className="font-display text-2xl font-bold">{stat.value}</p>
+                <p className={`font-display text-2xl font-bold ${stat.highlight ? "text-primary" : ""}`}>{stat.value}</p>
               </div>
             ))}
           </div>
