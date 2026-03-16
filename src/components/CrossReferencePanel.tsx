@@ -370,8 +370,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             {[
               { label: "En la base", value: stats.original },
               { label: "Enviados", value: stats.delivered, highlight: true },
-              { label: "Rebotados corregidos", value: stats.filtered },
-              { label: "Sin corrección", value: stats.original - stats.filtered },
+              { label: "Rebotados + no enviados corregidos", value: stats.filtered },
+              { label: "Sin corrección", value: stats.original - stats.filtered - stats.delivered },
               { label: "Patrones aprendidos", value: stats.patterns },
             ].map((stat) => (
               <div key={stat.label} className={`rounded-xl border px-5 py-3 ${stat.highlight ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}>
