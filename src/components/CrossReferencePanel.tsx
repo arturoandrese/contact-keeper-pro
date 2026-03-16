@@ -151,6 +151,34 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           );
         }
 
+        // Save bounced emails to blacklist
+        const bouncedEmails = log
+          .filter((e) => {
+            const s = (e.status || "").trim().toUpperCase().replace(/\s+/g, "_");
+            return s.includes("BOUNCE");
+          })
+          .map((e) => (e.MAIL1 || "").toLowerCase().trim())
+          .filter((m) => m && m.includes("@"));
+
+        if (bouncedEmails.length > 0) {
+          const uniqueBounced = Array.from(new Set(bouncedEmails));
+          await Promise.all(
+            chunkArray(uniqueBounced, 500).map((batch) =>
+              supabase
+                .from("bounced_emails")
+                .upsert(
+                  batch.map((mail) => ({
+                    email: mail,
+                    reason: "BOUNCE",
+                    source_base_id: baseId,
+                  })),
+                  { onConflict: "email" }
+                )
+            )
+          );
+          console.log(`📛 ${uniqueBounced.length} correos rebotados guardados en blacklist`);
+        }
+
         if (delivered.length > 0) {
           const deliveredMails = Array.from(new Set(delivered.map((d) => d.mail.toLowerCase())));
           const existingMap = new Map<string, { times_contacted: number; last_contacted_at: string; last_campaign?: string }>();
