@@ -718,6 +718,96 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
 
       <StatusFilterBar />
 
+      {/* Search + Add Company */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar empresa..."
+            value={companySearch}
+            onChange={(e) => setCompanySearch(e.target.value)}
+            className="pl-9 text-sm"
+          />
+          {companySearch && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              {displayedCompanies.length} resultado{displayedCompanies.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setAddingCompany(!addingCompany)}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Agregar empresa
+        </Button>
+      </div>
+
+      {/* Add Company Form */}
+      {addingCompany && (
+        <div className="rounded-xl border border-primary/30 bg-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Plus className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold">Nueva empresa</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre empresa *</label>
+              <Input
+                placeholder="Ej: CODELCO"
+                value={newCompanyName}
+                onChange={(e) => setNewCompanyName(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Dominio web *</label>
+              <Input
+                placeholder="Ej: codelco.cl"
+                value={newCompanyDomain}
+                onChange={(e) => setNewCompanyDomain(e.target.value)}
+                className="text-sm font-mono"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Patrón de email (opcional)</label>
+            <div className="flex flex-wrap gap-1.5">
+              {PATTERN_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setNewCompanyPattern(opt.value)}
+                  className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                    newCompanyPattern === opt.value
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-muted/50 text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {newCompanyPattern && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Email de ejemplo (opcional)</label>
+              <Input
+                placeholder={`ej: juan.perez@${newCompanyDomain || "dominio.com"}`}
+                value={newCompanyExample}
+                onChange={(e) => setNewCompanyExample(e.target.value)}
+                className="text-sm font-mono"
+              />
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleAddCompany} disabled={savingNewCompany || !newCompanyName.trim() || !newCompanyDomain.trim()}>
+              {savingNewCompany ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+              Guardar
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setAddingCompany(false); setNewCompanyName(""); setNewCompanyDomain(""); setNewCompanyPattern(""); setNewCompanyExample(""); }}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
       {bulkMode && companies.length > 0 && (
         <div className="flex items-center gap-2">
           <button
@@ -749,17 +839,17 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
           </p>
           <ContactsTable />
         </div>
-      ) : companies.length === 0 ? (
+      ) : displayedCompanies.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-12 text-center">
           <Building2 className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
-          <p className="font-semibold">Sin datos aún</p>
+          <p className="font-semibold">{companySearch ? "Sin resultados" : "Sin datos aún"}</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Cruza una base con un reporte de email para ver aquí los contactos confirmados.
+            {companySearch ? `No se encontraron empresas que coincidan con "${companySearch}"` : "Cruza una base con un reporte de email para ver aquí los contactos confirmados."}
           </p>
         </div>
       ) : (
         <div className="space-y-1">
-          {companies.map(({ empresa_short, count }) => (
+          {displayedCompanies.map(({ empresa_short, count }) => (
             <div
               key={empresa_short}
               className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 cursor-pointer transition-all hover:shadow-sm hover:border-primary/30"
