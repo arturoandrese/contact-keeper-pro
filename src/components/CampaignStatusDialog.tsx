@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Loader2, Download } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { fetchSheetTabs, fetchSheetReport } from "@/lib/googleSheets";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import ExportDropdown from "./ExportDropdown";
 
 type StatusCategory = "sent" | "opened" | "clicked" | "bounced" | "responded" | "notSent" | "delivered";
 
