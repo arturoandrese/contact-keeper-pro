@@ -363,10 +363,12 @@ export function crossReference(
 
     const m1 = (contact.MAIL1 || "").toLowerCase().trim();
     const bouncedMatch = mailCandidates.find((m) => bouncedMails.has(m));
+    const notSentMatch = mailCandidates.find((m) => notSentMails.has(m));
     const wasInLog = mailCandidates.some((m) => logMails.has(m));
 
-    // In onlyBounced mode: include bounced OR not-sent contacts
-    if (onlyBounced && !bouncedMatch && wasInLog) {
+    // In onlyBounced mode: include bounced, not-sent (in log), OR not-in-log contacts
+    if (onlyBounced && !bouncedMatch && !notSentMatch && wasInLog) {
+      // Was in log with a delivered/success status — skip
       continue;
     }
 
