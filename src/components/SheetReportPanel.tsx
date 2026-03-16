@@ -456,8 +456,8 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                     XLSX.writeFile(wb, `cruzada_${baseName}.xlsx`);
                   }}
                   getData={() => ({
-                    headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL ORIGINAL", "MAIL CORREGIDO"],
-                    rows: crossedResults.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT || r.EMPRESA, r.WEB, r.MAIL_ORIGINAL, r.MAIL1]),
+                    headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL CORREGIDO"],
+                    rows: crossedResults.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT || r.EMPRESA, r.WEB, r.MAIL1]),
                   })}
                 />
               )}

@@ -302,8 +302,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             label="Resultados"
             onDownload={() => exportCrossReferenced(results)}
             getData={() => ({
-              headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL ORIGINAL", "MAIL CORREGIDO"],
-              rows: results.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT, r.WEB, r.MAIL_ORIGINAL, r.MAIL1]),
+              headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL CORREGIDO"],
+              rows: results.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT, r.WEB, r.MAIL1]),
             })}
           />
           </div>
