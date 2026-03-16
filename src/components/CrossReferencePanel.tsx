@@ -68,7 +68,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<CrossReferencedContact[] | null>(null);
-  const [stats, setStats] = useState({ original: 0, filtered: 0, patterns: 0 });
+  const [stats, setStats] = useState({ original: 0, filtered: 0, patterns: 0, delivered: 0 });
 
   const runCrossReference = useCallback(
     async (log: EmailLogEntry[]) => {
@@ -195,8 +195,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           .eq("id", baseId);
 
         setResults(filtered);
-        setStats({ original: contacts.length, filtered: filtered.length, patterns: patterns.length });
-        toast.success(`Cruce completado: ${filtered.length} rebotados corregidos`);
+        setStats({ original: contacts.length, filtered: filtered.length, patterns: patterns.length, delivered: delivered.length });
+        toast.success(`Cruce completado: ${filtered.length} rebotados corregidos, ${delivered.length} enviados registrados`);
       } catch (err) {
         toast.error("Error procesando cruce");
         console.error(err);
@@ -375,13 +375,14 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           <div className="flex flex-wrap gap-4">
             {[
               { label: "En la base", value: stats.original },
+              { label: "Enviados", value: stats.delivered, highlight: true },
               { label: "Rebotados corregidos", value: stats.filtered },
               { label: "Sin corrección", value: stats.original - stats.filtered },
               { label: "Patrones aprendidos", value: stats.patterns },
             ].map((stat) => (
-              <div key={stat.label} className="rounded-xl border border-border bg-card px-5 py-3">
+              <div key={stat.label} className={`rounded-xl border px-5 py-3 ${stat.highlight ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}>
                 <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
-                <p className="font-display text-2xl font-bold">{stat.value}</p>
+                <p className={`font-display text-2xl font-bold ${stat.highlight ? "text-primary" : ""}`}>{stat.value}</p>
               </div>
             ))}
           </div>
