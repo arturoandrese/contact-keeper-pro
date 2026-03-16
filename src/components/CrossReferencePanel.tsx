@@ -282,7 +282,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           </Button>
           <h2 className="font-display text-2xl font-bold">Cruzar: {baseName}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Cruza solo rebotados y propone mail corregido por contacto
+            Cruza rebotados y no enviados, propone mail corregido por contacto
           </p>
         </div>
         {results && (
