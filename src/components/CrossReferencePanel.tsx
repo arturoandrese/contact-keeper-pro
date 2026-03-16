@@ -68,7 +68,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<CrossReferencedContact[] | null>(null);
-  const [stats, setStats] = useState({ original: 0, filtered: 0, patterns: 0 });
+  const [stats, setStats] = useState({ original: 0, filtered: 0, patterns: 0, delivered: 0 });
 
   const runCrossReference = useCallback(
     async (log: EmailLogEntry[]) => {
