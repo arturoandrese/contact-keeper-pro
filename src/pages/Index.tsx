@@ -93,6 +93,66 @@ const Index = () => {
       console.warn("No se pudo cruzar con delivered_contacts:", err);
     }
 
+    // Filter out bounced emails from blacklist
+    try {
+      const allMailsForBounce = new Set<string>();
+      for (const c of cleaned) {
+        [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].forEach(m => {
+          if (m) allMailsForBounce.add(m.toLowerCase());
+        });
+      }
+
+      const mailArrayBounce = Array.from(allMailsForBounce);
+      const bouncedSet = new Set<string>();
+
+      for (let i = 0; i < mailArrayBounce.length; i += 300) {
+        const chunk = mailArrayBounce.slice(i, i + 300);
+        const { data } = await supabase
+          .from("bounced_emails")
+          .select("email")
+          .in("email", chunk);
+        if (data) data.forEach(r => bouncedSet.add((r.email || "").toLowerCase()));
+      }
+
+      if (bouncedSet.size > 0) {
+        let removedMails = 0;
+        const contactsToRemove: number[] = [];
+
+        for (let idx = 0; idx < cleaned.length; idx++) {
+          const c = cleaned[idx];
+          // Remove bounced emails from mail slots
+          const mails = [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4];
+          const validMails = mails.filter(m => m && !bouncedSet.has(m.toLowerCase()));
+
+          if (validMails.length === 0) {
+            contactsToRemove.push(idx);
+            continue;
+          }
+
+          const bouncedCount = mails.filter(m => m && bouncedSet.has(m.toLowerCase())).length;
+          removedMails += bouncedCount;
+
+          c.MAIL1 = validMails[0] || "";
+          c.MAIL2 = validMails[1] || "";
+          c.MAIL3 = validMails[2] || "";
+          c.MAIL4 = validMails[3] || "";
+        }
+
+        // Remove contacts with no valid emails
+        for (let i = contactsToRemove.length - 1; i >= 0; i--) {
+          cleaned.splice(contactsToRemove[i], 1);
+        }
+
+        if (contactsToRemove.length > 0 || removedMails > 0) {
+          toast.warning(
+            `🚫 Blacklist: ${contactsToRemove.length} contactos eliminados, ${removedMails} mails rebotados removidos`
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("No se pudo cruzar con bounced_emails:", err);
+    }
+
     setContacts(cleaned);
     setSaveOpen(true);
   };
