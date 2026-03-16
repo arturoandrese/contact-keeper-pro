@@ -444,7 +444,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                 </tr>
               </thead>
               <tbody>
-                {filteredContacts.map((c, i) => (
+                {filteredContacts.slice(0, 500).map((c, i) => (
                   <tr key={i} className="border-b border-border/50 transition-colors hover:bg-muted/30">
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.nombre || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.apellido || "—"}</td>
