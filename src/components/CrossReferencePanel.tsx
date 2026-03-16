@@ -197,7 +197,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
 
         setResults(filtered);
         setStats({ original: contacts.length, filtered: filtered.length, patterns: patterns.length, delivered: delivered.length });
-        toast.success(`Cruce completado: ${filtered.length} rebotados corregidos, ${delivered.length} enviados registrados`);
+        toast.success(`Cruce completado: ${filtered.length} corregidos/generados, ${delivered.length} enviados registrados`);
       } catch (err) {
         toast.error("Error procesando cruce");
         console.error(err);
@@ -282,7 +282,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           </Button>
           <h2 className="font-display text-2xl font-bold">Cruzar: {baseName}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Cruza solo rebotados y propone mail corregido por contacto
+            Cruza rebotados y no enviados, propone mail corregido por contacto
           </p>
         </div>
         {results && (
@@ -370,8 +370,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             {[
               { label: "En la base", value: stats.original },
               { label: "Enviados", value: stats.delivered, highlight: true },
-              { label: "Rebotados corregidos", value: stats.filtered },
-              { label: "Sin corrección", value: stats.original - stats.filtered },
+              { label: "Rebotados + no enviados corregidos", value: stats.filtered },
+              { label: "Sin corrección", value: stats.original - stats.filtered - stats.delivered },
               { label: "Patrones aprendidos", value: stats.patterns },
             ].map((stat) => (
               <div key={stat.label} className={`rounded-xl border px-5 py-3 ${stat.highlight ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}>
@@ -384,7 +384,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs text-muted-foreground">
-              Este cruce devuelve solo contactos rebotados con un mail alternativo corporativo válido.
+              Este cruce devuelve contactos rebotados y no enviados con un mail alternativo corporativo válido.
             </p>
           </div>
 

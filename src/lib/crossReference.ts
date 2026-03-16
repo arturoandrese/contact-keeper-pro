@@ -314,6 +314,13 @@ export function crossReference(
     }
   }
 
+  // Build set of all emails that appeared in the log (any status)
+  const logMails = new Set<string>();
+  for (const entry of emailLog) {
+    const m = (entry.MAIL1 || "").toLowerCase().trim();
+    if (m) logMails.add(m);
+  }
+
   const filtered: CrossReferencedContact[] = [];
   const seenKeys = new Set<string>();
 
@@ -324,8 +331,10 @@ export function crossReference(
 
     const m1 = (contact.MAIL1 || "").toLowerCase().trim();
     const bouncedMatch = mailCandidates.find((m) => bouncedMails.has(m));
+    const wasInLog = mailCandidates.some((m) => logMails.has(m));
 
-    if (onlyBounced && !bouncedMatch) {
+    // In onlyBounced mode: include bounced OR not-sent contacts
+    if (onlyBounced && !bouncedMatch && wasInLog) {
       continue;
     }
 
@@ -346,6 +355,7 @@ export function crossReference(
 
     let originalMail = m1;
     let finalMail = m1;
+    const isNotSent = !wasInLog && !bouncedMatch;
 
     if (bouncedMatch) {
       originalMail = bouncedMatch;
@@ -363,6 +373,10 @@ export function crossReference(
       } else {
         finalMail = "";
       }
+    } else if (isNotSent) {
+      // Contact not in log at all — keep original mail but try to generate a better one via pattern
+      originalMail = m1;
+      finalMail = m1;
     } else if (onlyBounced) {
       continue;
     }
@@ -381,7 +395,8 @@ export function crossReference(
     const shouldGeneratePatternMail =
       !finalMail ||
       !isValidEmail(finalMail) ||
-      (onlyBounced && finalMail === originalMail);
+      (onlyBounced && finalMail === originalMail) ||
+      isNotSent;
 
     if (shouldGeneratePatternMail) {
       const bestPattern =
@@ -413,7 +428,9 @@ export function crossReference(
       }
     }
 
-    if (onlyBounced && finalMail === originalMail) continue;
+    // For not-sent contacts, skip if we couldn't improve the email
+    if (isNotSent && finalMail === originalMail) continue;
+    if (onlyBounced && !isNotSent && finalMail === originalMail) continue;
     if (!isValidEmail(finalMail)) continue;
     if (isFreeMail(finalMail)) continue;
 
