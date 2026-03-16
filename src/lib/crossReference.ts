@@ -474,10 +474,10 @@ export function crossReference(
       }
     }
 
-    // Keep NOT_SENT in output even if mail doesn't change; for bounced we require a different correction
-    if (onlyBounced && !isNotSent && finalMail === originalMail) continue;
+    // For bounced: require a different/corrected email. For not-sent: include always with valid email.
+    if (!isNotSent && onlyBounced && finalMail === originalMail) continue;
     if (!isValidEmail(finalMail)) continue;
-    if (isFreeMail(finalMail)) continue;
+    if (!isNotSent && isFreeMail(finalMail)) continue;
 
     const empresaShort = extractCompanyFromDomain(web || domain);
 
