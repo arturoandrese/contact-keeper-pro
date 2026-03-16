@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Loader2, GitCompare, Link2, BarChart3, Mail, MailX, MailOpen, MousePointerClick, Send, MessageSquareReply, AlertCircle, Download, Search } from "lucide-react";
+import ExportDropdown from "./ExportDropdown";
 import { toast } from "sonner";
 import SheetReportPanel from "./SheetReportPanel";
 import CampaignStatusDialog, { type StatusCategory } from "./CampaignStatusDialog";
@@ -266,10 +267,23 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
               {loadingSummary && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
             </div>
             {campaignSummary && (
-              <Button size="sm" variant="outline" onClick={handleDownloadFullSummary}>
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                Descargar resumen
-              </Button>
+              <ExportDropdown
+                label="Resumen"
+                onDownload={handleDownloadFullSummary}
+                getData={() => ({
+                  headers: ["Métrica", "Valor", "Porcentaje"],
+                  rows: [
+                    ["Total contactos", String(campaignSummary.total), "100%"],
+                    ["Enviados", String(campaignSummary.sent), `${Math.round((campaignSummary.sent / campaignSummary.total) * 100)}%`],
+                    ["Entregados", String(campaignSummary.delivered), `${Math.round((campaignSummary.delivered / campaignSummary.total) * 100)}%`],
+                    ["Abiertos", String(campaignSummary.opened), `${Math.round((campaignSummary.opened / campaignSummary.total) * 100)}%`],
+                    ["Clicks", String(campaignSummary.clicked), `${Math.round((campaignSummary.clicked / campaignSummary.total) * 100)}%`],
+                    ["Rebotados", String(campaignSummary.bounced), `${Math.round((campaignSummary.bounced / campaignSummary.total) * 100)}%`],
+                    ["Respondidos", String(campaignSummary.responded), `${Math.round((campaignSummary.responded / campaignSummary.total) * 100)}%`],
+                    ["No enviados", String(campaignSummary.notSent), `${Math.round((campaignSummary.notSent / campaignSummary.total) * 100)}%`],
+                  ],
+                })}
+              />
             )}
           </div>
           {campaignSummary ? (

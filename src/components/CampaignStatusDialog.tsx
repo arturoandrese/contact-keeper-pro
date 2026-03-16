@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Loader2, Download } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { fetchSheetTabs, fetchSheetReport } from "@/lib/googleSheets";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import ExportDropdown from "./ExportDropdown";
 
 type StatusCategory = "sent" | "opened" | "clicked" | "bounced" | "responded" | "notSent" | "delivered";
 
@@ -107,10 +107,15 @@ const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName 
           <>
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-muted-foreground">{contacts.length} contactos únicos</p>
-              <Button size="sm" onClick={handleDownload} disabled={contacts.length === 0}>
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                Descargar XLSX
-              </Button>
+              <ExportDropdown
+                label={STATUS_LABELS[category]}
+                disabled={contacts.length === 0}
+                onDownload={handleDownload}
+                getData={() => ({
+                  headers: ["Email", "Nombre", "Estado", "Pestaña"],
+                  rows: contacts.map(c => [c.email, c.nombre, c.status, c.tab]),
+                })}
+              />
             </div>
             <div className="overflow-auto flex-1 rounded-lg border border-border">
               <table className="w-full text-sm">

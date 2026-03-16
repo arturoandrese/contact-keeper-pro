@@ -3,10 +3,11 @@ import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download } from "lucide-react";
+import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download, ClipboardCopy } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
 import { crossReference, type EmailLogEntry } from "@/lib/crossReference";
+import ExportDropdown from "./ExportDropdown";
 import type { CleanedContact } from "@/lib/contactCleaner";
 
 interface SheetReportPanelProps {
@@ -401,10 +402,25 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
           )}
           {data && (
             <>
-              <Button size="sm" variant="outline" onClick={handleDownloadCurrentView} disabled={filteredContacts.length === 0}>
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                Descargar {selectedStatus ? statusFilterLabel : "vista"}
-              </Button>
+              <ExportDropdown
+                label={selectedStatus ? statusFilterLabel : "vista"}
+                disabled={filteredContacts.length === 0}
+                variant="outline"
+                onDownload={handleDownloadCurrentView}
+                getData={() => ({
+                  headers: ["EMAIL", "ESTADO", "NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL1", "MAIL2"],
+                  rows: filteredContacts.map(c => [
+                    getSheetContactEmail(c),
+                    (c._status || "UNKNOWN").replace(/_/g, " "),
+                    getSheetContactName(c),
+                    (c["Last Name"] || c["APELLIDO"] || c["apellido"] || "").toString().trim(),
+                    (c["EMPRESA"] || c["Company"] || c["empresa"] || "").toString().trim(),
+                    (c["WEB"] || c["Website"] || c["web"] || "").toString().trim(),
+                    (c["MAIL1"] || "").toString().trim(),
+                    (c["MAIL2"] || "").toString().trim(),
+                  ]),
+                })}
+              />
               <Button size="sm" variant="default" onClick={handleUpdateBase} disabled={updating}>
                 {updating ? (
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
