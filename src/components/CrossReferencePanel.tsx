@@ -375,6 +375,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           <div className="flex flex-wrap gap-4">
             {[
               { label: "En la base", value: stats.original },
+              { label: "Enviados", value: stats.delivered, highlight: true },
               { label: "Rebotados corregidos", value: stats.filtered },
               { label: "Sin corrección", value: stats.original - stats.filtered },
               { label: "Patrones aprendidos", value: stats.patterns },
