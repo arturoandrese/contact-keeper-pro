@@ -460,9 +460,9 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
               </tbody>
             </table>
           </div>
-          {contacts.length >= 200 && (
+          {filteredContacts.length > 500 && (
             <div className="border-t border-border bg-muted/30 px-4 py-2 text-center text-xs text-muted-foreground">
-              Mostrando primeros 200 contactos
+              Mostrando primeros 500 de {filteredContacts.length} contactos. Usa el buscador para encontrar contactos específicos.
             </div>
           )}
         </div>
