@@ -90,32 +90,40 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [contactsRes, baseRes] = await Promise.all([
-        supabase
-          .from("contacts")
-          .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
-          .eq("base_id", baseId)
-          .limit(200),
-        supabase
-          .from("bases")
-          .select("sheet_id")
-          .eq("id", baseId)
-          .single(),
-      ]);
 
-      if (contactsRes.error) {
-        toast.error("Error cargando contactos");
-      } else {
-        setContacts((contactsRes.data as Contact[]) || []);
-      }
+      // Fetch base info
+      const baseRes = await supabase
+        .from("bases")
+        .select("sheet_id")
+        .eq("id", baseId)
+        .single();
 
       if (baseRes.data && (baseRes.data as any).sheet_id) {
         const sid = (baseRes.data as any).sheet_id;
         setSheetId(sid);
-        // Fetch campaign summary across all tabs
         fetchCampaignSummary(sid);
       }
 
+      // Fetch ALL contacts with pagination
+      const PAGE_SIZE = 1000;
+      const all: Contact[] = [];
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
+          .eq("base_id", baseId)
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error) {
+          toast.error("Error cargando contactos");
+          break;
+        }
+        if (!data || data.length === 0) break;
+        all.push(...(data as Contact[]));
+        if (data.length < PAGE_SIZE) break;
+      }
+
+      setContacts(all);
       setLoading(false);
     };
     fetchData();
@@ -436,7 +444,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                 </tr>
               </thead>
               <tbody>
-                {filteredContacts.map((c, i) => (
+                {filteredContacts.slice(0, 500).map((c, i) => (
                   <tr key={i} className="border-b border-border/50 transition-colors hover:bg-muted/30">
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.nombre || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.apellido || "—"}</td>
@@ -452,9 +460,9 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
               </tbody>
             </table>
           </div>
-          {contacts.length >= 200 && (
+          {filteredContacts.length > 500 && (
             <div className="border-t border-border bg-muted/30 px-4 py-2 text-center text-xs text-muted-foreground">
-              Mostrando primeros 200 contactos
+              Mostrando primeros 500 de {filteredContacts.length} contactos. Usa el buscador para encontrar contactos específicos.
             </div>
           )}
         </div>

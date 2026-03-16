@@ -271,7 +271,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
   );
 
   const columns: (keyof CrossReferencedContact)[] = [
-    "NOMBRE", "APELLIDO", "EMPRESA_SHORT", "WEB", "MAIL_ORIGINAL", "MAIL1",
+    "NOMBRE", "APELLIDO", "EMPRESA_SHORT", "WEB", "MAIL1", "MAIL2", "MAIL3",
   ];
 
   const columnLabels: Record<string, string> = {
@@ -279,8 +279,9 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     APELLIDO: "APELLIDO",
     EMPRESA_SHORT: "EMPRESA",
     WEB: "WEB",
-    MAIL_ORIGINAL: "MAIL ORIGINAL",
-    MAIL1: "MAIL CORREGIDO",
+    MAIL1: "MAIL 1",
+    MAIL2: "MAIL 2",
+    MAIL3: "MAIL 3",
   };
 
   return (
@@ -302,8 +303,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             label="Resultados"
             onDownload={() => exportCrossReferenced(results)}
             getData={() => ({
-              headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL CORREGIDO"],
-              rows: results.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT, r.WEB, r.MAIL1]),
+              headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3"],
+              rows: results.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT, r.WEB, r.MAIL1, r.MAIL2, r.MAIL3]),
             })}
           />
           </div>
