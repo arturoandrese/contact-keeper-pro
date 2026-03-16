@@ -205,7 +205,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     }
   };
 
-  const handleDownloadGoodEmails = async (base: Base, e: React.MouseEvent) => {
+  const handleGoodEmailsAction = async (base: Base, mode: "xlsx" | "copy", e: React.MouseEvent) => {
     e.stopPropagation();
     if (!base.sheet_id) { toast.error("Sin Google Sheet asociado"); return; }
     setExporting(base.id);
@@ -215,7 +215,6 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
 
       const GOOD_EXACT = new Set(["EMAIL_SENT", "EMAIL_DELIVERED", "EMAIL_OPENED", "EMAIL_CLICKED", "SENT", "DELIVERED", "OPENED", "CLICKED", "MAIL_MERGE_COMPLETE", "RESPONDED"]);
 
-      // Fetch ALL tabs in parallel and deduplicate by email
       const allSheetData = await Promise.all(
         tabs.map((tab) => fetchSheetReport(base.sheet_id!, tab.title))
       );
@@ -227,8 +226,6 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         for (const c of allSheetData[ti].contacts) {
           const raw = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
           if (!GOOD_EXACT.has(raw)) continue;
-
-          // Get the actual email column (prioritize MAIL_CORREGIDO for sheets that use it, then standard columns)
           const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "").toString().toLowerCase().trim();
           if (!mail || !mail.includes("@") || seenEmails.has(mail)) continue;
           seenEmails.add(mail);
@@ -249,11 +246,18 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         PESTAÑA: tabs[tabIndex]?.title || "",
       }));
 
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Mails Buenos");
-      XLSX.writeFile(wb, `${base.name}_mails_buenos.xlsx`);
-      toast.success(`${rows.length} mails buenos descargados (de ${tabs.length} pestañas)`);
+      if (mode === "copy") {
+        const headers = ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL", "MAIL2", "ESTADO", "PESTAÑA"];
+        const tsv = [headers.join("\t"), ...rows.map(r => Object.values(r).join("\t"))].join("\n");
+        await navigator.clipboard.writeText(tsv);
+        toast.success(`📋 ${rows.length} mails buenos copiados`);
+      } else {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Mails Buenos");
+        XLSX.writeFile(wb, `${base.name}_mails_buenos.xlsx`);
+        toast.success(`${rows.length} mails buenos descargados`);
+      }
     } catch (err: any) {
       toast.error("Error: " + (err?.message || "desconocido"));
     } finally {
