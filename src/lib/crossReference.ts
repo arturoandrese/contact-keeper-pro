@@ -395,7 +395,8 @@ export function crossReference(
     const shouldGeneratePatternMail =
       !finalMail ||
       !isValidEmail(finalMail) ||
-      (onlyBounced && finalMail === originalMail);
+      (onlyBounced && finalMail === originalMail) ||
+      isNotSent;
 
     if (shouldGeneratePatternMail) {
       const bestPattern =
@@ -427,7 +428,9 @@ export function crossReference(
       }
     }
 
-    if (onlyBounced && finalMail === originalMail) continue;
+    // For not-sent contacts, skip if we couldn't improve the email
+    if (isNotSent && finalMail === originalMail) continue;
+    if (onlyBounced && !isNotSent && finalMail === originalMail) continue;
     if (!isValidEmail(finalMail)) continue;
     if (isFreeMail(finalMail)) continue;
 
