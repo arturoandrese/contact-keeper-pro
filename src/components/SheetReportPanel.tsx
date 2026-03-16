@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download, ClipboardCopy } from "lucide-react";
+import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download, ClipboardCopy, GitCompare } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
 import { crossReference, type EmailLogEntry } from "@/lib/crossReference";
@@ -425,9 +425,9 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                 {updating ? (
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  <GitCompare className="mr-1.5 h-3.5 w-3.5" />
                 )}
-                Actualizar base con reporte
+                Volver a cruzar
               </Button>
             </>
           )}
