@@ -314,6 +314,13 @@ export function crossReference(
     }
   }
 
+  // Build set of all emails that appeared in the log (any status)
+  const logMails = new Set<string>();
+  for (const entry of emailLog) {
+    const m = (entry.MAIL1 || "").toLowerCase().trim();
+    if (m) logMails.add(m);
+  }
+
   const filtered: CrossReferencedContact[] = [];
   const seenKeys = new Set<string>();
 
@@ -324,8 +331,10 @@ export function crossReference(
 
     const m1 = (contact.MAIL1 || "").toLowerCase().trim();
     const bouncedMatch = mailCandidates.find((m) => bouncedMails.has(m));
+    const wasInLog = mailCandidates.some((m) => logMails.has(m));
 
-    if (onlyBounced && !bouncedMatch) {
+    // In onlyBounced mode: include bounced OR not-sent contacts
+    if (onlyBounced && !bouncedMatch && wasInLog) {
       continue;
     }
 
