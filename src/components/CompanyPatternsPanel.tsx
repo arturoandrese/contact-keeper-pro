@@ -329,6 +329,47 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
     ? scopedContacts
     : scopedContacts.filter((c) => c.status === statusFilter);
 
+  const displayedCompanies = companySearch.trim()
+    ? companies.filter(c => c.empresa_short.toLowerCase().includes(companySearch.toLowerCase()))
+    : companies;
+
+  const handleAddCompany = async () => {
+    const name = newCompanyName.trim().toUpperCase();
+    const domain = newCompanyDomain.trim().toLowerCase();
+    if (!name || !domain) {
+      toast.error("Nombre y dominio son obligatorios");
+      return;
+    }
+    setSavingNewCompany(true);
+
+    // Save pattern if provided
+    if (newCompanyPattern) {
+      const example = newCompanyExample.trim() || `ejemplo@${domain}`;
+      const { error } = await supabase
+        .from("domain_patterns")
+        .upsert(
+          { domain, pattern: newCompanyPattern, example_email: example.includes("@") ? example : `${example}@${domain}`, confidence: 1 },
+          { onConflict: "domain,pattern" }
+        );
+      if (error) {
+        toast.error("Error guardando patrón");
+        setSavingNewCompany(false);
+        return;
+      }
+    }
+
+    // Also save the company name override
+    setCompanyOverride(domain, name);
+
+    toast.success(`Empresa "${name}" agregada con dominio ${domain}`);
+    setAddingCompany(false);
+    setNewCompanyName("");
+    setNewCompanyDomain("");
+    setNewCompanyPattern("");
+    setNewCompanyExample("");
+    setSavingNewCompany(false);
+  };
+
   const statusCounts = scopedContacts.reduce((acc, c) => {
     acc[c.status] = (acc[c.status] || 0) + 1;
     return acc;
