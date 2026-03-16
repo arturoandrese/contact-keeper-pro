@@ -346,13 +346,6 @@ export function crossReference(
     }
   }
 
-  // Build set of all emails that appeared in the log (any status)
-  const logMails = new Set<string>();
-  for (const entry of emailLog) {
-    const m = (entry.MAIL1 || "").toLowerCase().trim();
-    if (m) logMails.add(m);
-  }
-
   const filtered: CrossReferencedContact[] = [];
   const seenKeys = new Set<string>();
 
