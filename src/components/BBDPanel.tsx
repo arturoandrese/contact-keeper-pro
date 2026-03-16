@@ -426,29 +426,49 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 flex-wrap justify-end ml-4">
-                <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "clean", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
-                  {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                  XLSX
-                </Button>
-                <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "clean", "csv", e)} disabled={exporting === base.id} className="text-xs">
-                  {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                  CSV
-                </Button>
+              <div className="flex items-center gap-1.5 flex-wrap justify-end ml-4" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={exporting === base.id} className="text-xs">
+                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                      Base limpia
+                      <ChevronDown className="ml-1 h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={(e) => handleCleanAction(base, "xlsx", e as any)}>Descargar XLSX</DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => handleCleanAction(base, "csv", e as any)}>Descargar CSV</DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => handleCleanAction(base, "copy", e as any)}>Copiar para Sheets</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 {base.crossed && base.sheet_id && (
                   <>
-                    <Button variant="secondary" size="sm" onClick={(e) => handleDownloadGoodEmails(base, e)} disabled={exporting === base.id} className="text-xs">
-                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <MailCheck className="mr-1 h-3.5 w-3.5" />}
-                      Mails buenos
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "crossed", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
-                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                      Cruzada
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={(e) => handleCopyCrossed(base, e)} disabled={exporting === base.id} className="text-xs">
-                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardCopy className="mr-1 h-3.5 w-3.5" />}
-                      Pegar
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="secondary" size="sm" disabled={exporting === base.id} className="text-xs">
+                          {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <MailCheck className="mr-1 h-3.5 w-3.5" />}
+                          Mails buenos
+                          <ChevronDown className="ml-1 h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => handleGoodEmailsAction(base, "xlsx", e as any)}>Descargar XLSX</DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleGoodEmailsAction(base, "copy", e as any)}>Copiar para Sheets</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" disabled={exporting === base.id} className="text-xs">
+                          {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                          Cruzada
+                          <ChevronDown className="ml-1 h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => handleCrossedAction(base, "xlsx", e as any)}>Descargar XLSX</DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleCrossedAction(base, "copy", e as any)}>Copiar para Sheets</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </>
                 )}
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDelete(base.id, e)}>
