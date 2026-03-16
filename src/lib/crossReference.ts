@@ -487,6 +487,37 @@ export function crossReference(
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
 
+    // Build alternative emails (MAIL2, MAIL3) from remaining candidates and pattern variations
+    const usedMails = new Set([finalMail.toLowerCase(), originalMail.toLowerCase()]);
+    const altMails: string[] = [];
+
+    // First: remaining manual alternatives from the contact
+    for (const m of mailCandidates) {
+      if (altMails.length >= 2) break;
+      if (usedMails.has(m) || bouncedMails.has(m) || deliveredMails.has(m)) continue;
+      if (!isValidEmail(m) || isFreeMail(m)) continue;
+      altMails.push(m);
+      usedMails.add(m);
+    }
+
+    // Second: generate from other known patterns if we still need alternatives
+    if (altMails.length < 2) {
+      const targetDomain = domain || originalDomain || web;
+      if (targetDomain) {
+        const allPatterns = ["first.last", "initial_last", "initial.last", "last.first", "first", "first_last_initial"];
+        const usedPattern = getKnownPattern(targetDomain) || "";
+        for (const pat of allPatterns) {
+          if (altMails.length >= 2) break;
+          if (pat === usedPattern) continue;
+          const gen = generateEmailFromPattern(pat, contact.NOMBRE, contact.APELLIDO, targetDomain);
+          if (gen && isValidEmail(gen) && !usedMails.has(gen.toLowerCase()) && !bouncedMails.has(gen) && !deliveredMails.has(gen) && !isFreeMail(gen)) {
+            altMails.push(gen);
+            usedMails.add(gen.toLowerCase());
+          }
+        }
+      }
+    }
+
     filtered.push({
       NOMBRE: contact.NOMBRE,
       APELLIDO: contact.APELLIDO,
@@ -496,6 +527,8 @@ export function crossReference(
       WEB: contact.WEB,
       MAIL_ORIGINAL: originalMail,
       MAIL1: finalMail,
+      MAIL2: altMails[0] || "",
+      MAIL3: altMails[1] || "",
     });
   }
 
