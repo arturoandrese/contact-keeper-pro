@@ -2,13 +2,19 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, ClipboardCopy, MailCheck } from "lucide-react";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -108,73 +114,90 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     }
   };
 
-  const handleCopyCrossed = async (base: Base, e: React.MouseEvent) => {
+  const getCrossedData = async (base: Base): Promise<string[][] | null> => {
+    if (!base.sheet_id) { toast.error("Sin Google Sheet asociado"); return null; }
+    const tabs = await fetchSheetTabs(base.sheet_id);
+    if (tabs.length === 0) { toast.error("Sin pestañas"); return null; }
+    const tabName = tabs[tabs.length - 1].title;
+    const sheetData = await fetchSheetReport(base.sheet_id, tabName);
+
+    const domainPatterns = new Map<string, Map<string, number>>();
+    const bouncedEntries: Array<{ nombre: string; apellido: string; apellido2: string; empresa: string; web: string; mail1: string; mail2: string }> = [];
+
+    for (const c of sheetData.contacts) {
+      const nombre = (c["NOMBRE"] || "").toString().trim();
+      const apellido = (c["APELLIDO"] || "").toString().trim();
+      const apellido2 = (c["APELLIDO2"] || "").toString().trim();
+      const web = (c["WEB"] || "").toString().trim();
+      const rawEmpresa = (c["EMPRESA"] || "").toString().trim();
+      const empresa = web ? extractCompanyFromDomain(web) || rawEmpresa.toUpperCase() : rawEmpresa.toUpperCase();
+      const mail1 = (c["MAIL1"] || "").toString().toLowerCase().trim();
+      const mail2 = (c["MAIL2"] || "").toString().toLowerCase().trim();
+      const status = ((c._status || "").toString().trim().toUpperCase());
+
+      if (status.includes("BOUNCE")) {
+        bouncedEntries.push({ nombre, apellido, apellido2, empresa, web, mail1, mail2 });
+      } else if (mail1 && mail1.includes("@")) {
+        const domain = mail1.split("@")[1];
+        if (domain && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(domain)) {
+          const local = mail1.split("@")[0];
+          const n = nombre.toLowerCase(); const a = apellido.toLowerCase();
+          let pat = "";
+          if (local === `${n}.${a}`) pat = "first.last";
+          else if (local === `${n[0]}${a}`) pat = "initial_last";
+          if (pat) { const m = domainPatterns.get(domain) || new Map(); m.set(pat, (m.get(pat) || 0) + 1); domainPatterns.set(domain, m); }
+        }
+      }
+    }
+
+    const bestPatterns = new Map<string, string>();
+    for (const [domain, pats] of domainPatterns) {
+      let best = ""; let bestCount = 0;
+      for (const [p, c] of pats) { if (c > bestCount) { best = p; bestCount = c; } }
+      if (best) bestPatterns.set(domain, best);
+    }
+
+    const rows: string[][] = [];
+    for (const b of bouncedEntries) {
+      const domain = b.mail1.split("@")[1] || b.web?.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") || "";
+      if (!domain) continue;
+      let corrected = "";
+      if (b.mail2 && b.mail2.includes("@") && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(b.mail2.split("@")[1])) corrected = b.mail2;
+      if (!corrected) {
+        const pat = bestPatterns.get(domain);
+        if (pat && b.nombre && b.apellido) {
+          const n = b.nombre.toLowerCase(); const a = b.apellido.toLowerCase();
+          if (pat === "first.last") corrected = `${n}.${a}@${domain}`;
+          else if (pat === "initial_last") corrected = `${n[0]}${a}@${domain}`;
+        }
+      }
+      if (!corrected || corrected === b.mail1) continue;
+      rows.push([b.nombre, b.apellido, b.apellido2, b.empresa, b.web, corrected]);
+    }
+
+    if (rows.length === 0) { toast.error("No hay correcciones en esta base cruzada"); return null; }
+    return rows;
+  };
+
+  const handleCrossedAction = async (base: Base, mode: "xlsx" | "copy", e: React.MouseEvent) => {
     e.stopPropagation();
     setExporting(base.id);
     try {
-      if (!base.sheet_id) { toast.error("Sin Google Sheet asociado"); return; }
-      const tabs = await fetchSheetTabs(base.sheet_id);
-      if (tabs.length === 0) { toast.error("Sin pestañas"); return; }
-      const tabName = tabs[tabs.length - 1].title;
-      const sheetData = await fetchSheetReport(base.sheet_id, tabName);
-
-      const domainPatterns = new Map<string, Map<string, number>>();
-      const bouncedEntries: Array<{ nombre: string; apellido: string; apellido2: string; empresa: string; web: string; mail1: string; mail2: string }> = [];
-
-      for (const c of sheetData.contacts) {
-        const nombre = (c["NOMBRE"] || "").toString().trim();
-        const apellido = (c["APELLIDO"] || "").toString().trim();
-        const apellido2 = (c["APELLIDO2"] || "").toString().trim();
-        const web = (c["WEB"] || "").toString().trim();
-        const rawEmpresa = (c["EMPRESA"] || "").toString().trim();
-        const empresa = web ? extractCompanyFromDomain(web) || rawEmpresa.toUpperCase() : rawEmpresa.toUpperCase();
-        const mail1 = (c["MAIL1"] || "").toString().toLowerCase().trim();
-        const mail2 = (c["MAIL2"] || "").toString().toLowerCase().trim();
-        const status = ((c._status || "").toString().trim().toUpperCase());
-
-        if (status.includes("BOUNCE")) {
-          bouncedEntries.push({ nombre, apellido, apellido2, empresa, web, mail1, mail2 });
-        } else if (mail1 && mail1.includes("@")) {
-          const domain = mail1.split("@")[1];
-          if (domain && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(domain)) {
-            const local = mail1.split("@")[0];
-            const n = nombre.toLowerCase(); const a = apellido.toLowerCase();
-            let pat = "";
-            if (local === `${n}.${a}`) pat = "first.last";
-            else if (local === `${n[0]}${a}`) pat = "initial_last";
-            if (pat) { const m = domainPatterns.get(domain) || new Map(); m.set(pat, (m.get(pat) || 0) + 1); domainPatterns.set(domain, m); }
-          }
-        }
+      const rows = await getCrossedData(base);
+      if (!rows) return;
+      const headers = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL_CORREGIDO"];
+      if (mode === "copy") {
+        const tsv = [headers.join("\t"), ...rows.map(r => r.join("\t"))].join("\n");
+        await navigator.clipboard.writeText(tsv);
+        toast.success(`📋 ${rows.length} contactos copiados — pega en Google Sheets`);
+      } else {
+        const data = rows.map(r => Object.fromEntries(headers.map((h, i) => [h, r[i]])));
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Cruzada");
+        XLSX.writeFile(wb, `${base.name}_cruzada.xlsx`);
+        toast.success(`${rows.length} contactos descargados`);
       }
-
-      const bestPatterns = new Map<string, string>();
-      for (const [domain, pats] of domainPatterns) {
-        let best = ""; let bestCount = 0;
-        for (const [p, c] of pats) { if (c > bestCount) { best = p; bestCount = c; } }
-        if (best) bestPatterns.set(domain, best);
-      }
-
-      const tsvRows = ["NOMBRE\tAPELLIDO\tAPELLIDO2\tEMPRESA\tWEB\tMAIL_CORREGIDO"];
-      for (const b of bouncedEntries) {
-        const domain = b.mail1.split("@")[1] || b.web?.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") || "";
-        if (!domain) continue;
-        let corrected = "";
-        if (b.mail2 && b.mail2.includes("@") && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(b.mail2.split("@")[1])) corrected = b.mail2;
-        if (!corrected) {
-          const pat = bestPatterns.get(domain);
-          if (pat && b.nombre && b.apellido) {
-            const n = b.nombre.toLowerCase(); const a = b.apellido.toLowerCase();
-            if (pat === "first.last") corrected = `${n}.${a}@${domain}`;
-            else if (pat === "initial_last") corrected = `${n[0]}${a}@${domain}`;
-          }
-        }
-        if (!corrected || corrected === b.mail1) continue;
-        tsvRows.push(`${b.nombre}\t${b.apellido}\t${b.apellido2}\t${b.empresa}\t${b.web}\t${corrected}`);
-      }
-
-      if (tsvRows.length <= 1) { toast.error("No hay correcciones para copiar"); return; }
-      await navigator.clipboard.writeText(tsvRows.join("\n"));
-      toast.success(`${tsvRows.length - 1} contactos copiados — pega en Google Sheets con Ctrl+V`);
     } catch (err: any) {
       toast.error("Error: " + (err?.message || "desconocido"));
     } finally {
@@ -182,7 +205,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     }
   };
 
-  const handleDownloadGoodEmails = async (base: Base, e: React.MouseEvent) => {
+  const handleGoodEmailsAction = async (base: Base, mode: "xlsx" | "copy", e: React.MouseEvent) => {
     e.stopPropagation();
     if (!base.sheet_id) { toast.error("Sin Google Sheet asociado"); return; }
     setExporting(base.id);
@@ -192,7 +215,6 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
 
       const GOOD_EXACT = new Set(["EMAIL_SENT", "EMAIL_DELIVERED", "EMAIL_OPENED", "EMAIL_CLICKED", "SENT", "DELIVERED", "OPENED", "CLICKED", "MAIL_MERGE_COMPLETE", "RESPONDED"]);
 
-      // Fetch ALL tabs in parallel and deduplicate by email
       const allSheetData = await Promise.all(
         tabs.map((tab) => fetchSheetReport(base.sheet_id!, tab.title))
       );
@@ -204,8 +226,6 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         for (const c of allSheetData[ti].contacts) {
           const raw = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
           if (!GOOD_EXACT.has(raw)) continue;
-
-          // Get the actual email column (prioritize MAIL_CORREGIDO for sheets that use it, then standard columns)
           const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "").toString().toLowerCase().trim();
           if (!mail || !mail.includes("@") || seenEmails.has(mail)) continue;
           seenEmails.add(mail);
@@ -226,11 +246,18 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         PESTAÑA: tabs[tabIndex]?.title || "",
       }));
 
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Mails Buenos");
-      XLSX.writeFile(wb, `${base.name}_mails_buenos.xlsx`);
-      toast.success(`${rows.length} mails buenos descargados (de ${tabs.length} pestañas)`);
+      if (mode === "copy") {
+        const headers = ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL", "MAIL2", "ESTADO", "PESTAÑA"];
+        const tsv = [headers.join("\t"), ...rows.map(r => Object.values(r).join("\t"))].join("\n");
+        await navigator.clipboard.writeText(tsv);
+        toast.success(`📋 ${rows.length} mails buenos copiados`);
+      } else {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Mails Buenos");
+        XLSX.writeFile(wb, `${base.name}_mails_buenos.xlsx`);
+        toast.success(`${rows.length} mails buenos descargados`);
+      }
     } catch (err: any) {
       toast.error("Error: " + (err?.message || "desconocido"));
     } finally {
@@ -238,23 +265,15 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     }
   };
 
-  const doDownload = async (base: Base, type: "clean" | "crossed", fmt: "xlsx" | "csv", e: React.MouseEvent) => {
+  const handleCleanAction = async (base: Base, mode: "xlsx" | "csv" | "copy", e: React.MouseEvent) => {
     e.stopPropagation();
     setExporting(base.id);
     try {
       const fetchAllBaseContacts = async () => {
         const all: Array<{
-          nombre: string;
-          apellido: string;
-          apellido2: string;
-          empresa: string;
-          web: string;
-          mail1: string;
-          mail2: string;
-          mail3: string;
-          mail4: string;
+          nombre: string; apellido: string; apellido2: string;
+          empresa: string; web: string; mail1: string; mail2: string; mail3: string; mail4: string;
         }> = [];
-
         const pageSize = 1000;
         for (let from = 0; ; from += pageSize) {
           const to = from + pageSize - 1;
@@ -263,164 +282,45 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
             .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
             .eq("base_id", base.id)
             .range(from, to);
-
           if (error) throw error;
           if (!data || data.length === 0) break;
-
           all.push(...(data as any[]));
-
           if (data.length < pageSize) break;
         }
-
         return all;
       };
 
       const data = await fetchAllBaseContacts();
-      if (!data || data.length === 0) {
-        toast.error("No hay contactos para descargar");
-        return;
-      }
+      if (!data || data.length === 0) { toast.error("No hay contactos para descargar"); return; }
 
-      
-      let rows: Record<string, string>[];
+      const rows = data.map((c) => ({
+        NOMBRE: c.nombre, APELLIDO: c.apellido, APELLIDO2: c.apellido2,
+        EMPRESA: c.empresa, WEB: c.web, MAIL1: c.mail1, MAIL2: c.mail2, MAIL3: c.mail3, MAIL4: c.mail4,
+      }));
 
-      if (type === "crossed") {
-        if (!base.sheet_id) {
-          toast.error("Esta base no tiene Google Sheet asociado para recalcular el cruce");
-          return;
-        }
-
-        const tabs = await fetchSheetTabs(base.sheet_id);
-        if (tabs.length === 0) {
-          toast.error("No se encontraron pestañas en el Google Sheet");
-          return;
-        }
-
-        const tabName = tabs[tabs.length - 1].title;
-        const sheetData = await fetchSheetReport(base.sheet_id, tabName);
-        
-        // Build pattern map from delivered emails in the sheet
-        const domainPatterns = new Map<string, Map<string, number>>();
-        const bouncedEntries: Array<{
-          nombre: string; apellido: string; apellido2: string;
-          empresa: string; web: string; mail1: string; mail2: string;
-        }> = [];
-
-        for (const c of sheetData.contacts) {
-          const nombre = (c["NOMBRE"] || c["First Name"] || "").toString().trim();
-          const apellido = (c["APELLIDO"] || c["Last Name"] || "").toString().trim();
-          const apellido2 = (c["APELLIDO2"] || "").toString().trim();
-          const web = (c["WEB"] || c["Website"] || "").toString().trim();
-          const rawEmpresa = (c["EMPRESA"] || c["Company"] || "").toString().trim();
-          const empresa = web ? extractCompanyFromDomain(web) || rawEmpresa.toUpperCase() : rawEmpresa.toUpperCase();
-          const mail1 = (c["MAIL1"] || c["Email Address"] || "").toString().toLowerCase().trim();
-          const mail2 = (c["MAIL2"] || "").toString().toLowerCase().trim();
-          const status = ((c._status || "").toString().trim().toUpperCase());
-
-          if (status.includes("BOUNCE")) {
-            bouncedEntries.push({ nombre, apellido, apellido2, empresa, web, mail1, mail2 });
-          } else if (mail1 && mail1.includes("@")) {
-            // Learn pattern from delivered emails
-            const domain = mail1.split("@")[1];
-            if (domain && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(domain)) {
-              const local = mail1.split("@")[0];
-              const n = nombre.toLowerCase();
-              const a = apellido.toLowerCase();
-              let pat = "";
-              if (local === `${n}.${a}`) pat = "first.last";
-              else if (local === `${n[0]}${a}`) pat = "initial_last";
-              if (pat) {
-                const m = domainPatterns.get(domain) || new Map<string, number>();
-                m.set(pat, (m.get(pat) || 0) + 1);
-                domainPatterns.set(domain, m);
-              }
-            }
-          }
-        }
-
-        // Pick best pattern per domain
-        const bestPatterns = new Map<string, string>();
-        for (const [domain, pats] of domainPatterns) {
-          let best = ""; let bestCount = 0;
-          for (const [p, c] of pats) { if (c > bestCount) { best = p; bestCount = c; } }
-          if (best) bestPatterns.set(domain, best);
-        }
-
-        // Generate corrections for bounced
-        rows = [];
-        for (const b of bouncedEntries) {
-          const domain = b.mail1.split("@")[1] || b.web?.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") || "";
-          if (!domain) continue;
-
-          // Try MAIL2 if corporate
-          let corrected = "";
-          if (b.mail2 && b.mail2.includes("@") && !["gmail.com","hotmail.com","outlook.com","yahoo.com"].includes(b.mail2.split("@")[1])) {
-            corrected = b.mail2;
-          }
-
-          // If no valid MAIL2, generate from pattern
-          if (!corrected) {
-            const pat = bestPatterns.get(domain);
-            if (pat && b.nombre && b.apellido) {
-              const n = b.nombre.toLowerCase();
-              const a = b.apellido.toLowerCase();
-              if (pat === "first.last") corrected = `${n}.${a}@${domain}`;
-              else if (pat === "initial_last") corrected = `${n[0]}${a}@${domain}`;
-            }
-          }
-
-          if (!corrected || corrected === b.mail1) continue;
-
-          rows.push({
-            NOMBRE: b.nombre,
-            APELLIDO: b.apellido,
-            APELLIDO2: b.apellido2,
-            EMPRESA: b.empresa,
-            WEB: b.web,
-            MAIL_CORREGIDO: corrected,
-          });
-        }
-
-        if (rows.length === 0) {
-          toast.error("No se generaron correcciones en esta base cruzada");
-          return;
-        }
-
-        toast.success(`Descarga cruzada lista: ${rows.length} bounced con mail corregido`);
+      if (mode === "copy") {
+        const headers = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4"];
+        const tsv = [headers.join("\t"), ...rows.map(r => Object.values(r).join("\t"))].join("\n");
+        await navigator.clipboard.writeText(tsv);
+        toast.success(`📋 ${rows.length} contactos copiados`);
       } else {
-        rows = data.map((c) => ({
-          NOMBRE: c.nombre,
-          APELLIDO: c.apellido,
-          APELLIDO2: c.apellido2,
-          EMPRESA: c.empresa,
-          WEB: c.web,
-          MAIL1: c.mail1,
-          MAIL2: c.mail2,
-          MAIL3: c.mail3,
-          MAIL4: c.mail4,
-        }));
-      }
-
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Contactos");
-      const suffix = type === "crossed" ? "_cruzada" : "_limpia";
-
-      if (fmt === "csv") {
-        const csv = XLSX.utils.sheet_to_csv(ws);
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${base.name}${suffix}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        XLSX.writeFile(wb, `${base.name}${suffix}.xlsx`);
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Contactos");
+        if (mode === "csv") {
+          const csv = XLSX.utils.sheet_to_csv(ws);
+          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = `${base.name}_limpia.csv`; a.click();
+          URL.revokeObjectURL(url);
+        } else {
+          XLSX.writeFile(wb, `${base.name}_limpia.xlsx`);
+        }
+        toast.success(`${rows.length} contactos descargados`);
       }
     } catch (error: any) {
-      console.error("Error exportando base:", error);
-      toast.error("Error exportando base: " + (error?.message || "desconocido"));
+      toast.error("Error exportando: " + (error?.message || "desconocido"));
     } finally {
       setExporting(null);
     }
@@ -526,29 +426,49 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 flex-wrap justify-end ml-4">
-                <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "clean", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
-                  {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                  XLSX
-                </Button>
-                <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "clean", "csv", e)} disabled={exporting === base.id} className="text-xs">
-                  {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                  CSV
-                </Button>
+              <div className="flex items-center gap-1.5 flex-wrap justify-end ml-4" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={exporting === base.id} className="text-xs">
+                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                      Base limpia
+                      <ChevronDown className="ml-1 h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={(e) => handleCleanAction(base, "xlsx", e as any)}>Descargar XLSX</DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => handleCleanAction(base, "csv", e as any)}>Descargar CSV</DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => handleCleanAction(base, "copy", e as any)}>Copiar para Sheets</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 {base.crossed && base.sheet_id && (
                   <>
-                    <Button variant="secondary" size="sm" onClick={(e) => handleDownloadGoodEmails(base, e)} disabled={exporting === base.id} className="text-xs">
-                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <MailCheck className="mr-1 h-3.5 w-3.5" />}
-                      Mails buenos
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={(e) => doDownload(base, "crossed", "xlsx", e)} disabled={exporting === base.id} className="text-xs">
-                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                      Cruzada
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={(e) => handleCopyCrossed(base, e)} disabled={exporting === base.id} className="text-xs">
-                      {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardCopy className="mr-1 h-3.5 w-3.5" />}
-                      Pegar
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="secondary" size="sm" disabled={exporting === base.id} className="text-xs">
+                          {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <MailCheck className="mr-1 h-3.5 w-3.5" />}
+                          Mails buenos
+                          <ChevronDown className="ml-1 h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => handleGoodEmailsAction(base, "xlsx", e as any)}>Descargar XLSX</DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleGoodEmailsAction(base, "copy", e as any)}>Copiar para Sheets</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" disabled={exporting === base.id} className="text-xs">
+                          {exporting === base.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                          Cruzada
+                          <ChevronDown className="ml-1 h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => handleCrossedAction(base, "xlsx", e as any)}>Descargar XLSX</DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleCrossedAction(base, "copy", e as any)}>Copiar para Sheets</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </>
                 )}
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDelete(base.id, e)}>
