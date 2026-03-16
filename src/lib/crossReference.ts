@@ -220,6 +220,7 @@ export function crossReference(
   const onlyBounced = options.onlyBounced === true;
   const deliveredMails = new Set<string>();
   const bouncedMails = new Set<string>();
+  const notSentMails = new Set<string>();
   const patterns: DomainPatternEntry[] = [];
   const delivered: DeliveredContactEntry[] = [];
   const seenDelivered = new Set<string>();
