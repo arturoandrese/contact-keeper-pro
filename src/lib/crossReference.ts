@@ -386,7 +386,7 @@ export function crossReference(
 
     let originalMail = m1;
     let finalMail = m1;
-    const isNotSent = (!wasInLog && !bouncedMatch) || !!notSentMatch;
+    const isNotSent = !!notSentMatch;
 
     if (bouncedMatch) {
       originalMail = bouncedMatch;
