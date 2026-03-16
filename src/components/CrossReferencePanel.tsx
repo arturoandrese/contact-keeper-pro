@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
-import { Upload, Loader2, Download, Info, ArrowLeft, BarChart3, ClipboardCopy } from "lucide-react";
+import { Upload, Loader2, Download, Info, ArrowLeft, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ExportDropdown from "./ExportDropdown";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { CleanedContact } from "@/lib/contactCleaner";
