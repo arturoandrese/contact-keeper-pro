@@ -425,9 +425,9 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                 {updating ? (
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  <GitCompare className="mr-1.5 h-3.5 w-3.5" />
                 )}
-                Actualizar base con reporte
+                Volver a cruzar
               </Button>
             </>
           )}
