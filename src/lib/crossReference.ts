@@ -76,6 +76,11 @@ function isBounced(status: string): boolean {
   return normalizeStatus(status).includes("BOUNCE");
 }
 
+function isNotSentStatus(status: string): boolean {
+  const s = normalizeStatus(status);
+  return s.includes("NOT_SENT") || s.includes("NO_SENT") || s.includes("NO_ENVIAD") || s === "" || s === "ERROR";
+}
+
 function isValidEmail(email: string): boolean {
   if (!email) return false;
   const parts = email.split("@");
@@ -215,6 +220,7 @@ export function crossReference(
   const onlyBounced = options.onlyBounced === true;
   const deliveredMails = new Set<string>();
   const bouncedMails = new Set<string>();
+  const notSentMails = new Set<string>();
   const patterns: DomainPatternEntry[] = [];
   const delivered: DeliveredContactEntry[] = [];
   const seenDelivered = new Set<string>();
@@ -312,8 +318,11 @@ export function crossReference(
     }
 
     if (isBounced(status)) {
-      // Only mark original attempted email as bounced.
       if (mail1) bouncedMails.add(mail1);
+    }
+
+    if (isNotSentStatus(status)) {
+      if (mail1) notSentMails.add(mail1);
     }
   }
 
@@ -354,10 +363,12 @@ export function crossReference(
 
     const m1 = (contact.MAIL1 || "").toLowerCase().trim();
     const bouncedMatch = mailCandidates.find((m) => bouncedMails.has(m));
+    const notSentMatch = mailCandidates.find((m) => notSentMails.has(m));
     const wasInLog = mailCandidates.some((m) => logMails.has(m));
 
-    // In onlyBounced mode: include bounced OR not-sent contacts
-    if (onlyBounced && !bouncedMatch && wasInLog) {
+    // In onlyBounced mode: include bounced, not-sent (in log), OR not-in-log contacts
+    if (onlyBounced && !bouncedMatch && !notSentMatch && wasInLog) {
+      // Was in log with a delivered/success status — skip
       continue;
     }
 
@@ -378,7 +389,7 @@ export function crossReference(
 
     let originalMail = m1;
     let finalMail = m1;
-    const isNotSent = !wasInLog && !bouncedMatch;
+    const isNotSent = (!wasInLog && !bouncedMatch) || !!notSentMatch;
 
     if (bouncedMatch) {
       originalMail = bouncedMatch;
@@ -397,7 +408,7 @@ export function crossReference(
         finalMail = "";
       }
     } else if (isNotSent) {
-      // Contact not in log at all — keep original mail but try to generate a better one via pattern
+      // Contact not sent — keep original mail but try to generate a better one via pattern
       originalMail = m1;
       finalMail = m1;
     } else if (onlyBounced) {

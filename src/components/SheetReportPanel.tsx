@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download, ClipboardCopy, GitCompare } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
-import { crossReference, type EmailLogEntry } from "@/lib/crossReference";
+import { crossReference, type EmailLogEntry, type CrossReferencedContact, type DeliveredHistoryEntry } from "@/lib/crossReference";
 import ExportDropdown from "./ExportDropdown";
 import type { CleanedContact } from "@/lib/contactCleaner";
 
@@ -140,6 +140,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const [selectedTab, setSelectedTab] = useState<string>("");
   const [loadingTabs, setLoadingTabs] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [crossedResults, setCrossedResults] = useState<CrossReferencedContact[] | null>(null);
 
   // Fetch available tabs on mount
   useEffect(() => {
@@ -191,16 +192,29 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
     setUpdating(true);
 
     try {
-      const existingContacts = await fetchAllContacts(baseId);
+      const [existingContacts, savedPatternsRes, deliveredHistoryRes] = await Promise.all([
+        fetchAllContacts(baseId),
+        supabase.from("domain_patterns").select("domain, pattern, example_email"),
+        supabase.from("delivered_contacts").select("mail, nombre, apellido").limit(5000),
+      ]);
       if (existingContacts.length === 0) {
         toast.error("No hay contactos en esta base para actualizar");
         setUpdating(false);
         return;
       }
 
+      const savedPatterns = (savedPatternsRes.data || []).map((p: any) => ({
+        domain: p.domain, pattern: p.pattern, example_email: p.example_email,
+      }));
+      const deliveredHistory: DeliveredHistoryEntry[] = (deliveredHistoryRes.data || []).map((d: any) => ({
+        mail: d.mail || "", nombre: d.nombre || "", apellido: d.apellido || "",
+      }));
+
       const log = toEmailLog(data.contacts);
       const cleanedContacts = toCleanedContacts(existingContacts);
-      const { filtered, delivered } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true });
+      const { filtered, delivered } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true, savedPatterns, deliveredHistory });
+
+      setCrossedResults(filtered);
 
       const correctionMap = new Map<string, string>();
       for (const row of filtered) {
@@ -429,6 +443,24 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                 )}
                 Volver a cruzar
               </Button>
+              {crossedResults && crossedResults.length > 0 && (
+                <ExportDropdown
+                  label="Base cruzada"
+                  onDownload={() => {
+                    const ws = XLSX.utils.json_to_sheet(crossedResults.map(r => ({
+                      NOMBRE: r.NOMBRE, APELLIDO: r.APELLIDO, EMPRESA: r.EMPRESA_SHORT || r.EMPRESA,
+                      WEB: r.WEB, MAIL_ORIGINAL: r.MAIL_ORIGINAL, MAIL_CORREGIDO: r.MAIL1,
+                    })));
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Cruzada");
+                    XLSX.writeFile(wb, `cruzada_${baseName}.xlsx`);
+                  }}
+                  getData={() => ({
+                    headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL ORIGINAL", "MAIL CORREGIDO"],
+                    rows: crossedResults.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT || r.EMPRESA, r.WEB, r.MAIL_ORIGINAL, r.MAIL1]),
+                  })}
+                />
+              )}
             </>
           )}
           <Button size="sm" variant="outline" onClick={fetchReport} disabled={loading}>
