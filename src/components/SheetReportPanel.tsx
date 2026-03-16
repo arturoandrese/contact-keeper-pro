@@ -449,15 +449,15 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                   onDownload={() => {
                     const ws = XLSX.utils.json_to_sheet(crossedResults.map(r => ({
                       NOMBRE: r.NOMBRE, APELLIDO: r.APELLIDO, EMPRESA: r.EMPRESA_SHORT || r.EMPRESA,
-                      WEB: r.WEB, MAIL_ORIGINAL: r.MAIL_ORIGINAL, MAIL_CORREGIDO: r.MAIL1,
+                      WEB: r.WEB, MAIL1: r.MAIL1, MAIL2: r.MAIL2, MAIL3: r.MAIL3,
                     })));
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, "Cruzada");
                     XLSX.writeFile(wb, `cruzada_${baseName}.xlsx`);
                   }}
                   getData={() => ({
-                    headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL CORREGIDO"],
-                    rows: crossedResults.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT || r.EMPRESA, r.WEB, r.MAIL1]),
+                    headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3"],
+                    rows: crossedResults.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT || r.EMPRESA, r.WEB, r.MAIL1, r.MAIL2, r.MAIL3]),
                   })}
                 />
               )}
