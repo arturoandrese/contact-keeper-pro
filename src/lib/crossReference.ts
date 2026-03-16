@@ -355,6 +355,7 @@ export function crossReference(
 
     let originalMail = m1;
     let finalMail = m1;
+    const isNotSent = !wasInLog && !bouncedMatch;
 
     if (bouncedMatch) {
       originalMail = bouncedMatch;
@@ -372,6 +373,10 @@ export function crossReference(
       } else {
         finalMail = "";
       }
+    } else if (isNotSent) {
+      // Contact not in log at all — keep original mail but try to generate a better one via pattern
+      originalMail = m1;
+      finalMail = m1;
     } else if (onlyBounced) {
       continue;
     }
