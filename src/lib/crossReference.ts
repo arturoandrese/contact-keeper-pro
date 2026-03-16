@@ -318,8 +318,11 @@ export function crossReference(
     }
 
     if (isBounced(status)) {
-      // Only mark original attempted email as bounced.
       if (mail1) bouncedMails.add(mail1);
+    }
+
+    if (isNotSentStatus(status)) {
+      if (mail1) notSentMails.add(mail1);
     }
   }
 
