@@ -7,6 +7,7 @@ import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCir
 import { toast } from "sonner";
 import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
 import { crossReference, type EmailLogEntry } from "@/lib/crossReference";
+import ExportDropdown from "./ExportDropdown";
 import type { CleanedContact } from "@/lib/contactCleaner";
 
 interface SheetReportPanelProps {
