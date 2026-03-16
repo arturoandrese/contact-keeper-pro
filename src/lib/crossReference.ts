@@ -536,15 +536,15 @@ export function crossReference(
 }
 
 export function exportCrossReferenced(contacts: CrossReferencedContact[]) {
-  // Export with clean column names, excluding internal fields
   const exportData = contacts.map(c => ({
     NOMBRE: c.NOMBRE,
     APELLIDO: c.APELLIDO,
     APELLIDO2: c.APELLIDO2,
     EMPRESA: c.EMPRESA_SHORT || c.EMPRESA,
     WEB: c.WEB,
-    MAIL_ORIGINAL: c.MAIL_ORIGINAL,
-    MAIL_CORREGIDO: c.MAIL1,
+    MAIL1: c.MAIL1,
+    MAIL2: c.MAIL2,
+    MAIL3: c.MAIL3,
   }));
   const ws = XLSX.utils.json_to_sheet(exportData);
   const wb = XLSX.utils.book_new();
