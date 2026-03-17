@@ -453,6 +453,7 @@ const Index = () => {
         )}
       </main>
 
+      <UploadFilterDialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen} onConfirm={processFileWithFilters} />
       <SaveBaseDialog open={saveOpen} onOpenChange={setSaveOpen} onSave={handleSave} />
     </div>
   );
