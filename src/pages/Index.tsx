@@ -22,6 +22,8 @@ const Index = () => {
   const [rawCount, setRawCount] = useState(0);
   const [view, setView] = useState<View>("upload");
   const [saveOpen, setSaveOpen] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [pendingContent, setPendingContent] = useState<string | null>(null);
   const [selectedBase, setSelectedBase] = useState<{ id: string; name: string; crossed: boolean; sheetId?: string } | null>(null);
   const [dark, setDark] = useState(() => {
     if (typeof window !== "undefined") {
