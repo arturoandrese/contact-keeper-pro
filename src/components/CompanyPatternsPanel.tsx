@@ -934,6 +934,9 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
         </div>
       )}
 
+      {/* Replied Contacts Panel */}
+      <RepliedContactsPanel />
+
       <DeleteDialog target={deleteTarget} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
     </div>
   );
