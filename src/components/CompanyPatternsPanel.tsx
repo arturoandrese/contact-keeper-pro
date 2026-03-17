@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import RepliedContactsPanel from "@/components/RepliedContactsPanel";
 
 interface DeliveredContact {
   id: string;
@@ -932,6 +933,9 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
           ))}
         </div>
       )}
+
+      {/* Replied Contacts Panel */}
+      <RepliedContactsPanel />
 
       <DeleteDialog target={deleteTarget} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
     </div>

@@ -9,6 +9,7 @@ import BBDPanel from "@/components/BBDPanel";
 import CompanyPatternsPanel from "@/components/CompanyPatternsPanel";
 import CrossReferencePanel from "@/components/CrossReferencePanel";
 import BasePreviewPanel from "@/components/BasePreviewPanel";
+import UploadFilterDialog, { type UploadFilters } from "@/components/UploadFilterDialog";
 import { Button } from "@/components/ui/button";
 import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy } from "lucide-react";
 import { toast } from "sonner";
@@ -21,6 +22,8 @@ const Index = () => {
   const [rawCount, setRawCount] = useState(0);
   const [view, setView] = useState<View>("upload");
   const [saveOpen, setSaveOpen] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [pendingContent, setPendingContent] = useState<string | null>(null);
   const [selectedBase, setSelectedBase] = useState<{ id: string; name: string; crossed: boolean; sheetId?: string } | null>(null);
   const [dark, setDark] = useState(() => {
     if (typeof window !== "undefined") {
@@ -35,6 +38,17 @@ const Index = () => {
   }, [dark]);
 
   const handleFile = async (content: string) => {
+    // Store content and show filter dialog
+    setPendingContent(content);
+    setFilterDialogOpen(true);
+  };
+
+  const processFileWithFilters = async (filters: UploadFilters) => {
+    setFilterDialogOpen(false);
+    const content = pendingContent;
+    if (!content) return;
+    setPendingContent(null);
+
     const lines = content.split("\n").filter((l) => l.trim()).length - 1;
     setRawCount(Math.max(lines, 0));
 
@@ -72,7 +86,6 @@ const Index = () => {
         let promoted = 0;
         for (const c of cleaned) {
           const mails = [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].filter(Boolean);
-          // If MAIL1 is not verified but another one is, promote it
           if (!verifiedSet.has((c.MAIL1 || "").toLowerCase())) {
             const verifiedMail = mails.find(m => verifiedSet.has(m.toLowerCase()));
             if (verifiedMail) {
@@ -120,7 +133,6 @@ const Index = () => {
 
         for (let idx = 0; idx < cleaned.length; idx++) {
           const c = cleaned[idx];
-          // Remove bounced emails from mail slots
           const mails = [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4];
           const validMails = mails.filter(m => m && !bouncedSet.has(m.toLowerCase()));
 
@@ -138,7 +150,6 @@ const Index = () => {
           c.MAIL4 = validMails[3] || "";
         }
 
-        // Remove contacts with no valid emails
         for (let i = contactsToRemove.length - 1; i >= 0; i--) {
           cleaned.splice(contactsToRemove[i], 1);
         }
@@ -151,6 +162,100 @@ const Index = () => {
       }
     } catch (err) {
       console.warn("No se pudo cruzar con bounced_emails:", err);
+    }
+
+    // Filter by recently contacted (delivered_contacts)
+    if (filters.filterSent) {
+      try {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - filters.sentDays);
+        const cutoffISO = cutoff.toISOString();
+
+        const allMails = new Set<string>();
+        for (const c of cleaned) {
+          [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].forEach(m => {
+            if (m) allMails.add(m.toLowerCase());
+          });
+        }
+
+        const recentlyContactedSet = new Set<string>();
+        const mailArray = Array.from(allMails);
+        for (let i = 0; i < mailArray.length; i += 300) {
+          const chunk = mailArray.slice(i, i + 300);
+          const { data } = await supabase
+            .from("delivered_contacts")
+            .select("mail")
+            .in("mail", chunk)
+            .gte("last_contacted_at", cutoffISO);
+          if (data) data.forEach(r => recentlyContactedSet.add((r.mail || "").toLowerCase()));
+        }
+
+        if (recentlyContactedSet.size > 0) {
+          const before = cleaned.length;
+          let idx = cleaned.length - 1;
+          while (idx >= 0) {
+            const c = cleaned[idx];
+            const mails = [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].filter(Boolean);
+            if (mails.some(m => recentlyContactedSet.has(m.toLowerCase()))) {
+              cleaned.splice(idx, 1);
+            }
+            idx--;
+          }
+          const removed = before - cleaned.length;
+          if (removed > 0) {
+            toast.info(`📬 ${removed} contactos excluidos (contactados en últimos ${filters.sentDays} días)`);
+          }
+        }
+      } catch (err) {
+        console.warn("No se pudo filtrar por contactados recientes:", err);
+      }
+    }
+
+    // Filter by recently replied
+    if (filters.filterReplied) {
+      try {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - filters.repliedDays);
+        const cutoffISO = cutoff.toISOString().slice(0, 10);
+
+        const allMails = new Set<string>();
+        for (const c of cleaned) {
+          [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].forEach(m => {
+            if (m) allMails.add(m.toLowerCase());
+          });
+        }
+
+        const repliedSet = new Set<string>();
+        const mailArray = Array.from(allMails);
+        for (let i = 0; i < mailArray.length; i += 300) {
+          const chunk = mailArray.slice(i, i + 300);
+          const { data } = await supabase
+            .from("replied_contacts")
+            .select("email")
+            .in("email", chunk)
+            .gte("fecha_respuesta", cutoffISO);
+          if (data) data.forEach(r => repliedSet.add((r.email || "").toLowerCase()));
+        }
+
+        if (repliedSet.size > 0) {
+          const before = cleaned.length;
+          let idx = cleaned.length - 1;
+          while (idx >= 0) {
+            const c = cleaned[idx];
+            const mails = [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].filter(Boolean);
+            if (mails.some(m => repliedSet.has(m.toLowerCase()))) {
+              cleaned.splice(idx, 1);
+            }
+            idx--;
+          }
+          const removed = before - cleaned.length;
+          if (removed > 0) {
+            toast.info(`💬 ${removed} contactos excluidos (respondieron en últimos ${filters.repliedDays} días)`);
+          }
+        }
+      } catch (err) {
+        console.warn("No se pudo filtrar por respondidos:", err);
+      }
     }
 
     setContacts(cleaned);
@@ -348,6 +453,7 @@ const Index = () => {
         )}
       </main>
 
+      <UploadFilterDialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen} onConfirm={processFileWithFilters} />
       <SaveBaseDialog open={saveOpen} onOpenChange={setSaveOpen} onSave={handleSave} />
     </div>
   );
