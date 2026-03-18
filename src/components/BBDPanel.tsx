@@ -113,8 +113,15 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     setEditingId(null);
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteClick = (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setDeleteTarget({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
+    setDeleteTarget(null);
     await supabase.from("contacts").delete().eq("base_id", id);
     const { error } = await supabase.from("bases").delete().eq("id", id);
     if (error) {
