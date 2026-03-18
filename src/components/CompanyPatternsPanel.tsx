@@ -849,89 +849,21 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
           </p>
         </div>
       ) : (
-        <div className="space-y-1">
-          {displayedCompanies.map(({ empresa_short, count }) => (
-            <div
-              key={empresa_short}
-              className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 cursor-pointer transition-all hover:shadow-sm hover:border-primary/30"
-            >
-              <div className="flex items-center gap-3 flex-1" onClick={() => !bulkMode && handleSelectCompany(empresa_short)}>
-                {bulkMode && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleCompany(empresa_short);
-                    }}
-                    className="flex-shrink-0"
-                  >
-                    <div
-                      className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
-                        selectedCompanies.has(empresa_short)
-                          ? "bg-primary border-primary text-primary-foreground"
-                          : "border-muted-foreground/40"
-                      }`}
-                    >
-                      {selectedCompanies.has(empresa_short) && (
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                  </button>
-                )}
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                  <Building2 className="h-4 w-4 text-primary" />
-                </div>
-                {editingName === empresa_short ? (
-                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      autoFocus
-                      value={editNameValue}
-                      onChange={(e) => setEditNameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRenameCompany(empresa_short, editNameValue);
-                        if (e.key === "Escape") setEditingName(null);
-                      }}
-                      className="font-display font-medium text-sm bg-transparent border-b-2 border-primary outline-none w-48"
-                    />
-                    <button onClick={() => handleRenameCompany(empresa_short, editNameValue)} className="rounded p-1 text-primary hover:bg-primary/10">
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => setEditingName(null)} className="rounded p-1 text-muted-foreground hover:bg-muted">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <p className="font-display font-medium text-sm">{empresa_short}</p>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Users className="h-3.5 w-3.5" />
-                  {count}
-                </div>
-                {!bulkMode && (
-                  <>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setEditingName(empresa_short); setEditNameValue(empresa_short); }}
-                      className="rounded p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                      title="Editar nombre"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "company", name: empresa_short }); }}
-                      className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+        <CompanyAccordionList
+          companies={displayedCompanies}
+          allContacts={allContacts}
+          bulkMode={bulkMode}
+          selectedCompanies={selectedCompanies}
+          editingName={editingName}
+          editNameValue={editNameValue}
+          onSelectCompany={handleSelectCompany}
+          onToggleCompany={handleToggleCompany}
+          onEditName={(name) => { setEditingName(name); setEditNameValue(name); }}
+          onRenameCompany={handleRenameCompany}
+          onCancelEdit={() => setEditingName(null)}
+          onSetEditValue={setEditNameValue}
+          onDeleteCompany={(name) => setDeleteTarget({ type: "company", name })}
+        />
       )}
 
       {/* Replied Contacts Panel */}

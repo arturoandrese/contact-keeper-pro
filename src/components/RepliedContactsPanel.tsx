@@ -224,7 +224,7 @@ const RepliedContactsPanel = () => {
             ID de Google Sheet (contactos que respondieron)
           </label>
           <Input
-            placeholder="Pega el ID de la hoja de Drive aquí"
+            placeholder="Pega el ID o URL completa de la hoja de Drive"
             value={sheetId}
             onChange={(e) => setSheetId(e.target.value)}
             className="text-sm font-mono"
