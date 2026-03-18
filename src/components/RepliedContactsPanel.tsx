@@ -45,6 +45,7 @@ const RepliedContactsPanel = () => {
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     fetchContacts();
