@@ -525,7 +525,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                     </DropdownMenu>
                   </>
                 )}
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDelete(base.id, e)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDeleteClick(base.id, base.name, e)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
