@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { parseAndClean, type CleanedContact } from "@/lib/contactCleaner";
+import { parseAndClean, type CleanedContact, type DomainPatternEntry } from "@/lib/contactCleaner";
 import { supabase } from "@/integrations/supabase/client";
 import FileUploader from "@/components/FileUploader";
 import ContactTable from "@/components/ContactTable";
@@ -52,7 +52,18 @@ const Index = () => {
     const lines = content.split("\n").filter((l) => l.trim()).length - 1;
     setRawCount(Math.max(lines, 0));
 
-    const cleaned = parseAndClean(content);
+    // Load saved domain patterns to prioritize known working emails
+    let savedPatterns: DomainPatternEntry[] = [];
+    try {
+      const { data } = await supabase
+        .from("domain_patterns")
+        .select("domain, pattern, example_email");
+      if (data) savedPatterns = data as DomainPatternEntry[];
+    } catch (err) {
+      console.warn("No se pudieron cargar patrones de dominio:", err);
+    }
+
+    const cleaned = parseAndClean(content, savedPatterns);
     if (cleaned.length === 0) {
       setContacts([]);
       setSaveOpen(false);
