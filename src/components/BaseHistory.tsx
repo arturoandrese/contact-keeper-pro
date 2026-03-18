@@ -32,6 +32,7 @@ interface BaseHistoryProps {
 const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
   const [bases, setBases] = useState<Base[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const fetchBases = async () => {
     setLoading(true);
