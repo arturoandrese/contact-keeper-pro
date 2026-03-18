@@ -72,13 +72,27 @@ const RepliedContactsPanel = () => {
     setLoading(false);
   };
 
+  const extractSheetId = (input: string): string => {
+    const trimmed = input.trim();
+    // Full URL: https://docs.google.com/spreadsheets/d/SHEET_ID/edit...
+    const urlMatch = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if (urlMatch) return urlMatch[1];
+    // Already just an ID
+    return trimmed;
+  };
+
   const handleImport = async () => {
-    const id = sheetId.trim();
-    if (!id) {
-      toast.error("Pega el ID de la hoja de Google Sheets");
+    const raw = sheetId.trim();
+    if (!raw) {
+      toast.error("Pega el ID o URL de la hoja de Google Sheets");
       return;
     }
-    localStorage.setItem("replied_sheet_id", id);
+    const id = extractSheetId(raw);
+    if (!id) {
+      toast.error("No se pudo extraer el ID de la hoja");
+      return;
+    }
+    localStorage.setItem("replied_sheet_id", raw);
     setImporting(true);
 
     try {
