@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { parseAndClean, type CleanedContact, type DomainPatternEntry } from "@/lib/contactCleaner";
+import { parseAndClean, type CleanedContact, type DomainPatternEntry, FREE_EMAIL_DOMAINS, removeAccents } from "@/lib/contactCleaner";
 import { supabase } from "@/integrations/supabase/client";
 import FileUploader from "@/components/FileUploader";
 import ContactTable from "@/components/ContactTable";
@@ -61,6 +61,47 @@ const Index = () => {
       if (data) savedPatterns = data as DomainPatternEntry[];
     } catch (err) {
       console.warn("No se pudieron cargar patrones de dominio:", err);
+    }
+
+    // Learn patterns from replied_contacts (verified working emails)
+    try {
+      const { data: repliedData } = await supabase
+        .from("replied_contacts")
+        .select("email, nombre, apellido");
+      if (repliedData && repliedData.length > 0) {
+        const domainPatterns = new Map<string, { pattern: string; count: number }>();
+        for (const r of repliedData) {
+          if (!r.email || !r.nombre || !r.apellido) continue;
+          const emailLower = r.email.toLowerCase();
+          const domain = emailLower.split("@")[1];
+          if (!domain || FREE_EMAIL_DOMAINS.has(domain)) continue;
+          const local = emailLower.split("@")[0];
+          const nombre = removeAccents(r.nombre.toLowerCase().split(/\s+/)[0] || "");
+          const apellido = removeAccents(r.apellido.toLowerCase().split(/\s+/)[0] || "");
+          if (!nombre || !apellido) continue;
+          const initial = nombre.charAt(0);
+          let detectedPattern = "";
+          if (local === `${nombre}.${apellido}`) detectedPattern = "first.last";
+          else if (local === `${initial}${apellido}`) detectedPattern = "initial_last";
+          else if (local === `${nombre}${apellido}`) detectedPattern = "first_last";
+          else if (local === `${apellido}.${nombre}`) detectedPattern = "last.first";
+          else if (local === nombre) detectedPattern = "first";
+          if (detectedPattern && !savedPatterns.find(p => p.domain === domain)) {
+            const existing = domainPatterns.get(domain);
+            if (!existing || existing.count < 1) {
+              domainPatterns.set(domain, { pattern: detectedPattern, count: (existing?.count || 0) + 1 });
+            }
+          }
+        }
+        for (const [domain, { pattern }] of domainPatterns) {
+          savedPatterns.push({ domain, pattern, example_email: "" });
+        }
+        if (domainPatterns.size > 0) {
+          toast.info(`📧 ${domainPatterns.size} patrones aprendidos de contactos respondidos`);
+        }
+      }
+    } catch (err) {
+      console.warn("No se pudieron cargar replied_contacts para patrones:", err);
     }
 
     const cleaned = parseAndClean(content, savedPatterns);
