@@ -4,6 +4,16 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Database, Trash2, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface Base {
@@ -22,6 +32,7 @@ interface BaseHistoryProps {
 const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
   const [bases, setBases] = useState<Base[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const fetchBases = async () => {
     setLoading(true);
@@ -42,8 +53,15 @@ const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
     fetchBases();
   }, [refreshKey]);
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteClick = (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setDeleteTarget({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
+    setDeleteTarget(null);
     const { error } = await supabase.from("bases").delete().eq("id", id);
     if (error) {
       toast.error("Error eliminando base");
@@ -97,7 +115,7 @@ const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
               variant="ghost"
               size="icon"
               className="h-8 w-8 opacity-0 group-hover:opacity-100"
-              onClick={(e) => handleDelete(base.id, e)}
+              onClick={(e) => handleDeleteClick(base.id, base.name, e)}
             >
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
@@ -105,6 +123,22 @@ const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
           </div>
         </div>
       ))}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar esta base?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estás a punto de eliminar <strong>"{deleteTarget?.name}"</strong>. Esta acción no se puede deshacer y se perderán todos los contactos asociados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Sí, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

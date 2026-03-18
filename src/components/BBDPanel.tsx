@@ -15,6 +15,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -44,6 +54,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const fetchBases = async () => {
     setLoading(true);
@@ -102,8 +113,15 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     setEditingId(null);
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteClick = (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setDeleteTarget({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
+    setDeleteTarget(null);
     await supabase.from("contacts").delete().eq("base_id", id);
     const { error } = await supabase.from("bases").delete().eq("id", id);
     if (error) {
@@ -507,7 +525,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                     </DropdownMenu>
                   </>
                 )}
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDelete(base.id, e)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDeleteClick(base.id, base.name, e)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -515,6 +533,22 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
           ))}
         </div>
       )}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar esta base?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estás a punto de eliminar <strong>"{deleteTarget?.name}"</strong>. Esta acción no se puede deshacer y se perderán todos los contactos asociados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Sí, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
