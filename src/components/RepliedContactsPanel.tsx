@@ -211,13 +211,17 @@ const RepliedContactsPanel = () => {
 
   return (
     <div className="space-y-4 rounded-xl border border-border bg-card p-5">
-      <div className="flex items-center justify-between">
+      <div
+        className="flex items-center justify-between cursor-pointer select-none"
+        onClick={() => setCollapsed(!collapsed)}
+      >
         <div className="flex items-center gap-2">
           <MessageSquareReply className="h-5 w-5 text-primary" />
           <h3 className="font-display text-lg font-bold">Contactos que han respondido</h3>
           <span className="text-xs text-muted-foreground">({contacts.length})</span>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? "-rotate-90" : ""}`} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <Button size="sm" variant="outline" onClick={fetchContacts} disabled={loading}>
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             Actualizar
@@ -229,7 +233,9 @@ const RepliedContactsPanel = () => {
         </div>
       </div>
 
-      {/* Google Sheet Import */}
+      {!collapsed && (
+        <>
+          {/* Google Sheet Import */}
       <div className="flex items-end gap-2">
         <div className="flex-1">
           <label className="text-xs font-medium text-muted-foreground mb-1 block">
