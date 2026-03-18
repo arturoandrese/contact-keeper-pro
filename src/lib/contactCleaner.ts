@@ -15,7 +15,7 @@ export interface CleanedContact {
 }
 
 // Dominios de email personales / no corporativos
-const FREE_EMAIL_DOMAINS = new Set([
+export const FREE_EMAIL_DOMAINS = new Set([
   "gmail.com", "googlemail.com",
   "hotmail.com", "hotmail.es", "hotmail.co.uk", "hotmail.fr", "hotmail.de", "hotmail.it",
   "outlook.com", "outlook.es", "outlook.co.uk",
