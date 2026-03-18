@@ -142,11 +142,59 @@ function dedup(contact: CleanedContact): CleanedContact {
   return result;
 }
 
-export function parseAndClean(csvText: string): CleanedContact[] {
+export interface DomainPatternEntry {
+  domain: string;
+  pattern: string;
+  example_email: string;
+}
+
+function generateEmailByPattern(
+  pattern: string,
+  nombre: string,
+  apellido: string,
+  apellido2: string,
+  domain: string
+): string {
+  const initial = nombre.charAt(0);
+  switch (pattern) {
+    case "first.last":
+      return `${nombre}.${apellido}@${domain}`;
+    case "initial_last":
+      return `${initial}${apellido}@${domain}`;
+    case "initial_last_initial2":
+      return apellido2
+        ? `${initial}${apellido}${apellido2.charAt(0)}@${domain}`
+        : `${initial}${apellido}@${domain}`;
+    case "first_last":
+      return `${nombre}${apellido}@${domain}`;
+    case "first":
+      return `${nombre}@${domain}`;
+    case "last.first":
+      return `${apellido}.${nombre}@${domain}`;
+    default:
+      return `${initial}${apellido}@${domain}`;
+  }
+}
+
+export function parseAndClean(
+  csvText: string,
+  savedPatterns?: DomainPatternEntry[]
+): CleanedContact[] {
   const parsed = Papa.parse<Record<string, string>>(csvText, {
     header: true,
     skipEmptyLines: true,
   });
+
+  // Build a map domain -> best pattern
+  const patternMap = new Map<string, string>();
+  if (savedPatterns) {
+    for (const p of savedPatterns) {
+      // Keep the first (highest priority) pattern per domain
+      if (!patternMap.has(p.domain)) {
+        patternMap.set(p.domain, p.pattern);
+      }
+    }
+  }
 
   const results: CleanedContact[] = [];
 
@@ -173,7 +221,6 @@ export function parseAndClean(csvText: string): CleanedContact[] {
     );
 
     let empresa = "";
-    // Check if there's a user override for this domain
     const domainForOverride = web || email1.split("@")[1] || "";
     const override = getOverriddenName(domainForOverride);
     if (override) {
@@ -197,14 +244,35 @@ export function parseAndClean(csvText: string): CleanedContact[] {
     let mail4 = "";
 
     if (domain && hasNameForPattern) {
+      const knownPattern = patternMap.get(domain);
       const initial = nombre.charAt(0);
-      mail1 = `${initial}${apellido}@${domain}`;
-      mail2 = `${nombre}.${apellido}@${domain}`;
-      mail3 = email1;
-      if (apellido2) {
-        mail4 = `${initial}${apellido}${apellido2.charAt(0)}@${domain}`;
+
+      if (knownPattern) {
+        // Use the learned pattern as MAIL1
+        mail1 = generateEmailByPattern(knownPattern, nombre, apellido, apellido2, domain);
+        // Fill alternatives with other patterns
+        const alternatives = new Set<string>();
+        alternatives.add(`${initial}${apellido}@${domain}`);
+        alternatives.add(`${nombre}.${apellido}@${domain}`);
+        if (apellido2) alternatives.add(`${initial}${apellido}${apellido2.charAt(0)}@${domain}`);
+        alternatives.add(email1);
+        // Remove the one already used as MAIL1
+        alternatives.delete(mail1.toLowerCase());
+        alternatives.delete(mail1);
+        const altArr = Array.from(alternatives).filter(a => a && a !== mail1.toLowerCase());
+        mail2 = altArr[0] || "";
+        mail3 = altArr[1] || "";
+        mail4 = altArr[2] || "";
       } else {
-        mail4 = `${initial}${apellido}@${domain}`;
+        // No known pattern: default behavior
+        mail1 = `${initial}${apellido}@${domain}`;
+        mail2 = `${nombre}.${apellido}@${domain}`;
+        mail3 = email1;
+        if (apellido2) {
+          mail4 = `${initial}${apellido}${apellido2.charAt(0)}@${domain}`;
+        } else {
+          mail4 = `${initial}${apellido}@${domain}`;
+        }
       }
     }
 
