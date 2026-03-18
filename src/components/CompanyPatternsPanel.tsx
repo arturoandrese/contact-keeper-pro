@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, ChevronRight, Download, Loader2, Users, Filter, Trash2, Mail, MailCheck, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X, Search, Plus } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, ChevronDown, Download, Loader2, Users, Filter, Trash2, Mail, MailCheck, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X, Search, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { setCompanyOverride, getCompanyOverrides } from "@/lib/companyNameOverrides";
 import { toast } from "sonner";
