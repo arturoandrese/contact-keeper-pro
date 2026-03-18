@@ -146,10 +146,19 @@ const RepliedContactsPanel = () => {
         return;
       }
 
+      // Count unique emails to detect duplicates
+      const uniqueEmails = new Set(rows.map(r => r.email));
+      const duplicateCount = rows.length - uniqueEmails.size;
+
+      // Deduplicate keeping last occurrence
+      const deduped = Array.from(
+        rows.reduce((map, r) => { map.set(r.email, r); return map; }, new Map()).values()
+      );
+
       // Upsert in chunks
       let inserted = 0;
-      for (let i = 0; i < rows.length; i += 200) {
-        const chunk = rows.slice(i, i + 200);
+      for (let i = 0; i < deduped.length; i += 200) {
+        const chunk = deduped.slice(i, i + 200);
         const { error } = await supabase
           .from("replied_contacts")
           .upsert(chunk, { onConflict: "email" });
@@ -161,7 +170,8 @@ const RepliedContactsPanel = () => {
         inserted += chunk.length;
       }
 
-      toast.success(`✅ ${inserted} contactos respondidos importados/actualizados`);
+      const dupMsg = duplicateCount > 0 ? ` (${duplicateCount} duplicados removidos)` : "";
+      toast.success(`✅ ${inserted} contactos únicos importados de ${rows.length} filas${dupMsg}`);
       fetchContacts();
     } catch (err: any) {
       toast.error(err.message || "Error accediendo a Google Sheets");
