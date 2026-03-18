@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { parseAndClean, type CleanedContact } from "@/lib/contactCleaner";
+import { parseAndClean, type CleanedContact, type DomainPatternEntry } from "@/lib/contactCleaner";
 import { supabase } from "@/integrations/supabase/client";
 import FileUploader from "@/components/FileUploader";
 import ContactTable from "@/components/ContactTable";
