@@ -123,6 +123,22 @@ const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
           </div>
         </div>
       ))}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar esta base?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estás a punto de eliminar <strong>"{deleteTarget?.name}"</strong>. Esta acción no se puede deshacer y se perderán todos los contactos asociados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Sí, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
