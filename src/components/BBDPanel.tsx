@@ -54,6 +54,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const fetchBases = async () => {
     setLoading(true);
