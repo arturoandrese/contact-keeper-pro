@@ -301,6 +301,7 @@ export function parseAndClean(
       MAIL2: mail2,
       MAIL3: mail3,
       MAIL4: mail4,
+      confirmedPattern: isConfirmedPattern || undefined,
     };
 
     contact = dedup(contact);
