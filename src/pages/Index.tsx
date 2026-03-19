@@ -10,12 +10,13 @@ import CompanyPatternsPanel from "@/components/CompanyPatternsPanel";
 import CrossReferencePanel from "@/components/CrossReferencePanel";
 import BasePreviewPanel from "@/components/BasePreviewPanel";
 import UploadFilterDialog, { type UploadFilters } from "@/components/UploadFilterDialog";
+import SegmentsPanel from "@/components/SegmentsPanel";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
@@ -428,6 +429,14 @@ const Index = () => {
               <Building2 className="mr-1.5 h-3.5 w-3.5" />
               Empresas
             </Button>
+            <Button
+              variant={view === "segments" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("segments")}
+            >
+              <Layers className="mr-1.5 h-3.5 w-3.5" />
+              Segmentos
+            </Button>
           </div>
         </div>
       </header>
@@ -502,6 +511,10 @@ const Index = () => {
             sheetId={selectedBase.sheetId}
             onBack={() => setView("preview")}
           />
+        )}
+
+        {view === "segments" && (
+          <SegmentsPanel onBack={() => setView("upload")} />
         )}
       </main>
 
