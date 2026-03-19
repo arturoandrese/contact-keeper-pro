@@ -129,13 +129,13 @@ function extractCompanyFromWeb(domain: string): string {
 }
 
 function dedup(contact: CleanedContact): CleanedContact {
-  const keys: (keyof CleanedContact)[] = ["MAIL1", "MAIL2", "MAIL3", "MAIL4"];
+  const keys = ["MAIL1", "MAIL2", "MAIL3", "MAIL4"] as const;
   const seen = new Set<string>();
   const result = { ...contact };
   for (const k of keys) {
-    const v = result[k]?.toLowerCase();
+    const v = (result[k] as string)?.toLowerCase();
     if (v && seen.has(v)) {
-      result[k] = "";
+      (result as any)[k] = "";
     } else if (v) {
       seen.add(v);
     }
