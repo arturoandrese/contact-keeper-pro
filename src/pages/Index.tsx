@@ -16,7 +16,7 @@ import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Lay
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
