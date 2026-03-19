@@ -429,6 +429,14 @@ const Index = () => {
               <Building2 className="mr-1.5 h-3.5 w-3.5" />
               Empresas
             </Button>
+            <Button
+              variant={view === "segments" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("segments")}
+            >
+              <Layers className="mr-1.5 h-3.5 w-3.5" />
+              Segmentos
+            </Button>
           </div>
         </div>
       </header>
