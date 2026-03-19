@@ -12,7 +12,7 @@ import BasePreviewPanel from "@/components/BasePreviewPanel";
 import UploadFilterDialog, { type UploadFilters } from "@/components/UploadFilterDialog";
 import SegmentsPanel from "@/components/SegmentsPanel";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
