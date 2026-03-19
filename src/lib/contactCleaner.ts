@@ -187,13 +187,14 @@ export function parseAndClean(
     skipEmptyLines: true,
   });
 
-  // Build a map domain -> best pattern
-  const patternMap = new Map<string, string>();
+  // Build a map domain -> best pattern (with confirmed flag)
+  const patternMap = new Map<string, { pattern: string; confirmed: boolean }>();
   if (savedPatterns) {
     for (const p of savedPatterns) {
-      // Keep the first (highest priority) pattern per domain
-      if (!patternMap.has(p.domain)) {
-        patternMap.set(p.domain, p.pattern);
+      const existing = patternMap.get(p.domain);
+      // Confirmed patterns always win; otherwise keep first
+      if (!existing || (p.confirmed && !existing.confirmed)) {
+        patternMap.set(p.domain, { pattern: p.pattern, confirmed: p.confirmed === true });
       }
     }
   }
