@@ -12,6 +12,7 @@ export interface CleanedContact {
   MAIL2: string;
   MAIL3: string;
   MAIL4: string;
+  confirmedPattern?: boolean;
 }
 
 // Dominios de email personales / no corporativos
