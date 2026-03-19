@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react";
-import { Upload, Loader2, Download, Info, ArrowLeft, BarChart3 } from "lucide-react";
+import { Upload, Loader2, Download, Info, ArrowLeft, BarChart3, CheckCircle2, ShieldAlert, Clock, Ban, Users, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import ExportDropdown from "./ExportDropdown";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +14,7 @@ import {
   type CrossReferencedContact,
   type EmailLogEntry,
   type DeliveredHistoryEntry,
+  type CrossReferenceStats,
 } from "@/lib/crossReference";
 import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
 
@@ -71,6 +74,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<CrossReferencedContact[] | null>(null);
   const [stats, setStats] = useState({ original: 0, filtered: 0, patterns: 0, delivered: 0 });
+  const [crossStats, setCrossStats] = useState<CrossReferenceStats | null>(null);
+  const [cooldownDays, setCooldownDays] = useState(15);
 
   const runCrossReference = useCallback(
     async (log: EmailLogEntry[]) => {
@@ -102,7 +107,6 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           console.warn("No se pudo leer estado de cruce previo:", baseResponse.error.message);
         }
 
-        const baseData = baseResponse.data;
         const savedPatterns = (savedPatternsRes.data || []).map((p: any) => ({
           domain: p.domain,
           pattern: p.pattern,
@@ -127,7 +131,14 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           MAIL4: c.mail4,
         }));
 
-        const { filtered, patterns, delivered } = crossReference(contacts, log, undefined, { onlyBounced: true, savedPatterns, deliveredHistory });
+        const { filtered, patterns, delivered, stats: crStats } = crossReference(contacts, log, undefined, {
+          onlyBounced: true,
+          savedPatterns,
+          deliveredHistory,
+          cooldownDays,
+        });
+
+        setCrossStats(crStats);
 
         if (patterns.length > 0) {
           const uniquePatterns = Array.from(
@@ -243,14 +254,18 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
       }
       setProcessing(false);
     },
-    [baseId]
+    [baseId, cooldownDays]
   );
 
   const processFile = useCallback(
     async (file: File) => {
       const buffer = await file.arrayBuffer();
-      const log = parseEmailLog(buffer);
-      await runCrossReference(log);
+      const result = parseEmailLog(buffer);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      await runCrossReference(result.entries);
     },
     [runCrossReference]
   );
@@ -341,6 +356,24 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
 
       {!results && !processing && (
         <div className="space-y-4">
+          {/* Cooldown selector */}
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Cooldown:</span>
+            <Select value={String(cooldownDays)} onValueChange={(v) => setCooldownDays(Number(v))}>
+              <SelectTrigger className="w-28 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 días</SelectItem>
+                <SelectItem value="15">15 días</SelectItem>
+                <SelectItem value="30">30 días</SelectItem>
+                <SelectItem value="60">60 días</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">Excluir contactados dentro de este periodo</span>
+          </div>
+
           {sheetId && (
             <button
               onClick={processLiveReport}
@@ -406,12 +439,28 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
 
       {results && (
         <>
+          {/* Summary panel */}
+          {crossStats && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              {[
+                { label: "Total en base", value: crossStats.totalBase, icon: Users, color: "" },
+                { label: "Excluidos (ya entregado)", value: crossStats.excludedDelivered, icon: CheckCircle2, color: "text-blue-500" },
+                { label: "Excluidos (cooldown)", value: crossStats.excludedCooldown, icon: Clock, color: "text-amber-500" },
+                { label: "Bounce sin alternativa", value: crossStats.excludedBounceNoAlt, icon: Ban, color: "text-destructive" },
+                { label: "Listos para enviar", value: crossStats.readyToSend, icon: Sparkles, color: "text-green-500" },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-xl border border-border bg-card p-4 text-center">
+                  <stat.icon className={`mx-auto mb-1.5 h-5 w-5 ${stat.color || "text-muted-foreground"}`} />
+                  <p className="font-display text-2xl font-bold">{stat.value}</p>
+                  <p className="mt-0.5 text-[10px] font-medium text-muted-foreground leading-tight">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-4">
             {[
-              { label: "En la base", value: stats.original },
-              { label: "Enviados", value: stats.delivered, highlight: true },
-              { label: "Rebotados + no enviados corregidos", value: stats.filtered },
-              { label: "Sin corrección", value: stats.original - stats.filtered - stats.delivered },
+              { label: "Enviados registrados", value: stats.delivered, highlight: true },
               { label: "Patrones aprendidos", value: stats.patterns },
             ].map((stat) => (
               <div key={stat.label} className={`rounded-xl border px-5 py-3 ${stat.highlight ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}>
@@ -425,6 +474,11 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs text-muted-foreground">
               Este cruce devuelve contactos rebotados y no enviados con un mail alternativo corporativo válido.
+              {results.some(r => r.confirmedPattern) && (
+                <span className="ml-1">
+                  Los emails con <Badge variant="outline" className="ml-1 h-4 px-1.5 text-[9px] border-green-500/50 text-green-600">✓ confirmado</Badge> usan un patrón verificado (abierto/clickeado) — sin alternativas para proteger tu reputación.
+                </span>
+              )}
             </p>
           </div>
 
@@ -445,7 +499,14 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
                     <tr key={i} className="border-b border-border/50 transition-colors hover:bg-muted/30">
                       {columns.map((col) => (
                         <td key={col} className="max-w-[200px] truncate whitespace-nowrap px-4 py-2.5 font-mono text-xs">
-                          {contact[col] || <span className="text-muted-foreground/40">—</span>}
+                          {col === "MAIL1" && contact.confirmedPattern ? (
+                            <span className="flex items-center gap-1.5">
+                              <span className="truncate">{contact[col]}</span>
+                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                            </span>
+                          ) : (
+                            contact[col] || <span className="text-muted-foreground/40">—</span>
+                          )}
                         </td>
                       ))}
                     </tr>

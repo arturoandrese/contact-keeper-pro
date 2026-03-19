@@ -12,6 +12,7 @@ export interface CleanedContact {
   MAIL2: string;
   MAIL3: string;
   MAIL4: string;
+  confirmedPattern?: boolean;
 }
 
 // Dominios de email personales / no corporativos
@@ -128,13 +129,13 @@ function extractCompanyFromWeb(domain: string): string {
 }
 
 function dedup(contact: CleanedContact): CleanedContact {
-  const keys: (keyof CleanedContact)[] = ["MAIL1", "MAIL2", "MAIL3", "MAIL4"];
+  const keys = ["MAIL1", "MAIL2", "MAIL3", "MAIL4"] as const;
   const seen = new Set<string>();
   const result = { ...contact };
   for (const k of keys) {
-    const v = result[k]?.toLowerCase();
+    const v = (result[k] as string)?.toLowerCase();
     if (v && seen.has(v)) {
-      result[k] = "";
+      (result as any)[k] = "";
     } else if (v) {
       seen.add(v);
     }
@@ -146,6 +147,7 @@ export interface DomainPatternEntry {
   domain: string;
   pattern: string;
   example_email: string;
+  confirmed?: boolean;
 }
 
 function generateEmailByPattern(
@@ -185,13 +187,14 @@ export function parseAndClean(
     skipEmptyLines: true,
   });
 
-  // Build a map domain -> best pattern
-  const patternMap = new Map<string, string>();
+  // Build a map domain -> best pattern (with confirmed flag)
+  const patternMap = new Map<string, { pattern: string; confirmed: boolean }>();
   if (savedPatterns) {
     for (const p of savedPatterns) {
-      // Keep the first (highest priority) pattern per domain
-      if (!patternMap.has(p.domain)) {
-        patternMap.set(p.domain, p.pattern);
+      const existing = patternMap.get(p.domain);
+      // Confirmed patterns always win; otherwise keep first
+      if (!existing || (p.confirmed && !existing.confirmed)) {
+        patternMap.set(p.domain, { pattern: p.pattern, confirmed: p.confirmed === true });
       }
     }
   }
@@ -243,26 +246,33 @@ export function parseAndClean(
     let mail3 = "";
     let mail4 = "";
 
+    let isConfirmedPattern = false;
+
     if (domain && hasNameForPattern) {
-      const knownPattern = patternMap.get(domain);
+      const knownEntry = patternMap.get(domain);
+      const knownPattern = knownEntry?.pattern;
       const initial = nombre.charAt(0);
 
       if (knownPattern) {
         // Use the learned pattern as MAIL1
         mail1 = generateEmailByPattern(knownPattern, nombre, apellido, apellido2, domain);
-        // Fill alternatives with other patterns
-        const alternatives = new Set<string>();
-        alternatives.add(`${initial}${apellido}@${domain}`);
-        alternatives.add(`${nombre}.${apellido}@${domain}`);
-        if (apellido2) alternatives.add(`${initial}${apellido}${apellido2.charAt(0)}@${domain}`);
-        alternatives.add(email1);
-        // Remove the one already used as MAIL1
-        alternatives.delete(mail1.toLowerCase());
-        alternatives.delete(mail1);
-        const altArr = Array.from(alternatives).filter(a => a && a !== mail1.toLowerCase());
-        mail2 = altArr[0] || "";
-        mail3 = altArr[1] || "";
-        mail4 = altArr[2] || "";
+        isConfirmedPattern = knownEntry.confirmed;
+
+        if (!knownEntry.confirmed) {
+          // Fill alternatives with other patterns only if NOT confirmed
+          const alternatives = new Set<string>();
+          alternatives.add(`${initial}${apellido}@${domain}`);
+          alternatives.add(`${nombre}.${apellido}@${domain}`);
+          if (apellido2) alternatives.add(`${initial}${apellido}${apellido2.charAt(0)}@${domain}`);
+          alternatives.add(email1);
+          alternatives.delete(mail1.toLowerCase());
+          alternatives.delete(mail1);
+          const altArr = Array.from(alternatives).filter(a => a && a !== mail1.toLowerCase());
+          mail2 = altArr[0] || "";
+          mail3 = altArr[1] || "";
+          mail4 = altArr[2] || "";
+        }
+        // If confirmed: mail2, mail3, mail4 stay empty
       } else {
         // No known pattern: default behavior
         mail1 = `${initial}${apellido}@${domain}`;
@@ -291,6 +301,7 @@ export function parseAndClean(
       MAIL2: mail2,
       MAIL3: mail3,
       MAIL4: mail4,
+      confirmedPattern: isConfirmedPattern || undefined,
     };
 
     contact = dedup(contact);

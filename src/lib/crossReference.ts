@@ -33,12 +33,14 @@ export interface CrossReferencedContact {
   MAIL1: string;
   MAIL2: string;
   MAIL3: string;
+  confirmedPattern?: boolean;
 }
 
 export interface DomainPatternEntry {
   domain: string;
   pattern: string;
   example_email: string;
+  confirmed?: boolean;
 }
 
 const FREE_EMAIL_DOMAINS = new Set([
@@ -62,7 +64,6 @@ function normalizeStatus(status: string): string {
 
 function classifyStatus(status: string): "ABIERTO" | "CLICKEADO" | "ENVIADO" | null {
   const s = normalizeStatus(status);
-  // Exclude NOT_SENT / NO_ENVIADO before checking SENT
   if (s.includes("NOT_SENT") || s.includes("NO_SENT") || s.includes("NO_ENVIAD")) return null;
   if (s.includes("CLICK") || s.includes("RESPOND")) return "CLICKEADO";
   if (s.includes("OPEN")) return "ABIERTO";
@@ -151,12 +152,34 @@ export function hashEmailLog(entries: EmailLogEntry[]): string {
   return hash.toString(36);
 }
 
-export function parseEmailLog(fileContent: ArrayBuffer): EmailLogEntry[] {
+export interface ParseEmailLogResult {
+  entries: EmailLogEntry[];
+  error?: string;
+}
+
+export function parseEmailLog(fileContent: ArrayBuffer): ParseEmailLogResult {
   const wb = XLSX.read(fileContent, { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws);
+
+  if (rows.length === 0) {
+    return { entries: [], error: "El archivo está vacío" };
+  }
+
+  // Validate required columns
+  const headers = Object.keys(rows[0]).map(h => h.trim().toUpperCase());
+  const hasEmail = headers.some(h => ["MAIL1", "EMAIL1", "EMAIL", "MAIL", "EMAIL ADDRESS"].includes(h));
+  const hasStatus = headers.some(h => ["MERGE STATUS", "STATUS", "MERGE_STATUS"].includes(h));
+
+  const missing: string[] = [];
+  if (!hasEmail) missing.push("MAIL1 o EMAIL");
+  if (!hasStatus) missing.push("Merge status o STATUS");
+
+  if (missing.length > 0) {
+    return { entries: [], error: `Columnas faltantes: ${missing.join(", ")}. Columnas encontradas: ${headers.slice(0, 8).join(", ")}` };
+  }
   
-  return rows.map((row) => {
+  const entries = rows.map((row) => {
     const getName = (keys: string[]) => {
       for (const k of keys) {
         const found = Object.keys(row).find((rk) => rk.trim().toUpperCase() === k.toUpperCase());
@@ -170,11 +193,13 @@ export function parseEmailLog(fileContent: ArrayBuffer): EmailLogEntry[] {
       APELLIDO: getName(["APELLIDO", "last_name", "Last Name"]),
       EMPRESA: getName(["EMPRESA", "company_name", "Company"]),
       WEB: getName(["WEB", "company_website", "Website"]),
-      MAIL1: getName(["MAIL1", "email1", "Email", "email"]),
+      MAIL1: getName(["MAIL1", "email1", "Email", "email", "Email Address"]),
       MAIL2: getName(["MAIL2", "email2"]),
       status: getName(["Merge status", "Status", "merge_status", "status"]),
     };
   });
+
+  return { entries };
 }
 
 export interface ExistingDelivered {
@@ -183,8 +208,6 @@ export interface ExistingDelivered {
   last_contacted_at: string;
   status: string;
 }
-
-const COOLDOWN_DAYS = 15;
 
 export interface DeliveredHistoryEntry {
   mail: string;
@@ -196,6 +219,15 @@ export interface CrossReferenceOptions {
   onlyBounced?: boolean;
   savedPatterns?: DomainPatternEntry[];
   deliveredHistory?: DeliveredHistoryEntry[];
+  cooldownDays?: number;
+}
+
+export interface CrossReferenceStats {
+  totalBase: number;
+  excludedDelivered: number;
+  excludedCooldown: number;
+  excludedBounceNoAlt: number;
+  readyToSend: number;
 }
 
 function generateEmailFromPattern(pattern: string, nombre: string, apellido: string, domain: string): string | null {
@@ -218,8 +250,9 @@ export function crossReference(
   emailLog: EmailLogEntry[],
   existingDelivered?: ExistingDelivered[],
   options: CrossReferenceOptions = {}
-): { filtered: CrossReferencedContact[]; patterns: DomainPatternEntry[]; delivered: DeliveredContactEntry[] } {
+): { filtered: CrossReferencedContact[]; patterns: DomainPatternEntry[]; delivered: DeliveredContactEntry[]; stats: CrossReferenceStats } {
   const onlyBounced = options.onlyBounced === true;
+  const cooldownDays = options.cooldownDays ?? 15;
   const deliveredMails = new Set<string>();
   const bouncedMails = new Set<string>();
   const notSentMails = new Set<string>();
@@ -227,22 +260,30 @@ export function crossReference(
   const delivered: DeliveredContactEntry[] = [];
   const seenDelivered = new Set<string>();
 
+  // Stats tracking
+  let excludedDelivered = 0;
+  let excludedCooldown = 0;
+  let excludedBounceNoAlt = 0;
+
   const existingMap = new Map<string, ExistingDelivered>();
-  // Build domain→pattern map from existing delivered (prioritize CLICKEADO > ABIERTO > ENVIADO)
-  const domainPatternMap = new Map<string, { pattern: string; status: string }>();
+  const domainPatternMap = new Map<string, { pattern: string; status: string; confirmed: boolean }>();
   const baseDomainPatternMap = buildBaseDomainPatternMap(contacts);
   const STATUS_PRIORITY: Record<string, number> = { CLICKEADO: 3, ABIERTO: 2, ENVIADO: 1 };
 
-  // Seed domainPatternMap with saved patterns from DB (lowest priority, will be overridden by campaign data)
+  // Seed domainPatternMap with saved patterns from DB
   if (options.savedPatterns) {
     for (const sp of options.savedPatterns) {
       if (!domainPatternMap.has(sp.domain)) {
-        domainPatternMap.set(sp.domain, { pattern: sp.pattern, status: "SAVED" });
+        domainPatternMap.set(sp.domain, {
+          pattern: sp.pattern,
+          status: "SAVED",
+          confirmed: sp.confirmed === true,
+        });
       }
     }
   }
 
-  // Seed patterns from delivered_contacts history (medium priority — above SAVED, below campaign data)
+  // Seed patterns from delivered_contacts history
   if (options.deliveredHistory) {
     for (const dh of options.deliveredHistory) {
       const mail = dh.mail.toLowerCase();
@@ -252,7 +293,7 @@ export function crossReference(
       if (pat) {
         const current = domainPatternMap.get(domain);
         if (!current || current.status === "SAVED") {
-          domainPatternMap.set(domain, { pattern: pat, status: "HISTORY" });
+          domainPatternMap.set(domain, { pattern: pat, status: "HISTORY", confirmed: false });
         }
       }
     }
@@ -261,17 +302,6 @@ export function crossReference(
   if (existingDelivered) {
     for (const e of existingDelivered) {
       existingMap.set(e.mail.toLowerCase(), e);
-      // Detect pattern from existing delivered emails
-      const domain = e.mail.split("@")[1]?.toLowerCase();
-      if (domain && !isFreeMail(e.mail)) {
-        const nameParts = (e.mail.split("@")[0] || "").toLowerCase();
-        // We'll store domain→status for priority, actual pattern detection happens below
-        const current = domainPatternMap.get(domain);
-        const priority = STATUS_PRIORITY[e.status] || 0;
-        if (!current || priority > (STATUS_PRIORITY[current.status] || 0)) {
-          // We need nombre/apellido to detect pattern - skip for now, will use emailLog patterns
-        }
-      }
     }
   }
 
@@ -281,8 +311,6 @@ export function crossReference(
     const status = entry.status;
 
     if (isDelivered(status)) {
-      // Track delivered using the original attempted email (MAIL1) to avoid
-      // contaminating contact-level matching with alternative columns.
       if (mail1) deliveredMails.add(mail1);
       
       const successMail = mail1 || mail2;
@@ -290,13 +318,14 @@ export function crossReference(
         const domain = successMail.split("@")[1];
         const pat = detectPattern(successMail, entry.NOMBRE, entry.APELLIDO);
         if (domain && pat) {
-          patterns.push({ domain, pattern: pat, example_email: successMail });
-          // Track best pattern per domain
           const classified = classifyStatus(status) || "ENVIADO";
+          const isConfirmed = classified === "ABIERTO" || classified === "CLICKEADO";
+          patterns.push({ domain, pattern: pat, example_email: successMail, confirmed: isConfirmed });
+          
           const current = domainPatternMap.get(domain);
           const priority = STATUS_PRIORITY[classified] || 0;
           if (!current || priority > (STATUS_PRIORITY[current.status] || 0)) {
-            domainPatternMap.set(domain, { pattern: pat, status: classified });
+            domainPatternMap.set(domain, { pattern: pat, status: classified, confirmed: isConfirmed });
           }
         }
         
@@ -328,27 +357,27 @@ export function crossReference(
     }
   }
 
-  // Also build patterns from existingDelivered using nombre/apellido
+  // Build patterns from existingDelivered
   if (existingDelivered) {
     for (const e of existingDelivered) {
       const domain = e.mail.split("@")[1]?.toLowerCase();
       if (!domain || isFreeMail(e.mail)) continue;
-      // Find a delivered entry with matching mail to get nombre/apellido
       const deliveredEntry = delivered.find(d => d.mail === e.mail.toLowerCase());
       if (deliveredEntry) {
         const pat = detectPattern(e.mail, deliveredEntry.nombre, deliveredEntry.apellido);
         if (pat) {
           const current = domainPatternMap.get(domain);
           const priority = STATUS_PRIORITY[e.status] || 0;
+          const isConfirmed = e.status === "ABIERTO" || e.status === "CLICKEADO";
           if (!current || priority > (STATUS_PRIORITY[current.status] || 0)) {
-            domainPatternMap.set(domain, { pattern: pat, status: e.status });
+            domainPatternMap.set(domain, { pattern: pat, status: e.status, confirmed: isConfirmed });
           }
         }
       }
     }
   }
 
-  // Build name-based lookup for bounced/not-sent from log (fallback when emails were already updated in DB)
+  // Build name-based lookup for bounced/not-sent
   const nameStatusMap = new Map<string, { status: "bounced" | "not_sent"; mail: string }>();
   for (const entry of emailLog) {
     const mail = (entry.MAIL1 || "").toLowerCase().trim();
@@ -374,7 +403,6 @@ export function crossReference(
     const bouncedMatch = mailCandidates.find((m) => bouncedMails.has(m));
     const notSentMatch = mailCandidates.find((m) => notSentMails.has(m));
 
-    // Fallback: match by name if email doesn't match (emails may have been updated by previous crosses)
     const contactNameKey = `${(contact.NOMBRE || "").trim().toLowerCase()}|${(contact.APELLIDO || "").trim().toLowerCase()}`;
     const nameMatch = (!bouncedMatch && !notSentMatch) ? nameStatusMap.get(contactNameKey) : undefined;
     const isBouncedByName = nameMatch?.status === "bounced";
@@ -383,23 +411,33 @@ export function crossReference(
     const effectiveBounced = !!bouncedMatch || isBouncedByName;
     const effectiveNotSent = !!notSentMatch || isNotSentByName;
 
-    // In onlyBounced mode: include only contacts that appear as bounced or not sent in the report
     if (onlyBounced && !effectiveBounced && !effectiveNotSent) {
       continue;
     }
 
     const existing = m1 ? existingMap.get(m1) : undefined;
     if (existing) {
-      if (existing.status === "ABIERTO" || existing.status === "CLICKEADO") continue;
+      if (existing.status === "ABIERTO" || existing.status === "CLICKEADO") {
+        excludedDelivered++;
+        continue;
+      }
       if (existing.last_contacted_at) {
         const lastDate = new Date(existing.last_contacted_at);
         const diffDays = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
-        if (diffDays < COOLDOWN_DAYS) continue;
+        if (diffDays < cooldownDays) {
+          excludedCooldown++;
+          continue;
+        }
       }
     }
 
-    if (m1 && deliveredMails.has(m1) && !existing && !onlyBounced) {
-      continue;
+    // DEDUP: Check ALL mail candidates against deliveredMails, not just MAIL1
+    if (!onlyBounced && !existing) {
+      const anyDelivered = mailCandidates.some(m => deliveredMails.has(m));
+      if (anyDelivered) {
+        excludedDelivered++;
+        continue;
+      }
     }
 
     let originalMail = m1;
@@ -433,11 +471,13 @@ export function crossReference(
     const originalDomain = originalMail.split("@")[1] || "";
     let domain = (finalMail.split("@")[1] || originalDomain || web || "").toLowerCase();
 
-    const getKnownPattern = (d: string): string | null => {
+    const getKnownPattern = (d: string): { pattern: string; confirmed: boolean } | null => {
       if (!d) return null;
-      const campaignPattern = domainPatternMap.get(d)?.pattern;
-      if (campaignPattern) return campaignPattern;
-      return baseDomainPatternMap.get(d) || null;
+      const campaignPattern = domainPatternMap.get(d);
+      if (campaignPattern) return { pattern: campaignPattern.pattern, confirmed: campaignPattern.confirmed };
+      const basePattern = baseDomainPatternMap.get(d);
+      if (basePattern) return { pattern: basePattern, confirmed: false };
+      return null;
     };
 
     const shouldGeneratePatternMail =
@@ -446,15 +486,17 @@ export function crossReference(
       (onlyBounced && finalMail === originalMail) ||
       isNotSent;
 
+    let usedConfirmedPattern = false;
+
     if (shouldGeneratePatternMail) {
-      const bestPattern =
+      const bestPatternInfo =
         getKnownPattern(domain) ||
         getKnownPattern(originalDomain) ||
         getKnownPattern(web);
 
       const targetDomain = domain || originalDomain || web;
-      if (bestPattern && targetDomain) {
-        const generated = generateEmailFromPattern(bestPattern, contact.NOMBRE, contact.APELLIDO, targetDomain);
+      if (bestPatternInfo && targetDomain) {
+        const generated = generateEmailFromPattern(bestPatternInfo.pattern, contact.NOMBRE, contact.APELLIDO, targetDomain);
         if (
           generated &&
           isValidEmail(generated) &&
@@ -464,21 +506,28 @@ export function crossReference(
         ) {
           finalMail = generated;
           domain = generated.split("@")[1] || domain;
+          usedConfirmedPattern = bestPatternInfo.confirmed;
         }
       }
     } else if (!onlyBounced) {
-      const knownPattern = getKnownPattern(domain);
-      if (knownPattern) {
-        const generated = generateEmailFromPattern(knownPattern, contact.NOMBRE, contact.APELLIDO, domain);
+      const knownPatternInfo = getKnownPattern(domain);
+      if (knownPatternInfo) {
+        const generated = generateEmailFromPattern(knownPatternInfo.pattern, contact.NOMBRE, contact.APELLIDO, domain);
         if (generated && isValidEmail(generated) && !bouncedMails.has(generated) && !deliveredMails.has(generated)) {
           finalMail = generated;
+          usedConfirmedPattern = knownPatternInfo.confirmed;
         }
       }
     }
 
-    // For bounced: require a different/corrected email. For not-sent: include always with valid email.
-    if (!isNotSent && onlyBounced && finalMail === originalMail) continue;
-    if (!isValidEmail(finalMail)) continue;
+    if (!isNotSent && onlyBounced && finalMail === originalMail) {
+      excludedBounceNoAlt++;
+      continue;
+    }
+    if (!isValidEmail(finalMail)) {
+      excludedBounceNoAlt++;
+      continue;
+    }
     if (!isNotSent && isFreeMail(finalMail)) continue;
 
     const empresaShort = extractCompanyFromDomain(web || domain);
@@ -487,32 +536,37 @@ export function crossReference(
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
 
-    // Build alternative emails (MAIL2, MAIL3) from remaining candidates and pattern variations
-    const usedMails = new Set([finalMail.toLowerCase(), originalMail.toLowerCase()]);
-    const altMails: string[] = [];
+    // Build alternative emails (MAIL2, MAIL3)
+    // If confirmed pattern → skip alternatives to protect sender reputation
+    let altMails: string[] = [];
 
-    // First: remaining manual alternatives from the contact
-    for (const m of mailCandidates) {
-      if (altMails.length >= 2) break;
-      if (usedMails.has(m) || bouncedMails.has(m) || deliveredMails.has(m)) continue;
-      if (!isValidEmail(m) || isFreeMail(m)) continue;
-      altMails.push(m);
-      usedMails.add(m);
-    }
+    if (!usedConfirmedPattern) {
+      const usedMails = new Set([finalMail.toLowerCase(), originalMail.toLowerCase()]);
 
-    // Second: generate from other known patterns if we still need alternatives
-    if (altMails.length < 2) {
-      const targetDomain = domain || originalDomain || web;
-      if (targetDomain) {
-        const allPatterns = ["first.last", "initial_last", "initial.last", "last.first", "first", "first_last_initial"];
-        const usedPattern = getKnownPattern(targetDomain) || "";
-        for (const pat of allPatterns) {
-          if (altMails.length >= 2) break;
-          if (pat === usedPattern) continue;
-          const gen = generateEmailFromPattern(pat, contact.NOMBRE, contact.APELLIDO, targetDomain);
-          if (gen && isValidEmail(gen) && !usedMails.has(gen.toLowerCase()) && !bouncedMails.has(gen) && !deliveredMails.has(gen) && !isFreeMail(gen)) {
-            altMails.push(gen);
-            usedMails.add(gen.toLowerCase());
+      // First: remaining manual alternatives from the contact
+      for (const m of mailCandidates) {
+        if (altMails.length >= 2) break;
+        if (usedMails.has(m) || bouncedMails.has(m) || deliveredMails.has(m)) continue;
+        if (!isValidEmail(m) || isFreeMail(m)) continue;
+        altMails.push(m);
+        usedMails.add(m);
+      }
+
+      // Second: generate from other known patterns
+      if (altMails.length < 2) {
+        const targetDomain = domain || originalDomain || web;
+        if (targetDomain) {
+          const allPatterns = ["first.last", "initial_last", "initial.last", "last.first", "first", "first_last_initial"];
+          const knownP = getKnownPattern(targetDomain);
+          const usedPattern = knownP?.pattern || "";
+          for (const pat of allPatterns) {
+            if (altMails.length >= 2) break;
+            if (pat === usedPattern) continue;
+            const gen = generateEmailFromPattern(pat, contact.NOMBRE, contact.APELLIDO, targetDomain);
+            if (gen && isValidEmail(gen) && !usedMails.has(gen.toLowerCase()) && !bouncedMails.has(gen) && !deliveredMails.has(gen) && !isFreeMail(gen)) {
+              altMails.push(gen);
+              usedMails.add(gen.toLowerCase());
+            }
           }
         }
       }
@@ -529,10 +583,19 @@ export function crossReference(
       MAIL1: finalMail,
       MAIL2: altMails[0] || "",
       MAIL3: altMails[1] || "",
+      confirmedPattern: usedConfirmedPattern,
     });
   }
 
-  return { filtered, patterns, delivered };
+  const stats: CrossReferenceStats = {
+    totalBase: contacts.length,
+    excludedDelivered,
+    excludedCooldown,
+    excludedBounceNoAlt,
+    readyToSend: filtered.length,
+  };
+
+  return { filtered, patterns, delivered, stats };
 }
 
 export function exportCrossReferenced(contacts: CrossReferencedContact[]) {
