@@ -246,26 +246,33 @@ export function parseAndClean(
     let mail3 = "";
     let mail4 = "";
 
+    let isConfirmedPattern = false;
+
     if (domain && hasNameForPattern) {
-      const knownPattern = patternMap.get(domain);
+      const knownEntry = patternMap.get(domain);
+      const knownPattern = knownEntry?.pattern;
       const initial = nombre.charAt(0);
 
       if (knownPattern) {
         // Use the learned pattern as MAIL1
         mail1 = generateEmailByPattern(knownPattern, nombre, apellido, apellido2, domain);
-        // Fill alternatives with other patterns
-        const alternatives = new Set<string>();
-        alternatives.add(`${initial}${apellido}@${domain}`);
-        alternatives.add(`${nombre}.${apellido}@${domain}`);
-        if (apellido2) alternatives.add(`${initial}${apellido}${apellido2.charAt(0)}@${domain}`);
-        alternatives.add(email1);
-        // Remove the one already used as MAIL1
-        alternatives.delete(mail1.toLowerCase());
-        alternatives.delete(mail1);
-        const altArr = Array.from(alternatives).filter(a => a && a !== mail1.toLowerCase());
-        mail2 = altArr[0] || "";
-        mail3 = altArr[1] || "";
-        mail4 = altArr[2] || "";
+        isConfirmedPattern = knownEntry.confirmed;
+
+        if (!knownEntry.confirmed) {
+          // Fill alternatives with other patterns only if NOT confirmed
+          const alternatives = new Set<string>();
+          alternatives.add(`${initial}${apellido}@${domain}`);
+          alternatives.add(`${nombre}.${apellido}@${domain}`);
+          if (apellido2) alternatives.add(`${initial}${apellido}${apellido2.charAt(0)}@${domain}`);
+          alternatives.add(email1);
+          alternatives.delete(mail1.toLowerCase());
+          alternatives.delete(mail1);
+          const altArr = Array.from(alternatives).filter(a => a && a !== mail1.toLowerCase());
+          mail2 = altArr[0] || "";
+          mail3 = altArr[1] || "";
+          mail4 = altArr[2] || "";
+        }
+        // If confirmed: mail2, mail3, mail4 stay empty
       } else {
         // No known pattern: default behavior
         mail1 = `${initial}${apellido}@${domain}`;
