@@ -512,6 +512,10 @@ const Index = () => {
             onBack={() => setView("preview")}
           />
         )}
+
+        {view === "segments" && (
+          <SegmentsPanel onBack={() => setView("upload")} />
+        )}
       </main>
 
       <UploadFilterDialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen} onConfirm={processFileWithFilters} />
