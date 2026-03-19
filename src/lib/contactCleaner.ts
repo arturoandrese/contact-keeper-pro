@@ -147,6 +147,7 @@ export interface DomainPatternEntry {
   domain: string;
   pattern: string;
   example_email: string;
+  confirmed?: boolean;
 }
 
 function generateEmailByPattern(

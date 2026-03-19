@@ -502,7 +502,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
                           {col === "MAIL1" && contact.confirmedPattern ? (
                             <span className="flex items-center gap-1.5">
                               <span className="truncate">{contact[col]}</span>
-                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" title="Patrón confirmado" />
+                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
                             </span>
                           ) : (
                             contact[col] || <span className="text-muted-foreground/40">—</span>
