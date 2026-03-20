@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Search, Check, X, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Search, Check, X, Pencil, Mail, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { connectGmail, getGoogleToken, syncGmail } from "@/lib/gmailSync";
 
 type Prospect = {
   id: string;
@@ -39,6 +40,63 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   const [editStatus, setEditStatus] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [newProspect, setNewProspect] = useState({ company: "", contact_name: "", email: "", status: "no_response", note: "", industry: "", referred_by: "" });
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState("");
+  const [gmailConnected, setGmailConnected] = useState(false);
+
+  useEffect(() => {
+    // Check if we have a Google provider token from OAuth
+    const checkGmailToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.provider_token) {
+        setGmailConnected(true);
+        // Store token for later use
+        localStorage.setItem("google_provider_token", session.provider_token);
+      } else if (localStorage.getItem("google_provider_token")) {
+        setGmailConnected(true);
+      }
+    };
+    checkGmailToken();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.provider_token) {
+        setGmailConnected(true);
+        localStorage.setItem("google_provider_token", session.provider_token);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleConnectGmail = async () => {
+    await connectGmail();
+  };
+
+  const handleSyncGmail = async () => {
+    const token = localStorage.getItem("google_provider_token");
+    if (!token) {
+      toast.error("Necesitas conectar Gmail primero");
+      return;
+    }
+    setSyncing(true);
+    setSyncProgress("Iniciando sincronización...");
+    try {
+      const result = await syncGmail(token, (msg) => setSyncProgress(msg));
+      if (result.errors.length > 0) {
+        toast.warning(`Sync con ${result.errors.length} errores. Creados: ${result.created}, Actualizados: ${result.updated}`);
+      } else {
+        toast.success(`✅ Sync completado. Creados: ${result.created}, Actualizados: ${result.updated}`);
+      }
+      loadProspects();
+    } catch (err) {
+      console.error(err);
+      toast.error("Error sincronizando Gmail. El token puede haber expirado — reconecta Gmail.");
+      setGmailConnected(false);
+      localStorage.removeItem("google_provider_token");
+    } finally {
+      setSyncing(false);
+      setSyncProgress("");
+    }
+  };
 
   const loadProspects = useCallback(async () => {
     setLoading(true);
@@ -84,9 +142,22 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
             <p className="text-sm text-muted-foreground">{prospects.length} prospectos</p>
           </div>
         </div>
-        <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />{showAdd ? "Cancelar" : "Agregar"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {!gmailConnected ? (
+            <Button size="sm" variant="outline" onClick={handleConnectGmail}>
+              <Mail className="mr-1.5 h-3.5 w-3.5" />
+              Conectar Gmail
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={handleSyncGmail} disabled={syncing}>
+              {syncing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+              {syncing ? "Sincronizando..." : "Sync Gmail"}
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />{showAdd ? "Cancelar" : "Agregar"}
+          </Button>
+        </div>
       </div>
 
       {/* Add form */}
@@ -105,6 +176,14 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
           </div>
           <Input placeholder="Nota" value={newProspect.note} onChange={e => setNewProspect(p => ({ ...p, note: e.target.value }))} />
           <Button size="sm" onClick={addProspect}>Guardar prospecto</Button>
+        </div>
+      )}
+
+      {/* Sync progress */}
+      {syncing && syncProgress && (
+        <div className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {syncProgress}
         </div>
       )}
 
