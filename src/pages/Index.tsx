@@ -11,12 +11,15 @@ import CrossReferencePanel from "@/components/CrossReferencePanel";
 import BasePreviewPanel from "@/components/BasePreviewPanel";
 import UploadFilterDialog, { type UploadFilters } from "@/components/UploadFilterDialog";
 import SegmentsPanel from "@/components/SegmentsPanel";
+import DashboardPanel from "@/components/DashboardPanel";
+import ProspectsCRM from "@/components/ProspectsCRM";
+import PitchGenerator from "@/components/PitchGenerator";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Mail } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "pitch";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
@@ -437,6 +440,30 @@ const Index = () => {
               <Layers className="mr-1.5 h-3.5 w-3.5" />
               Segmentos
             </Button>
+            <Button
+              variant={view === "dashboard" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("dashboard")}
+            >
+              <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" />
+              Dashboard
+            </Button>
+            <Button
+              variant={view === "prospects" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("prospects")}
+            >
+              <Users className="mr-1.5 h-3.5 w-3.5" />
+              CRM
+            </Button>
+            <Button
+              variant={view === "pitch" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("pitch")}
+            >
+              <Mail className="mr-1.5 h-3.5 w-3.5" />
+              Pitch
+            </Button>
           </div>
         </div>
       </header>
@@ -515,6 +542,18 @@ const Index = () => {
 
         {view === "segments" && (
           <SegmentsPanel onBack={() => setView("upload")} />
+        )}
+
+        {view === "dashboard" && (
+          <DashboardPanel onBack={() => setView("upload")} />
+        )}
+
+        {view === "prospects" && (
+          <ProspectsCRM onBack={() => setView("upload")} />
+        )}
+
+        {view === "pitch" && (
+          <PitchGenerator onBack={() => setView("upload")} />
         )}
       </main>
 
