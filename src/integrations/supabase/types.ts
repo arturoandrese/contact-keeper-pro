@@ -229,6 +229,45 @@ export type Database = {
         }
         Relationships: []
       }
+      prospects: {
+        Row: {
+          company: string
+          contact_name: string
+          created_at: string | null
+          email: string | null
+          id: string
+          industry: string | null
+          note: string | null
+          referred_by: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          company?: string
+          contact_name?: string
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          industry?: string | null
+          note?: string | null
+          referred_by?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          company?: string
+          contact_name?: string
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          industry?: string | null
+          note?: string | null
+          referred_by?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       replied_contacts: {
         Row: {
           apellido: string | null

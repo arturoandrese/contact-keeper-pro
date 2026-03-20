@@ -187,9 +187,9 @@ const Index = () => {
         const chunk = mailArrayBounce.slice(i, i + 300);
         const { data } = await supabase
           .from("bounced_emails")
-          .select("email")
-          .in("email", chunk);
-        if (data) data.forEach(r => bouncedSet.add((r.email || "").toLowerCase()));
+          .select("mail")
+          .in("mail", chunk);
+        if (data) data.forEach(r => bouncedSet.add((r.mail || "").toLowerCase()));
       }
 
       if (bouncedSet.size > 0) {
