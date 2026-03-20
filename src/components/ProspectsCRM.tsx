@@ -201,9 +201,14 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
       )}
 
       {/* Sync progress */}
-      {syncing && syncProgress && (
-        <div className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
+      {syncProgress && (
+        <div className={`rounded-lg border px-4 py-3 text-sm flex items-center gap-2 ${
+          syncProgress.startsWith("✓") ? "border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" :
+          syncProgress.startsWith("✗") ? "border-destructive/30 bg-destructive/10 text-destructive" :
+          syncProgress.startsWith("⚠") ? "border-amber-500/30 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300" :
+          "border-border bg-muted/50 text-muted-foreground"
+        }`}>
+          {syncing && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
           {syncProgress}
         </div>
       )}
