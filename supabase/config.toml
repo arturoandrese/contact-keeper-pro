@@ -1,1 +1,4 @@
 project_id = "vomjhgjzzicuqnkyukps"
+
+[functions.gmail-sync]
+verify_jwt = false
