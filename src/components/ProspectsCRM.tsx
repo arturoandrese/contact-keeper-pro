@@ -84,33 +84,38 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   };
 
   const handleSyncGmail = async () => {
-    const token = localStorage.getItem("google_provider_token");
+    const token = localStorage.getItem("gmail_token");
     if (!token) {
       toast.error("Necesitas conectar Gmail primero");
+      setSyncProgress("✗ Token no encontrado. Conecta Gmail primero.");
       return;
     }
     setSyncing(true);
-    setSyncProgress("Iniciando sincronización...");
+    setSyncProgress("Sincronizando...");
     try {
       const result = await syncGmail(token, (msg) => setSyncProgress(msg));
       if (result.errors.length > 0) {
-        toast.warning(`Sync con ${result.errors.length} errores. Creados: ${result.created}, Actualizados: ${result.updated}`);
+        const errMsg = `Sync con ${result.errors.length} errores. Creados: ${result.created}, Actualizados: ${result.updated}`;
+        toast.warning(errMsg);
+        setSyncProgress(`⚠ ${errMsg}`);
       } else {
-        toast.success(`✅ Sync completado. Creados: ${result.created}, Actualizados: ${result.updated}`);
+        const successMsg = `✓ ${result.created + result.updated} prospectos sincronizados (${result.created} nuevos, ${result.updated} actualizados)`;
+        toast.success(successMsg);
+        setSyncProgress(successMsg);
       }
       loadProspects();
     } catch (err: any) {
       console.error("[Gmail] Sync error:", err);
       const msg = err?.message || String(err);
+      setSyncProgress(`✗ Error: ${msg}`);
       toast.error(`Error sincronizando Gmail: ${msg}`);
       if (msg.includes("401") || msg.includes("403") || msg.includes("invalid_grant") || msg.includes("expired")) {
         setGmailConnected(false);
-        localStorage.removeItem("google_provider_token");
-        toast.info("Token expirado. Reconecta Gmail.");
+        localStorage.removeItem("gmail_token");
+        setSyncProgress("✗ Token expirado. Reconecta Gmail.");
       }
     } finally {
       setSyncing(false);
-      setSyncProgress("");
     }
   };
 
