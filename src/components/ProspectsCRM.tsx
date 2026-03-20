@@ -91,29 +91,36 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
       return;
     }
     setSyncing(true);
-    setSyncProgress("Sincronizando...");
+    setSyncProgress("Sincronizando con Gmail...");
     try {
-      const result = await syncGmail(token, (msg) => setSyncProgress(msg));
-      if (result.errors.length > 0) {
-        const errMsg = `Sync con ${result.errors.length} errores. Creados: ${result.created}, Actualizados: ${result.updated}`;
-        toast.warning(errMsg);
-        setSyncProgress(`⚠ ${errMsg}`);
+      const { data, error } = await supabase.functions.invoke("gmail-sync", {
+        body: { gmail_token: token },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        if (data.error.includes("401") || data.error.includes("invalid")) {
+          setGmailConnected(false);
+          localStorage.removeItem("gmail_token");
+          setSyncProgress("✗ Token expirado. Reconecta Gmail.");
+        } else {
+          setSyncProgress(`✗ Error: ${data.error}`);
+        }
+        toast.error(data.error);
+        return;
+      }
+      const { created = 0, updated = 0, errors = [] } = data || {};
+      if (errors.length > 0) {
+        setSyncProgress(`⚠ ${created} nuevos, ${updated} actualizados, ${errors.length} errores`);
+        toast.warning(`Sync parcial: ${errors.length} errores`);
       } else {
-        const successMsg = `✓ ${result.created + result.updated} prospectos sincronizados (${result.created} nuevos, ${result.updated} actualizados)`;
-        toast.success(successMsg);
-        setSyncProgress(successMsg);
+        setSyncProgress(`✓ ${created + updated} prospectos sincronizados (${created} nuevos, ${updated} actualizados)`);
+        toast.success(`${created + updated} prospectos sincronizados`);
       }
       loadProspects();
     } catch (err: any) {
-      console.error("[Gmail] Sync error:", err);
       const msg = err?.message || String(err);
       setSyncProgress(`✗ Error: ${msg}`);
-      toast.error(`Error sincronizando Gmail: ${msg}`);
-      if (msg.includes("401") || msg.includes("403") || msg.includes("invalid_grant") || msg.includes("expired")) {
-        setGmailConnected(false);
-        localStorage.removeItem("gmail_token");
-        setSyncProgress("✗ Token expirado. Reconecta Gmail.");
-      }
+      toast.error(`Error: ${msg}`);
     } finally {
       setSyncing(false);
     }
