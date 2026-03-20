@@ -11,12 +11,15 @@ import CrossReferencePanel from "@/components/CrossReferencePanel";
 import BasePreviewPanel from "@/components/BasePreviewPanel";
 import UploadFilterDialog, { type UploadFilters } from "@/components/UploadFilterDialog";
 import SegmentsPanel from "@/components/SegmentsPanel";
+import DashboardPanel from "@/components/DashboardPanel";
+import ProspectsCRM from "@/components/ProspectsCRM";
+import PitchGenerator from "@/components/PitchGenerator";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Mail } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "pitch";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
