@@ -94,11 +94,15 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
         toast.success(`✅ Sync completado. Creados: ${result.created}, Actualizados: ${result.updated}`);
       }
       loadProspects();
-    } catch (err) {
-      console.error(err);
-      toast.error("Error sincronizando Gmail. El token puede haber expirado — reconecta Gmail.");
-      setGmailConnected(false);
-      localStorage.removeItem("google_provider_token");
+    } catch (err: any) {
+      console.error("[Gmail] Sync error:", err);
+      const msg = err?.message || String(err);
+      toast.error(`Error sincronizando Gmail: ${msg}`);
+      if (msg.includes("401") || msg.includes("403") || msg.includes("invalid_grant") || msg.includes("expired")) {
+        setGmailConnected(false);
+        localStorage.removeItem("google_provider_token");
+        toast.info("Token expirado. Reconecta Gmail.");
+      }
     } finally {
       setSyncing(false);
       setSyncProgress("");
