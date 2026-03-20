@@ -178,12 +178,11 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
               supabase
                 .from("bounced_emails")
                 .upsert(
-                  batch.map((mail) => ({
-                    email: mail,
-                    reason: "BOUNCE",
-                    source_base_id: baseId,
+                  batch.map((m) => ({
+                    mail: m,
+                    domain: m.split("@")[1] || null,
                   })),
-                  { onConflict: "email" }
+                  { onConflict: "mail" }
                 )
             )
           );
