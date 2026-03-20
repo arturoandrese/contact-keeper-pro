@@ -45,32 +45,37 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   const [gmailConnected, setGmailConnected] = useState(false);
 
   useEffect(() => {
-    const checkGmailToken = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      console.log("[Gmail] Session on load:", session);
-      console.log("[Gmail] provider_token:", session?.provider_token);
-      if (error) {
-        console.error("[Gmail] Error getting session:", error);
-      }
-      if (session?.provider_token) {
-        setGmailConnected(true);
-        localStorage.setItem("google_provider_token", session.provider_token);
-        console.log("[Gmail] Token stored from session");
-      } else if (localStorage.getItem("google_provider_token")) {
-        setGmailConnected(true);
-        console.log("[Gmail] Token found in localStorage");
-      }
-    };
-    checkGmailToken();
-
+    // Set up auth state listener FIRST (before getSession)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[Gmail] Auth event:", event, "provider_token:", session?.provider_token);
-      if (session?.provider_token) {
+      console.log("[Gmail] Auth event:", event, "provider_token:", session?.provider_token ? "EXISTS" : "null");
+      if (event === "SIGNED_IN" && session?.provider_token) {
+        localStorage.setItem("gmail_token", session.provider_token);
         setGmailConnected(true);
-        localStorage.setItem("google_provider_token", session.provider_token);
-        console.log("[Gmail] Token stored from auth state change");
+        console.log("[Gmail] Token saved from SIGNED_IN event");
+      } else if (event === "TOKEN_REFRESHED" && session?.provider_token) {
+        localStorage.setItem("gmail_token", session.provider_token);
+        console.log("[Gmail] Token refreshed");
+      } else if (event === "SIGNED_OUT") {
+        localStorage.removeItem("gmail_token");
+        setGmailConnected(false);
       }
     });
+
+    // Then check existing session
+    const checkSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log("[Gmail] Session check:", session ? "exists" : "null", "provider_token:", session?.provider_token ? "EXISTS" : "null");
+      if (error) console.error("[Gmail] Session error:", error);
+
+      if (session?.provider_token) {
+        localStorage.setItem("gmail_token", session.provider_token);
+        setGmailConnected(true);
+      } else if (localStorage.getItem("gmail_token")) {
+        setGmailConnected(true);
+      }
+    };
+    checkSession();
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -79,33 +84,38 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   };
 
   const handleSyncGmail = async () => {
-    const token = localStorage.getItem("google_provider_token");
+    const token = localStorage.getItem("gmail_token");
     if (!token) {
       toast.error("Necesitas conectar Gmail primero");
+      setSyncProgress("✗ Token no encontrado. Conecta Gmail primero.");
       return;
     }
     setSyncing(true);
-    setSyncProgress("Iniciando sincronización...");
+    setSyncProgress("Sincronizando...");
     try {
       const result = await syncGmail(token, (msg) => setSyncProgress(msg));
       if (result.errors.length > 0) {
-        toast.warning(`Sync con ${result.errors.length} errores. Creados: ${result.created}, Actualizados: ${result.updated}`);
+        const errMsg = `Sync con ${result.errors.length} errores. Creados: ${result.created}, Actualizados: ${result.updated}`;
+        toast.warning(errMsg);
+        setSyncProgress(`⚠ ${errMsg}`);
       } else {
-        toast.success(`✅ Sync completado. Creados: ${result.created}, Actualizados: ${result.updated}`);
+        const successMsg = `✓ ${result.created + result.updated} prospectos sincronizados (${result.created} nuevos, ${result.updated} actualizados)`;
+        toast.success(successMsg);
+        setSyncProgress(successMsg);
       }
       loadProspects();
     } catch (err: any) {
       console.error("[Gmail] Sync error:", err);
       const msg = err?.message || String(err);
+      setSyncProgress(`✗ Error: ${msg}`);
       toast.error(`Error sincronizando Gmail: ${msg}`);
       if (msg.includes("401") || msg.includes("403") || msg.includes("invalid_grant") || msg.includes("expired")) {
         setGmailConnected(false);
-        localStorage.removeItem("google_provider_token");
-        toast.info("Token expirado. Reconecta Gmail.");
+        localStorage.removeItem("gmail_token");
+        setSyncProgress("✗ Token expirado. Reconecta Gmail.");
       }
     } finally {
       setSyncing(false);
-      setSyncProgress("");
     }
   };
 
@@ -191,9 +201,14 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
       )}
 
       {/* Sync progress */}
-      {syncing && syncProgress && (
-        <div className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
+      {syncProgress && (
+        <div className={`rounded-lg border px-4 py-3 text-sm flex items-center gap-2 ${
+          syncProgress.startsWith("✓") ? "border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" :
+          syncProgress.startsWith("✗") ? "border-destructive/30 bg-destructive/10 text-destructive" :
+          syncProgress.startsWith("⚠") ? "border-amber-500/30 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300" :
+          "border-border bg-muted/50 text-muted-foreground"
+        }`}>
+          {syncing && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
           {syncProgress}
         </div>
       )}

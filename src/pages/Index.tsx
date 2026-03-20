@@ -24,7 +24,16 @@ type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
   const [rawCount, setRawCount] = useState(0);
-  const [view, setView] = useState<View>("upload");
+  const [view, setView] = useState<View>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("view");
+    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","pitch"].includes(v)) {
+      // Clean the URL without reloading
+      window.history.replaceState({}, "", window.location.pathname);
+      return v as View;
+    }
+    return "upload";
+  });
   const [saveOpen, setSaveOpen] = useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [pendingContent, setPendingContent] = useState<string | null>(null);
