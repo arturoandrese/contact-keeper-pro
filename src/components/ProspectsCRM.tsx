@@ -1,0 +1,200 @@
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Plus, Search, Check, X, Pencil } from "lucide-react";
+import { toast } from "sonner";
+
+type Prospect = {
+  id: string;
+  company: string;
+  contact_name: string;
+  email: string;
+  status: string;
+  note: string;
+  industry: string;
+  referred_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+const STATUSES = [
+  { value: "hot", label: "Hot", badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" },
+  { value: "warm", label: "Warm", badge: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" },
+  { value: "no_for_now", label: "No por ahora", badge: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300" },
+  { value: "no_response", label: "Sin respuesta", badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300" },
+  { value: "auto_reply", label: "Auto-reply", badge: "bg-gray-100 text-gray-600 dark:bg-gray-800/40 dark:text-gray-400" },
+];
+
+const statusBadge = (status: string) => STATUSES.find(s => s.value === status) || STATUSES[3];
+
+export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNote, setEditNote] = useState("");
+  const [editStatus, setEditStatus] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newProspect, setNewProspect] = useState({ company: "", contact_name: "", email: "", status: "no_response", note: "", industry: "", referred_by: "" });
+
+  const loadProspects = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("prospects").select("*").order("updated_at", { ascending: false });
+    if (error) { toast.error("Error cargando prospectos"); console.error(error); }
+    else setProspects((data || []) as Prospect[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadProspects(); }, [loadProspects]);
+
+  const filtered = prospects.filter(p => {
+    const matchStatus = filterStatus === "all" || p.status === filterStatus;
+    const q = search.toLowerCase();
+    const matchSearch = !q || p.company.toLowerCase().includes(q) || p.contact_name.toLowerCase().includes(q) || (p.email || "").toLowerCase().includes(q);
+    return matchStatus && matchSearch;
+  });
+
+  const startEdit = (p: Prospect) => { setEditingId(p.id); setEditNote(p.note || ""); setEditStatus(p.status); };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    const { error } = await supabase.from("prospects").update({ note: editNote, status: editStatus, updated_at: new Date().toISOString() }).eq("id", editingId);
+    if (error) toast.error("Error guardando");
+    else { toast.success("Actualizado"); loadProspects(); }
+    setEditingId(null);
+  };
+
+  const addProspect = async () => {
+    if (!newProspect.company || !newProspect.contact_name) { toast.error("Empresa y contacto son requeridos"); return; }
+    const { error } = await supabase.from("prospects").insert(newProspect);
+    if (error) toast.error("Error agregando prospecto");
+    else { toast.success("Prospecto agregado"); setNewProspect({ company: "", contact_name: "", email: "", status: "no_response", note: "", industry: "", referred_by: "" }); setShowAdd(false); loadProspects(); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
+          <div>
+            <h2 className="font-display text-2xl font-bold tracking-tight">Prospects CRM</h2>
+            <p className="text-sm text-muted-foreground">{prospects.length} prospectos</p>
+          </div>
+        </div>
+        <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />{showAdd ? "Cancelar" : "Agregar"}
+        </Button>
+      </div>
+
+      {/* Add form */}
+      {showAdd && (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Input placeholder="Empresa *" value={newProspect.company} onChange={e => setNewProspect(p => ({ ...p, company: e.target.value }))} />
+            <Input placeholder="Contacto *" value={newProspect.contact_name} onChange={e => setNewProspect(p => ({ ...p, contact_name: e.target.value }))} />
+            <Input placeholder="Email" value={newProspect.email} onChange={e => setNewProspect(p => ({ ...p, email: e.target.value }))} />
+            <Select value={newProspect.status} onValueChange={v => setNewProspect(p => ({ ...p, status: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+            </Select>
+            <Input placeholder="Industria" value={newProspect.industry} onChange={e => setNewProspect(p => ({ ...p, industry: e.target.value }))} />
+            <Input placeholder="Referido por" value={newProspect.referred_by} onChange={e => setNewProspect(p => ({ ...p, referred_by: e.target.value }))} />
+          </div>
+          <Input placeholder="Nota" value={newProspect.note} onChange={e => setNewProspect(p => ({ ...p, note: e.target.value }))} />
+          <Button size="sm" onClick={addProspect}>Guardar prospecto</Button>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Buscar empresa o contacto..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <div className="flex gap-1.5">
+          <Button variant={filterStatus === "all" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("all")}>Todos</Button>
+          {STATUSES.map(s => (
+            <Button key={s.value} variant={filterStatus === s.value ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(s.value)}>
+              {s.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="flex justify-center py-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
+          <p className="text-muted-foreground">No se encontraron prospectos.</p>
+          <Button size="sm" className="mt-3" onClick={() => setShowAdd(true)}>Agregar el primero</Button>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Empresa</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contacto</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Nota</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fecha</th>
+                <th className="px-4 py-3 w-16" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.map(p => {
+                const badge = statusBadge(p.status);
+                const isEditing = editingId === p.id;
+                return (
+                  <tr key={p.id} className="transition-colors hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{p.company}</td>
+                    <td className="px-4 py-3">
+                      <div>{p.contact_name}</div>
+                      {p.email && <div className="text-xs text-muted-foreground">{p.email}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isEditing ? (
+                        <Select value={editStatus} onValueChange={setEditStatus}>
+                          <SelectTrigger className="h-7 w-32"><SelectValue /></SelectTrigger>
+                          <SelectContent>{STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.badge}`}>
+                          {badge.label}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 max-w-[200px]">
+                      {isEditing ? (
+                        <Input value={editNote} onChange={e => setEditNote(e.target.value)} className="h-7 text-xs" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground line-clamp-2">{p.note || "—"}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                      {new Date(p.updated_at).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" })}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isEditing ? (
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={saveEdit}><Check className="h-3.5 w-3.5 text-emerald-600" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingId(null)}><X className="h-3.5 w-3.5 text-red-500" /></Button>
+                        </div>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEdit(p)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
