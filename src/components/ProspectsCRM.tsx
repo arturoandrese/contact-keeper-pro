@@ -45,23 +45,30 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   const [gmailConnected, setGmailConnected] = useState(false);
 
   useEffect(() => {
-    // Check if we have a Google provider token from OAuth
     const checkGmailToken = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log("[Gmail] Session on load:", session);
+      console.log("[Gmail] provider_token:", session?.provider_token);
+      if (error) {
+        console.error("[Gmail] Error getting session:", error);
+      }
       if (session?.provider_token) {
         setGmailConnected(true);
-        // Store token for later use
         localStorage.setItem("google_provider_token", session.provider_token);
+        console.log("[Gmail] Token stored from session");
       } else if (localStorage.getItem("google_provider_token")) {
         setGmailConnected(true);
+        console.log("[Gmail] Token found in localStorage");
       }
     };
     checkGmailToken();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[Gmail] Auth event:", event, "provider_token:", session?.provider_token);
       if (session?.provider_token) {
         setGmailConnected(true);
         localStorage.setItem("google_provider_token", session.provider_token);
+        console.log("[Gmail] Token stored from auth state change");
       }
     });
     return () => subscription.unsubscribe();
@@ -87,11 +94,15 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
         toast.success(`✅ Sync completado. Creados: ${result.created}, Actualizados: ${result.updated}`);
       }
       loadProspects();
-    } catch (err) {
-      console.error(err);
-      toast.error("Error sincronizando Gmail. El token puede haber expirado — reconecta Gmail.");
-      setGmailConnected(false);
-      localStorage.removeItem("google_provider_token");
+    } catch (err: any) {
+      console.error("[Gmail] Sync error:", err);
+      const msg = err?.message || String(err);
+      toast.error(`Error sincronizando Gmail: ${msg}`);
+      if (msg.includes("401") || msg.includes("403") || msg.includes("invalid_grant") || msg.includes("expired")) {
+        setGmailConnected(false);
+        localStorage.removeItem("google_provider_token");
+        toast.info("Token expirado. Reconecta Gmail.");
+      }
     } finally {
       setSyncing(false);
       setSyncProgress("");
