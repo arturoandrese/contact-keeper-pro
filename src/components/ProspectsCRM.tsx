@@ -142,9 +142,22 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
             <p className="text-sm text-muted-foreground">{prospects.length} prospectos</p>
           </div>
         </div>
-        <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />{showAdd ? "Cancelar" : "Agregar"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {!gmailConnected ? (
+            <Button size="sm" variant="outline" onClick={handleConnectGmail}>
+              <Mail className="mr-1.5 h-3.5 w-3.5" />
+              Conectar Gmail
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={handleSyncGmail} disabled={syncing}>
+              {syncing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+              {syncing ? "Sincronizando..." : "Sync Gmail"}
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />{showAdd ? "Cancelar" : "Agregar"}
+          </Button>
+        </div>
       </div>
 
       {/* Add form */}
