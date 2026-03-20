@@ -179,6 +179,14 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
+      {/* Sync progress */}
+      {syncing && syncProgress && (
+        <div className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {syncProgress}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 max-w-xs">
