@@ -440,6 +440,30 @@ const Index = () => {
               <Layers className="mr-1.5 h-3.5 w-3.5" />
               Segmentos
             </Button>
+            <Button
+              variant={view === "dashboard" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("dashboard")}
+            >
+              <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" />
+              Dashboard
+            </Button>
+            <Button
+              variant={view === "prospects" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("prospects")}
+            >
+              <Users className="mr-1.5 h-3.5 w-3.5" />
+              CRM
+            </Button>
+            <Button
+              variant={view === "pitch" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("pitch")}
+            >
+              <Mail className="mr-1.5 h-3.5 w-3.5" />
+              Pitch
+            </Button>
           </div>
         </div>
       </header>
