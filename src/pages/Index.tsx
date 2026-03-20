@@ -543,6 +543,18 @@ const Index = () => {
         {view === "segments" && (
           <SegmentsPanel onBack={() => setView("upload")} />
         )}
+
+        {view === "dashboard" && (
+          <DashboardPanel onBack={() => setView("upload")} />
+        )}
+
+        {view === "prospects" && (
+          <ProspectsCRM onBack={() => setView("upload")} />
+        )}
+
+        {view === "pitch" && (
+          <PitchGenerator onBack={() => setView("upload")} />
+        )}
       </main>
 
       <UploadFilterDialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen} onConfirm={processFileWithFilters} />
