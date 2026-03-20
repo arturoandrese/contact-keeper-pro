@@ -45,32 +45,37 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   const [gmailConnected, setGmailConnected] = useState(false);
 
   useEffect(() => {
-    const checkGmailToken = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      console.log("[Gmail] Session on load:", session);
-      console.log("[Gmail] provider_token:", session?.provider_token);
-      if (error) {
-        console.error("[Gmail] Error getting session:", error);
-      }
-      if (session?.provider_token) {
-        setGmailConnected(true);
-        localStorage.setItem("google_provider_token", session.provider_token);
-        console.log("[Gmail] Token stored from session");
-      } else if (localStorage.getItem("google_provider_token")) {
-        setGmailConnected(true);
-        console.log("[Gmail] Token found in localStorage");
-      }
-    };
-    checkGmailToken();
-
+    // Set up auth state listener FIRST (before getSession)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[Gmail] Auth event:", event, "provider_token:", session?.provider_token);
-      if (session?.provider_token) {
+      console.log("[Gmail] Auth event:", event, "provider_token:", session?.provider_token ? "EXISTS" : "null");
+      if (event === "SIGNED_IN" && session?.provider_token) {
+        localStorage.setItem("gmail_token", session.provider_token);
         setGmailConnected(true);
-        localStorage.setItem("google_provider_token", session.provider_token);
-        console.log("[Gmail] Token stored from auth state change");
+        console.log("[Gmail] Token saved from SIGNED_IN event");
+      } else if (event === "TOKEN_REFRESHED" && session?.provider_token) {
+        localStorage.setItem("gmail_token", session.provider_token);
+        console.log("[Gmail] Token refreshed");
+      } else if (event === "SIGNED_OUT") {
+        localStorage.removeItem("gmail_token");
+        setGmailConnected(false);
       }
     });
+
+    // Then check existing session
+    const checkSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log("[Gmail] Session check:", session ? "exists" : "null", "provider_token:", session?.provider_token ? "EXISTS" : "null");
+      if (error) console.error("[Gmail] Session error:", error);
+
+      if (session?.provider_token) {
+        localStorage.setItem("gmail_token", session.provider_token);
+        setGmailConnected(true);
+      } else if (localStorage.getItem("gmail_token")) {
+        setGmailConnected(true);
+      }
+    };
+    checkSession();
+
     return () => subscription.unsubscribe();
   }, []);
 

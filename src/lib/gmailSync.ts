@@ -116,7 +116,7 @@ export async function connectGmail(): Promise<string | null> {
     provider: "google",
     options: {
       scopes: "https://www.googleapis.com/auth/gmail.readonly",
-      redirectTo: "https://contact-sparkle-sync.lovable.app",
+      redirectTo: "https://contact-sparkle-sync.lovable.app?view=prospects",
       queryParams: {
         access_type: "offline",
         prompt: "consent",
