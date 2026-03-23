@@ -112,11 +112,12 @@ function extractNameFromHeader(from: string): { name: string; email: string } {
 }
 
 export async function connectGmail(): Promise<string | null> {
+  const currentOrigin = window.location.origin;
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
       scopes: "https://www.googleapis.com/auth/gmail.readonly",
-      redirectTo: "https://contact-sparkle-sync.lovable.app?view=prospects",
+      redirectTo: `${currentOrigin}?view=prospects`,
       queryParams: {
         access_type: "offline",
         prompt: "consent",
