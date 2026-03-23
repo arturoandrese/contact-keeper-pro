@@ -84,18 +84,30 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   };
 
   const handleSyncGmail = async () => {
-    const token = localStorage.getItem("gmail_token");
+    // Try multiple sources for the Gmail token
+    let token = localStorage.getItem("gmail_token");
+    if (!token) {
+      // Fallback: try current session
+      const { data: { session } } = await supabase.auth.getSession();
+      token = session?.provider_token || null;
+      if (token) {
+        localStorage.setItem("gmail_token", token);
+        console.log("[Gmail] Token recovered from session");
+      }
+    }
     if (!token) {
       toast.error("Necesitas conectar Gmail primero");
       setSyncProgress("✗ Token no encontrado. Conecta Gmail primero.");
       return;
     }
+    console.log("[Gmail] Starting sync, token length:", token.length);
     setSyncing(true);
     setSyncProgress("Sincronizando con Gmail...");
     try {
       const { data, error } = await supabase.functions.invoke("gmail-sync", {
         body: { gmail_token: token },
       });
+      console.log("[Gmail] Edge function response:", { data, error });
       if (error) throw error;
       if (data?.error) {
         if (data.error.includes("401") || data.error.includes("invalid")) {
