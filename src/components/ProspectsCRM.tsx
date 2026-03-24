@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Plus, Search, Check, X, Pencil, Mail, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { connectGmail, getGoogleToken, syncGmail } from "@/lib/gmailSync";
+import { connectGmail } from "@/lib/gmailSync";
 
 type Prospect = {
   id: string;
@@ -30,6 +30,48 @@ const STATUSES = [
 
 const statusBadge = (status: string) => STATUSES.find(s => s.value === status) || STATUSES[3];
 
+function extractErrorMessageFromUnknown(details: unknown): string {
+  if (!details) return "";
+
+  if (typeof details === "string") {
+    try {
+      const parsed = JSON.parse(details);
+      return parsed?.error?.message || parsed?.message || details;
+    } catch {
+      return details;
+    }
+  }
+
+  if (typeof details === "object") {
+    const obj = details as { error?: { message?: string }; message?: string };
+    return obj?.error?.message || obj?.message || JSON.stringify(details);
+  }
+
+  return String(details);
+}
+
+async function getEdgeInvokeErrorMessage(error: any): Promise<string> {
+  const fallback = error?.message || "Error desconocido llamando a gmail-sync";
+  const response = error?.context;
+
+  if (!(response instanceof Response)) return fallback;
+
+  try {
+    const text = await response.text();
+    if (!text) return fallback;
+
+    try {
+      const parsed = JSON.parse(text);
+      const details = extractErrorMessageFromUnknown(parsed?.details);
+      return details ? `${parsed?.error || fallback} — ${details}` : parsed?.error || fallback;
+    } catch {
+      return text;
+    }
+  } catch {
+    return fallback;
+  }
+}
+
 export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +85,7 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState("");
   const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailTokenStatus, setGmailTokenStatus] = useState("Verificando token de Gmail...");
 
   useEffect(() => {
     // Set up auth state listener FIRST (before getSession)
@@ -51,13 +94,17 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
       if (event === "SIGNED_IN" && session?.provider_token) {
         localStorage.setItem("gmail_token", session.provider_token);
         setGmailConnected(true);
+        setGmailTokenStatus("✓ Token Gmail detectado (auth SIGNED_IN)");
         console.log("[Gmail] Token saved from SIGNED_IN event");
       } else if (event === "TOKEN_REFRESHED" && session?.provider_token) {
         localStorage.setItem("gmail_token", session.provider_token);
+        setGmailConnected(true);
+        setGmailTokenStatus("✓ Token Gmail detectado (auth TOKEN_REFRESHED)");
         console.log("[Gmail] Token refreshed");
       } else if (event === "SIGNED_OUT") {
         localStorage.removeItem("gmail_token");
         setGmailConnected(false);
+        setGmailTokenStatus("✗ Token Gmail no detectado. Conecta Gmail.");
       }
     });
 
@@ -70,8 +117,12 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
       if (session?.provider_token) {
         localStorage.setItem("gmail_token", session.provider_token);
         setGmailConnected(true);
+        setGmailTokenStatus("✓ Token Gmail detectado (session.provider_token)");
       } else if (localStorage.getItem("gmail_token")) {
         setGmailConnected(true);
+        setGmailTokenStatus("✓ Token Gmail detectado (localStorage)");
+      } else {
+        setGmailTokenStatus("✗ Token Gmail no detectado. Conecta Gmail.");
       }
     };
     checkSession();
@@ -80,21 +131,33 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   }, []);
 
   const handleConnectGmail = async () => {
-    await connectGmail();
+    setGmailTokenStatus("Solicitando permisos de Gmail en Google...");
+    const url = await connectGmail();
+    if (!url) {
+      setGmailTokenStatus("✗ No se pudo iniciar OAuth de Google. Reintenta.");
+      toast.error("No se pudo iniciar la conexión con Gmail");
+    }
   };
 
   const handleSyncGmail = async () => {
     // Try multiple sources for the Gmail token
-    let token = localStorage.getItem("gmail_token");
+    const localToken = localStorage.getItem("gmail_token");
+    let token = localToken;
+    let tokenSource = localToken ? "localStorage" : "";
+
     if (!token) {
       // Fallback: try current session
       const { data: { session } } = await supabase.auth.getSession();
       token = session?.provider_token || null;
       if (token) {
+        tokenSource = "session.provider_token";
         localStorage.setItem("gmail_token", token);
         console.log("[Gmail] Token recovered from session");
       }
     }
+
+    setGmailTokenStatus(token ? `✓ Token Gmail detectado (${tokenSource})` : "✗ Token Gmail no detectado. Conecta Gmail.");
+
     if (!token) {
       toast.error("Necesitas conectar Gmail primero");
       setSyncProgress("✗ Token no encontrado. Conecta Gmail primero.");
@@ -108,21 +171,36 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
         body: { gmail_token: token },
       });
       console.log("[Gmail] Edge function response:", { data, error });
-      if (error) throw error;
+      if (error) {
+        const exactError = await getEdgeInvokeErrorMessage(error);
+        throw new Error(exactError);
+      }
+
       if (data?.error) {
-        if (data.error.includes("401") || data.error.includes("invalid")) {
+        const details = extractErrorMessageFromUnknown(data.details);
+        const fullError = details ? `${data.error} — ${details}` : data.error;
+
+        if (fullError.includes("401") || fullError.includes("invalid")) {
           setGmailConnected(false);
           localStorage.removeItem("gmail_token");
+          setGmailTokenStatus("✗ Token Gmail expirado o inválido. Reconecta Gmail.");
           setSyncProgress("✗ Token expirado. Reconecta Gmail.");
         } else {
-          setSyncProgress(`✗ Error: ${data.error}`);
+          setSyncProgress(`✗ Error Gmail API: ${fullError}`);
         }
-        toast.error(data.error);
+        toast.error(fullError);
         return;
       }
-      const { created = 0, updated = 0, errors = [] } = data || {};
+
+      const { created = 0, updated = 0, errors = [], message = "" } = data || {};
+
+      if (message) {
+        setSyncProgress(`⚠ ${message}`);
+        toast.warning(message);
+      }
+
       if (errors.length > 0) {
-        setSyncProgress(`⚠ ${created} nuevos, ${updated} actualizados, ${errors.length} errores`);
+        setSyncProgress(`⚠ ${created} nuevos, ${updated} actualizados, ${errors.length} errores. Detalle: ${errors[0]}`);
         toast.warning(`Sync parcial: ${errors.length} errores`);
       } else {
         setSyncProgress(`✓ ${created + updated} prospectos sincronizados (${created} nuevos, ${updated} actualizados)`);
@@ -220,6 +298,16 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
       )}
 
       {/* Sync progress */}
+      <div className={`rounded-lg border px-4 py-2 text-xs ${
+        gmailTokenStatus.startsWith("✓")
+          ? "border-primary/30 bg-primary/5 text-foreground"
+          : gmailTokenStatus.startsWith("✗")
+            ? "border-destructive/30 bg-destructive/10 text-destructive"
+            : "border-border bg-muted/50 text-muted-foreground"
+      }`}>
+        {gmailTokenStatus}
+      </div>
+
       {syncProgress && (
         <div className={`rounded-lg border px-4 py-3 text-sm flex items-center gap-2 ${
           syncProgress.startsWith("✓") ? "border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" :
