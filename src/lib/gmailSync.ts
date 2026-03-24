@@ -113,10 +113,17 @@ function extractNameFromHeader(from: string): { name: string; email: string } {
 
 export async function connectGmail(): Promise<string | null> {
   const currentOrigin = window.location.origin;
+  const oauthScopes = [
+    "openid",
+    "email",
+    "profile",
+    "https://www.googleapis.com/auth/gmail.readonly",
+  ].join(" ");
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      scopes: "https://www.googleapis.com/auth/gmail.readonly",
+      scopes: oauthScopes,
       redirectTo: `${currentOrigin}?view=prospects`,
       queryParams: {
         access_type: "offline",
@@ -129,6 +136,8 @@ export async function connectGmail(): Promise<string | null> {
     console.error("OAuth error:", error);
     return null;
   }
+
+  console.log("[Gmail OAuth] scopes:", oauthScopes);
 
   return data.url || null;
 }
