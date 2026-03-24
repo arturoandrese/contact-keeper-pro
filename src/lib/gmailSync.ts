@@ -128,6 +128,7 @@ export async function connectGmail(): Promise<string | null> {
       queryParams: {
         access_type: "offline",
         prompt: "consent",
+        include_granted_scopes: "true",
       },
     },
   });
@@ -143,8 +144,28 @@ export async function connectGmail(): Promise<string | null> {
 }
 
 export function getGoogleToken(): string | null {
-  const session = JSON.parse(localStorage.getItem("sb-vomjhgjzzicuqnkyukps-auth-token") || "null");
-  return session?.provider_token || null;
+  const explicitGmailToken = localStorage.getItem("gmail_token");
+  if (explicitGmailToken) return explicitGmailToken;
+
+  const rawStoredSession = localStorage.getItem("sb-vomjhgjzzicuqnkyukps-auth-token");
+  if (!rawStoredSession) return null;
+
+  try {
+    const parsed = JSON.parse(rawStoredSession) as {
+      provider_token?: string | null;
+      currentSession?: { provider_token?: string | null };
+      session?: { provider_token?: string | null };
+    };
+
+    return (
+      parsed?.provider_token ||
+      parsed?.currentSession?.provider_token ||
+      parsed?.session?.provider_token ||
+      null
+    );
+  } catch {
+    return null;
+  }
 }
 
 export async function syncGmail(token: string, onProgress?: (msg: string) => void): Promise<{
