@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Plus, Search, Check, X, Pencil, Mail, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { connectGmail, getGoogleToken } from "@/lib/gmailSync";
+import { connectGmail, getGoogleToken, extractProviderTokenFromUrl } from "@/lib/gmailSync";
 
 type Prospect = {
   id: string;
@@ -105,51 +105,46 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     const oauthError = getOAuthErrorFromUrl();
     if (oauthError) {
-      setGmailTokenStatus(`✗ Error OAuth de Google: ${oauthError}`);
+      setGmailTokenStatus(`✗ Error OAuth: ${oauthError}`);
       toast.error(`Google OAuth falló: ${oauthError}`);
     }
 
-    // Set up auth state listener FIRST (before getSession)
+    // Try to extract provider_token directly from URL hash (most reliable)
+    const urlToken = extractProviderTokenFromUrl();
+    if (urlToken) {
+      setGmailConnected(true);
+      setGmailTokenStatus("✓ Token Gmail detectado (URL callback)");
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[Gmail] Auth event:", event, "provider_token:", session?.provider_token ? "EXISTS" : "null");
-      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") && session?.provider_token) {
-        localStorage.setItem("gmail_token", session.provider_token);
-        setGmailConnected(true);
-        setGmailTokenStatus(`✓ Token Gmail detectado (auth ${event})`);
-        console.log(`[Gmail] Token saved from ${event} event`);
-      } else if (event === "SIGNED_OUT") {
-        localStorage.removeItem("gmail_token");
-        setGmailConnected(false);
-        setGmailTokenStatus("✗ Token Gmail no detectado. Conecta Gmail.");
-      }
-    });
-
-    // Then check existing session
-    const checkSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      console.log("[Gmail] Session check:", session ? "exists" : "null", "provider_token:", session?.provider_token ? "EXISTS" : "null");
-      if (error) console.error("[Gmail] Session error:", error);
-
+      console.log("[Gmail] Auth event:", event, "provider_token:", session?.provider_token ? "YES" : "null");
       if (session?.provider_token) {
         localStorage.setItem("gmail_token", session.provider_token);
         setGmailConnected(true);
-        setGmailTokenStatus("✓ Token Gmail detectado (session.provider_token)");
-      } else if (getGoogleToken()) {
-        const recoveredToken = getGoogleToken()!;
-        localStorage.setItem("gmail_token", recoveredToken);
+        setGmailTokenStatus(`✓ Token Gmail detectado (${event})`);
+      } else if (event === "SIGNED_OUT") {
+        localStorage.removeItem("gmail_token");
+        setGmailConnected(false);
+        setGmailTokenStatus("✗ Sesión cerrada. Conecta Gmail.");
+      }
+    });
+
+    // Fallback: check getSession + localStorage
+    const checkToken = async () => {
+      if (urlToken) return; // already found
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.provider_token) {
+        localStorage.setItem("gmail_token", session.provider_token);
         setGmailConnected(true);
-        setGmailTokenStatus("✓ Token Gmail detectado (storage fallback)");
+        setGmailTokenStatus("✓ Token Gmail detectado (session)");
       } else if (localStorage.getItem("gmail_token")) {
         setGmailConnected(true);
-        setGmailTokenStatus("✓ Token Gmail detectado (localStorage)");
-      } else if (oauthError) {
-        setGmailConnected(false);
-        setGmailTokenStatus(`✗ Error OAuth de Google: ${oauthError}`);
-      } else {
+        setGmailTokenStatus("✓ Token Gmail detectado (guardado)");
+      } else if (!oauthError) {
         setGmailTokenStatus("✗ Token Gmail no detectado. Conecta Gmail.");
       }
     };
-    checkSession();
+    checkToken();
 
     return () => subscription.unsubscribe();
   }, []);
