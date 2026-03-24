@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Plus, Search, Check, X, Pencil, Mail, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { connectGmail, getGoogleToken } from "@/lib/gmailSync";
+import { connectGmail, getGoogleToken, extractProviderTokenFromUrl } from "@/lib/gmailSync";
 
 type Prospect = {
   id: string;
