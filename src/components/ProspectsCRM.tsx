@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Plus, Search, Check, X, Pencil, Mail, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { connectGmail } from "@/lib/gmailSync";
+import { connectGmail, getGoogleToken } from "@/lib/gmailSync";
 
 type Prospect = {
   id: string;
@@ -72,6 +72,21 @@ async function getEdgeInvokeErrorMessage(error: any): Promise<string> {
   }
 }
 
+function getOAuthErrorFromUrl(): string | null {
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+  const rawError = searchParams.get("error") || hashParams.get("error");
+  const rawDescription = searchParams.get("error_description") || hashParams.get("error_description");
+
+  if (!rawError && !rawDescription) return null;
+
+  const decodedError = rawError ? decodeURIComponent(rawError.replace(/\+/g, " ")) : "OAuth error";
+  const decodedDescription = rawDescription ? decodeURIComponent(rawDescription.replace(/\+/g, " ")) : "";
+
+  return decodedDescription ? `${decodedError}: ${decodedDescription}` : decodedError;
+}
+
 export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,19 +103,20 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   const [gmailTokenStatus, setGmailTokenStatus] = useState("Verificando token de Gmail...");
 
   useEffect(() => {
+    const oauthError = getOAuthErrorFromUrl();
+    if (oauthError) {
+      setGmailTokenStatus(`✗ Error OAuth de Google: ${oauthError}`);
+      toast.error(`Google OAuth falló: ${oauthError}`);
+    }
+
     // Set up auth state listener FIRST (before getSession)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log("[Gmail] Auth event:", event, "provider_token:", session?.provider_token ? "EXISTS" : "null");
-      if (event === "SIGNED_IN" && session?.provider_token) {
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") && session?.provider_token) {
         localStorage.setItem("gmail_token", session.provider_token);
         setGmailConnected(true);
-        setGmailTokenStatus("✓ Token Gmail detectado (auth SIGNED_IN)");
-        console.log("[Gmail] Token saved from SIGNED_IN event");
-      } else if (event === "TOKEN_REFRESHED" && session?.provider_token) {
-        localStorage.setItem("gmail_token", session.provider_token);
-        setGmailConnected(true);
-        setGmailTokenStatus("✓ Token Gmail detectado (auth TOKEN_REFRESHED)");
-        console.log("[Gmail] Token refreshed");
+        setGmailTokenStatus(`✓ Token Gmail detectado (auth ${event})`);
+        console.log(`[Gmail] Token saved from ${event} event`);
       } else if (event === "SIGNED_OUT") {
         localStorage.removeItem("gmail_token");
         setGmailConnected(false);
@@ -118,9 +134,17 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
         localStorage.setItem("gmail_token", session.provider_token);
         setGmailConnected(true);
         setGmailTokenStatus("✓ Token Gmail detectado (session.provider_token)");
+      } else if (getGoogleToken()) {
+        const recoveredToken = getGoogleToken()!;
+        localStorage.setItem("gmail_token", recoveredToken);
+        setGmailConnected(true);
+        setGmailTokenStatus("✓ Token Gmail detectado (storage fallback)");
       } else if (localStorage.getItem("gmail_token")) {
         setGmailConnected(true);
         setGmailTokenStatus("✓ Token Gmail detectado (localStorage)");
+      } else if (oauthError) {
+        setGmailConnected(false);
+        setGmailTokenStatus(`✗ Error OAuth de Google: ${oauthError}`);
       } else {
         setGmailTokenStatus("✗ Token Gmail no detectado. Conecta Gmail.");
       }
@@ -153,6 +177,16 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
         tokenSource = "session.provider_token";
         localStorage.setItem("gmail_token", token);
         console.log("[Gmail] Token recovered from session");
+      }
+    }
+
+    if (!token) {
+      const fallbackToken = getGoogleToken();
+      if (fallbackToken) {
+        token = fallbackToken;
+        tokenSource = "storage fallback";
+        localStorage.setItem("gmail_token", fallbackToken);
+        console.log("[Gmail] Token recovered from storage fallback");
       }
     }
 
