@@ -112,24 +112,15 @@ function extractNameFromHeader(from: string): { name: string; email: string } {
 }
 
 export async function connectGmail(): Promise<string | null> {
-  const currentOrigin = window.location.origin;
-  const oauthScopes = [
-    "openid",
-    "email",
-    "profile",
-    "https://www.googleapis.com/auth/gmail.readonly",
-  ].join(" ");
-
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      scopes: oauthScopes,
-      redirectTo: `${currentOrigin}?view=prospects`,
+      scopes: "https://www.googleapis.com/auth/gmail.readonly",
       queryParams: {
         access_type: "offline",
         prompt: "consent",
-        include_granted_scopes: "true",
       },
+      redirectTo: window.location.origin,
     },
   });
 
@@ -138,9 +129,23 @@ export async function connectGmail(): Promise<string | null> {
     return null;
   }
 
-  console.log("[Gmail OAuth] scopes:", oauthScopes);
-
   return data.url || null;
+}
+
+/**
+ * Extract provider_token from URL hash after OAuth redirect.
+ * Supabase puts tokens in the hash fragment before processing.
+ */
+export function extractProviderTokenFromUrl(): string | null {
+  const hash = window.location.hash;
+  if (!hash) return null;
+  const params = new URLSearchParams(hash.replace(/^#/, ""));
+  const token = params.get("provider_token");
+  if (token) {
+    console.log("[Gmail] provider_token found in URL hash");
+    localStorage.setItem("gmail_token", token);
+  }
+  return token;
 }
 
 export function getGoogleToken(): string | null {
