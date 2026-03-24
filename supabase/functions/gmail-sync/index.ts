@@ -99,6 +99,18 @@ function extractCompanyFromEmail(email: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+async function getGmailErrorDetails(res: Response): Promise<string> {
+  const text = await res.text();
+  if (!text) return "Sin detalles";
+
+  try {
+    const parsed = JSON.parse(text);
+    return parsed?.error?.message || parsed?.message || text;
+  } catch {
+    return text;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -160,7 +172,7 @@ Deno.serve(async (req) => {
       });
 
       if (!res.ok) {
-        const err = await res.text();
+        const err = await getGmailErrorDetails(res);
         return new Response(JSON.stringify({ error: `Gmail API error: ${res.status}`, details: err }), {
           status: res.status === 401 ? 401 : 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -190,7 +202,8 @@ Deno.serve(async (req) => {
         });
 
         if (!res.ok) {
-          result.errors.push(`Thread ${threadId}: ${res.status}`);
+          const details = await getGmailErrorDetails(res);
+          result.errors.push(`Thread ${threadId}: ${res.status} - ${details}`);
           continue;
         }
 
