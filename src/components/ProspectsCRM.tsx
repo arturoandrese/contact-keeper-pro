@@ -109,7 +109,7 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
       toast.error(`Google OAuth falló: ${oauthError}`);
     }
 
-    // Try to extract provider_token directly from URL hash (most reliable)
+    // Try to extract provider tokens from URL hash (most reliable after redirect)
     const urlToken = extractProviderTokenFromUrl();
     if (urlToken) {
       setGmailConnected(true);
@@ -119,25 +119,27 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log("[Gmail] Auth event:", event, "provider_token:", session?.provider_token ? "YES" : "null");
       if (session?.provider_token) {
-        localStorage.setItem("gmail_token", session.provider_token);
+        const refreshToken = session.provider_refresh_token || "";
+        storeTokens(session.provider_token, refreshToken, 3600);
         setGmailConnected(true);
         setGmailTokenStatus(`✓ Token Gmail detectado (${event})`);
       } else if (event === "SIGNED_OUT") {
-        localStorage.removeItem("gmail_token");
+        clearTokens();
         setGmailConnected(false);
         setGmailTokenStatus("✗ Sesión cerrada. Conecta Gmail.");
       }
     });
 
-    // Fallback: check getSession + localStorage
+    // Fallback: check stored tokens
     const checkToken = async () => {
-      if (urlToken) return; // already found
+      if (urlToken) return;
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.provider_token) {
-        localStorage.setItem("gmail_token", session.provider_token);
+        const refreshToken = session.provider_refresh_token || "";
+        storeTokens(session.provider_token, refreshToken, 3600);
         setGmailConnected(true);
         setGmailTokenStatus("✓ Token Gmail detectado (session)");
-      } else if (localStorage.getItem("gmail_token")) {
+      } else if (isGmailConnected()) {
         setGmailConnected(true);
         setGmailTokenStatus("✓ Token Gmail detectado (guardado)");
       } else if (!oauthError) {
