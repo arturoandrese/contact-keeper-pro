@@ -2,6 +2,109 @@ import { supabase } from "@/integrations/supabase/client";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
+// --- Token storage helpers ---
+
+interface StoredTokens {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number; // ms timestamp
+}
+
+function getStoredTokens(): StoredTokens | null {
+  try {
+    const raw = localStorage.getItem("gmail_tokens");
+    if (!raw) {
+      // Migration: check old single-token storage
+      const legacy = localStorage.getItem("gmail_token");
+      if (legacy) return { access_token: legacy, refresh_token: "", expires_at: 0 };
+      return null;
+    }
+    return JSON.parse(raw) as StoredTokens;
+  } catch {
+    return null;
+  }
+}
+
+function storeTokens(access_token: string, refresh_token: string, expires_in: number) {
+  const tokens: StoredTokens = {
+    access_token,
+    refresh_token,
+    expires_at: Date.now() + expires_in * 1000,
+  };
+  localStorage.setItem("gmail_tokens", JSON.stringify(tokens));
+  // Keep legacy key in sync for backward compat
+  localStorage.setItem("gmail_token", access_token);
+}
+
+function clearTokens() {
+  localStorage.removeItem("gmail_tokens");
+  localStorage.removeItem("gmail_token");
+}
+
+function isTokenExpired(tokens: StoredTokens): boolean {
+  // Consider expired 60 seconds early to avoid edge cases
+  return Date.now() >= tokens.expires_at - 60_000;
+}
+
+async function refreshAccessToken(refresh_token: string): Promise<{ access_token: string; refresh_token: string; expires_in: number } | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("refresh-gmail-token", {
+      body: { refresh_token },
+    });
+    if (error || !data?.access_token) {
+      console.error("[Gmail] Token refresh failed:", error);
+      return null;
+    }
+    return {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token || refresh_token,
+      expires_in: data.expires_in || 3600,
+    };
+  } catch (err) {
+    console.error("[Gmail] Token refresh error:", err);
+    return null;
+  }
+}
+
+/**
+ * Get a valid Gmail access token, refreshing if expired.
+ * Returns null if no token available or refresh fails.
+ */
+export async function getValidGmailToken(): Promise<string | null> {
+  const tokens = getStoredTokens();
+  if (!tokens) return null;
+
+  // If not expired, return current token
+  if (!isTokenExpired(tokens)) {
+    return tokens.access_token;
+  }
+
+  // Token is expired — try to refresh
+  if (!tokens.refresh_token) {
+    console.warn("[Gmail] Token expired but no refresh_token available");
+    clearTokens();
+    return null;
+  }
+
+  console.log("[Gmail] Access token expired, refreshing...");
+  const refreshed = await refreshAccessToken(tokens.refresh_token);
+  if (!refreshed) {
+    console.error("[Gmail] Refresh failed, clearing tokens");
+    clearTokens();
+    return null;
+  }
+
+  storeTokens(refreshed.access_token, refreshed.refresh_token, refreshed.expires_in);
+  console.log("[Gmail] Token refreshed successfully");
+  return refreshed.access_token;
+}
+
+// --- Exported token management ---
+
+export { storeTokens, clearTokens, getStoredTokens };
+
+// --- Types ---
+
 type GmailMessage = {
   id: string;
   threadId: string;
@@ -22,6 +125,8 @@ type GmailThread = {
   id: string;
   messages: GmailMessage[];
 };
+
+// --- Helpers ---
 
 function getHeader(msg: GmailMessage, name: string): string {
   return msg.payload.headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || "";
@@ -58,7 +163,6 @@ function getBody(msg: GmailMessage): string {
 function classifyStatus(body: string): string {
   const lower = body.toLowerCase();
 
-  // Auto-reply detection
   const autoPatterns = [
     "fuera de oficina", "out of office", "respuesta automática", "automatic reply",
     "auto-reply", "autoreply", "estoy fuera", "estaré fuera", "no estoy disponible",
@@ -66,7 +170,6 @@ function classifyStatus(body: string): string {
   ];
   if (autoPatterns.some(p => lower.includes(p))) return "auto_reply";
 
-  // Hot - meeting/strong interest
   const hotPatterns = [
     "reunión", "reunion", "juntarnos", "agendar", "agendemos", "coordinemos",
     "me interesa", "nos interesa", "cuándo podemos", "cuando podemos",
@@ -76,7 +179,6 @@ function classifyStatus(body: string): string {
   ];
   if (hotPatterns.some(p => lower.includes(p))) return "hot";
 
-  // Warm - positive reply
   const warmPatterns = [
     "gracias", "interesante", "lo voy a revisar", "lo revisaré", "te contacto",
     "más adelante", "próximo", "siguiente", "puede ser", "dejame ver",
@@ -85,7 +187,6 @@ function classifyStatus(body: string): string {
   ];
   if (warmPatterns.some(p => lower.includes(p))) return "warm";
 
-  // No - declined
   const noPatterns = [
     "no nos interesa", "no estamos interesados", "no gracias", "tenemos equipo",
     "in-house", "inhouse", "equipo interno", "no necesitamos", "no por ahora",
@@ -111,6 +212,8 @@ function extractNameFromHeader(from: string): { name: string; email: string } {
   return { name: "", email };
 }
 
+// --- OAuth ---
+
 export async function connectGmail(): Promise<string | null> {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -133,45 +236,63 @@ export async function connectGmail(): Promise<string | null> {
 }
 
 /**
- * Extract provider_token from URL hash after OAuth redirect.
- * Supabase puts tokens in the hash fragment before processing.
+ * Extract provider tokens from URL hash after OAuth redirect and store them.
  */
 export function extractProviderTokenFromUrl(): string | null {
   const hash = window.location.hash;
   if (!hash) return null;
   const params = new URLSearchParams(hash.replace(/^#/, ""));
-  const token = params.get("provider_token");
-  if (token) {
-    console.log("[Gmail] provider_token found in URL hash");
-    localStorage.setItem("gmail_token", token);
+  const accessToken = params.get("provider_token");
+  const refreshToken = params.get("provider_refresh_token") || "";
+  const expiresIn = parseInt(params.get("expires_in") || "3600", 10);
+
+  if (accessToken) {
+    console.log("[Gmail] provider_token found in URL hash, refresh_token:", refreshToken ? "YES" : "NO");
+    storeTokens(accessToken, refreshToken, expiresIn);
   }
-  return token;
+  return accessToken;
 }
 
 export function getGoogleToken(): string | null {
-  const explicitGmailToken = localStorage.getItem("gmail_token");
-  if (explicitGmailToken) return explicitGmailToken;
-
-  const rawStoredSession = localStorage.getItem("sb-vomjhgjzzicuqnkyukps-auth-token");
-  if (!rawStoredSession) return null;
-
-  try {
-    const parsed = JSON.parse(rawStoredSession) as {
-      provider_token?: string | null;
-      currentSession?: { provider_token?: string | null };
-      session?: { provider_token?: string | null };
-    };
-
-    return (
-      parsed?.provider_token ||
-      parsed?.currentSession?.provider_token ||
-      parsed?.session?.provider_token ||
-      null
-    );
-  } catch {
-    return null;
-  }
+  const tokens = getStoredTokens();
+  return tokens?.access_token || null;
 }
+
+export function isGmailConnected(): boolean {
+  return getStoredTokens() !== null;
+}
+
+export function disconnectGmail() {
+  clearTokens();
+}
+
+// --- Gmail fetch with auto-retry on 401 ---
+
+async function gmailFetch(url: string, token: string): Promise<Response> {
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  
+  if (res.status === 401) {
+    // Try refreshing the token once
+    const tokens = getStoredTokens();
+    if (tokens?.refresh_token) {
+      console.log("[Gmail] Got 401, attempting token refresh...");
+      const refreshed = await refreshAccessToken(tokens.refresh_token);
+      if (refreshed) {
+        storeTokens(refreshed.access_token, refreshed.refresh_token, refreshed.expires_in);
+        // Retry with new token
+        return fetch(url, {
+          headers: { Authorization: `Bearer ${refreshed.access_token}` },
+        });
+      }
+    }
+  }
+  
+  return res;
+}
+
+// --- Sync ---
 
 export async function syncGmail(token: string, onProgress?: (msg: string) => void): Promise<{
   created: number;
@@ -188,6 +309,9 @@ export async function syncGmail(token: string, onProgress?: (msg: string) => voi
     'in:sent subject:"PROYECTO AUDIOVISUAL"',
   ];
 
+  // Use the latest valid token
+  let currentToken = token;
+
   let allSentMessages: { id: string; threadId: string }[] = [];
   const seenIds = new Set<string>();
 
@@ -202,16 +326,22 @@ export async function syncGmail(token: string, onProgress?: (msg: string) => voi
       url.searchParams.set("maxResults", "500");
       if (pageToken) url.searchParams.set("pageToken", pageToken);
 
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await gmailFetch(url.toString(), currentToken);
 
       if (!res.ok) {
+        if (res.status === 401) {
+          result.errors.push("Token expirado y no se pudo renovar. Reconecta Gmail.");
+          return result;
+        }
         const err = await res.text();
         result.errors.push(`Error buscando emails (${query}): ${res.status}`);
         console.error("Gmail search error:", err);
         break;
       }
+
+      // Update currentToken in case it was refreshed by gmailFetch
+      const freshTokens = getStoredTokens();
+      if (freshTokens) currentToken = freshTokens.access_token;
 
       const data: GmailListResponse = await res.json();
       if (data.messages) {
@@ -234,27 +364,30 @@ export async function syncGmail(token: string, onProgress?: (msg: string) => voi
 
   onProgress?.(`Encontrados ${allSentMessages.length} emails. Analizando hilos...`);
 
-  // 2. Get unique thread IDs
   const threadIds = [...new Set(allSentMessages.map(m => m.threadId))];
 
-  // 3. Fetch each thread and analyze replies
   for (let i = 0; i < threadIds.length; i++) {
     const threadId = threadIds[i];
     onProgress?.(`Procesando hilo ${i + 1}/${threadIds.length}...`);
 
     try {
-      const res = await fetch(`${GMAIL_API}/threads/${threadId}?format=full`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await gmailFetch(`${GMAIL_API}/threads/${threadId}?format=full`, currentToken);
 
       if (!res.ok) {
+        if (res.status === 401) {
+          result.errors.push("Token expirado durante procesamiento.");
+          return result;
+        }
         result.errors.push(`Error leyendo hilo ${threadId}`);
         continue;
       }
 
+      // Update token in case refreshed
+      const freshTokens = getStoredTokens();
+      if (freshTokens) currentToken = freshTokens.access_token;
+
       const thread: GmailThread = await res.json();
 
-      // Find the original sent message
       const sentMsg = thread.messages.find(m => m.labelIds?.includes("SENT"));
       if (!sentMsg) continue;
 
@@ -263,7 +396,6 @@ export async function syncGmail(token: string, onProgress?: (msg: string) => voi
 
       if (!toEmail) continue;
 
-      // Find replies (messages NOT sent by us)
       const replies = thread.messages.filter(m => !m.labelIds?.includes("SENT"));
       const hasReply = replies.length > 0;
 
@@ -287,7 +419,6 @@ export async function syncGmail(token: string, onProgress?: (msg: string) => voi
       const company = extractCompanyFromEmail(toEmail);
       const contactName = toName || toEmail.split("@")[0];
 
-      // 4. Upsert into prospects
       const { data: existing } = await supabase
         .from("prospects")
         .select("id, status")
@@ -295,7 +426,6 @@ export async function syncGmail(token: string, onProgress?: (msg: string) => voi
         .maybeSingle();
 
       if (existing) {
-        // Only update if new status is "better" or has reply
         const statusPriority: Record<string, number> = { hot: 5, warm: 4, no_for_now: 3, auto_reply: 2, no_response: 1 };
         const currentPriority = statusPriority[existing.status] || 0;
         const newPriority = statusPriority[status] || 0;
@@ -331,7 +461,6 @@ export async function syncGmail(token: string, onProgress?: (msg: string) => voi
       console.error(err);
     }
 
-    // Rate limiting - small delay between thread fetches
     if (i % 10 === 9) await new Promise(r => setTimeout(r, 500));
   }
 
