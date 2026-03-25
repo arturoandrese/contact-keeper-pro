@@ -309,6 +309,9 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
               {syncing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
               {syncing ? "Sincronizando..." : "Sync Gmail"}
             </Button>
+            <Button size="sm" variant="ghost" onClick={handleDisconnectGmail} title="Desconectar Gmail">
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
           )}
           <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />{showAdd ? "Cancelar" : "Agregar"}
