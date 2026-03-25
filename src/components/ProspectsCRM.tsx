@@ -161,7 +161,7 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   };
 
   const handleDisconnectGmail = async () => {
-    localStorage.removeItem("gmail_token");
+    disconnectGmail();
     setGmailConnected(false);
     setGmailTokenStatus("✗ Gmail desconectado. Conecta otra cuenta.");
     setSyncProgress("");
