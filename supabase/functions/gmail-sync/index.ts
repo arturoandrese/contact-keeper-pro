@@ -157,32 +157,57 @@ Deno.serve(async (req) => {
 
     const result = { created: 0, updated: 0, errors: [] as string[] };
 
-    // 1. Fetch sent emails
+    // 1. Fetch sent emails with multiple smart queries
+    const MAX_PAGES = 10;
+    const queries = [
+      'in:sent subject:"PROYECTO AUDIOVISUAL" newer_than:7d',
+      'in:sent subject:"PROYECTO AUDIOVISUAL" is:unread older_than:14d',
+      'in:sent subject:"PROYECTO AUDIOVISUAL" label:inbox older_than:60d',
+      'in:sent subject:"PROYECTO AUDIOVISUAL"',
+    ];
+
     let allSentMessages: { id: string; threadId: string }[] = [];
-    let pageToken: string | undefined;
+    const seenIds = new Set<string>();
 
-    do {
-      const url = new URL(`${GMAIL_API}/messages`);
-      url.searchParams.set("q", 'in:sent subject:"PROYECTO AUDIOVISUAL"');
-      url.searchParams.set("maxResults", "100");
-      if (pageToken) url.searchParams.set("pageToken", pageToken);
+    for (const query of queries) {
+      let pageToken: string | undefined;
+      let page = 0;
 
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${gmail_token}` },
-      });
+      do {
+        const url = new URL(`${GMAIL_API}/messages`);
+        url.searchParams.set("q", query);
+        url.searchParams.set("maxResults", "500");
+        if (pageToken) url.searchParams.set("pageToken", pageToken);
 
-      if (!res.ok) {
-        const err = await getGmailErrorDetails(res);
-        return new Response(JSON.stringify({ error: `Gmail API error: ${res.status}`, details: err }), {
-          status: res.status === 401 ? 401 : 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: `Bearer ${gmail_token}` },
         });
-      }
 
-      const data = await res.json();
-      if (data.messages) allSentMessages.push(...data.messages);
-      pageToken = data.nextPageToken;
-    } while (pageToken);
+        if (!res.ok) {
+          const err = await getGmailErrorDetails(res);
+          if (page === 0 && query === queries[queries.length - 1]) {
+            return new Response(JSON.stringify({ error: `Gmail API error: ${res.status}`, details: err }), {
+              status: res.status === 401 ? 401 : 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          result.errors.push(`Query "${query}": ${res.status} - ${err}`);
+          break;
+        }
+
+        const data = await res.json();
+        if (data.messages) {
+          for (const m of data.messages) {
+            if (!seenIds.has(m.id)) {
+              seenIds.add(m.id);
+              allSentMessages.push(m);
+            }
+          }
+        }
+        pageToken = data.nextPageToken;
+        page++;
+      } while (pageToken && page < MAX_PAGES);
+    }
 
     if (allSentMessages.length === 0) {
       return new Response(JSON.stringify({ ...result, message: "No emails found" }), {

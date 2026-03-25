@@ -180,33 +180,52 @@ export async function syncGmail(token: string, onProgress?: (msg: string) => voi
 }> {
   const result = { created: 0, updated: 0, errors: [] as string[] };
 
-  onProgress?.("Buscando emails enviados con 'PROYECTO AUDIOVISUAL'...");
+  const MAX_PAGES = 10;
+  const queries = [
+    'in:sent subject:"PROYECTO AUDIOVISUAL" newer_than:7d',
+    'in:sent subject:"PROYECTO AUDIOVISUAL" is:unread older_than:14d',
+    'in:sent subject:"PROYECTO AUDIOVISUAL" label:inbox older_than:60d',
+    'in:sent subject:"PROYECTO AUDIOVISUAL"',
+  ];
 
-  // 1. Fetch sent emails matching subject
   let allSentMessages: { id: string; threadId: string }[] = [];
-  let pageToken: string | undefined;
+  const seenIds = new Set<string>();
 
-  do {
-    const url = new URL(`${GMAIL_API}/messages`);
-    url.searchParams.set("q", "in:sent subject:\"PROYECTO AUDIOVISUAL\"");
-    url.searchParams.set("maxResults", "100");
-    if (pageToken) url.searchParams.set("pageToken", pageToken);
+  for (const query of queries) {
+    onProgress?.(`Buscando: ${query}...`);
+    let pageToken: string | undefined;
+    let page = 0;
 
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    do {
+      const url = new URL(`${GMAIL_API}/messages`);
+      url.searchParams.set("q", query);
+      url.searchParams.set("maxResults", "500");
+      if (pageToken) url.searchParams.set("pageToken", pageToken);
 
-    if (!res.ok) {
-      const err = await res.text();
-      result.errors.push(`Error buscando emails: ${res.status}`);
-      console.error("Gmail search error:", err);
-      return result;
-    }
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    const data: GmailListResponse = await res.json();
-    if (data.messages) allSentMessages.push(...data.messages);
-    pageToken = data.nextPageToken;
-  } while (pageToken);
+      if (!res.ok) {
+        const err = await res.text();
+        result.errors.push(`Error buscando emails (${query}): ${res.status}`);
+        console.error("Gmail search error:", err);
+        break;
+      }
+
+      const data: GmailListResponse = await res.json();
+      if (data.messages) {
+        for (const m of data.messages) {
+          if (!seenIds.has(m.id)) {
+            seenIds.add(m.id);
+            allSentMessages.push(m);
+          }
+        }
+      }
+      pageToken = data.nextPageToken;
+      page++;
+    } while (pageToken && page < MAX_PAGES);
+  }
 
   if (allSentMessages.length === 0) {
     onProgress?.("No se encontraron emails enviados con ese asunto.");
