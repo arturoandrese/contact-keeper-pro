@@ -170,18 +170,16 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
   };
 
   const handleSyncGmail = async () => {
-    // Try multiple sources for the Gmail token
-    const localToken = localStorage.getItem("gmail_token");
-    let token = localToken;
-    let tokenSource = localToken ? "localStorage" : "";
+    // Get a valid (non-expired) token, refreshing automatically if needed
+    let token = await getValidGmailToken();
 
     if (!token) {
       // Fallback: try current session
       const { data: { session } } = await supabase.auth.getSession();
-      token = session?.provider_token || null;
-      if (token) {
-        tokenSource = "session.provider_token";
-        localStorage.setItem("gmail_token", token);
+      if (session?.provider_token) {
+        token = session.provider_token;
+        const refreshToken = session.provider_refresh_token || "";
+        storeTokens(session.provider_token, refreshToken, 3600);
         console.log("[Gmail] Token recovered from session");
       }
     }
@@ -190,13 +188,11 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
       const fallbackToken = getGoogleToken();
       if (fallbackToken) {
         token = fallbackToken;
-        tokenSource = "storage fallback";
-        localStorage.setItem("gmail_token", fallbackToken);
         console.log("[Gmail] Token recovered from storage fallback");
       }
     }
 
-    setGmailTokenStatus(token ? `✓ Token Gmail detectado (${tokenSource})` : "✗ Token Gmail no detectado. Conecta Gmail.");
+    setGmailTokenStatus(token ? "✓ Token Gmail válido" : "✗ Token Gmail no detectado. Conecta Gmail.");
 
     if (!token) {
       toast.error("Necesitas conectar Gmail primero");
