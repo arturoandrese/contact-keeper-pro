@@ -158,6 +158,15 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const handleDisconnectGmail = async () => {
+    localStorage.removeItem("gmail_token");
+    setGmailConnected(false);
+    setGmailTokenStatus("✗ Gmail desconectado. Conecta otra cuenta.");
+    setSyncProgress("");
+    await supabase.auth.signOut();
+    toast.success("Gmail desconectado. Puedes conectar otra cuenta.");
+  };
+
   const handleSyncGmail = async () => {
     // Try multiple sources for the Gmail token
     const localToken = localStorage.getItem("gmail_token");
