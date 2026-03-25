@@ -218,7 +218,7 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
 
         if (fullError.includes("401") || fullError.includes("invalid")) {
           setGmailConnected(false);
-          localStorage.removeItem("gmail_token");
+          clearTokens();
           setGmailTokenStatus("✗ Token Gmail expirado o inválido. Reconecta Gmail.");
           setSyncProgress("✗ Token expirado. Reconecta Gmail.");
         } else {
