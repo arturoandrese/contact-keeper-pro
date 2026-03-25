@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Search, Check, X, Pencil, Mail, RefreshCw, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Search, Check, X, Pencil, Mail, RefreshCw, Loader2, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { connectGmail, getGoogleToken, extractProviderTokenFromUrl } from "@/lib/gmailSync";
 
@@ -158,6 +158,15 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const handleDisconnectGmail = async () => {
+    localStorage.removeItem("gmail_token");
+    setGmailConnected(false);
+    setGmailTokenStatus("✗ Gmail desconectado. Conecta otra cuenta.");
+    setSyncProgress("");
+    await supabase.auth.signOut();
+    toast.success("Gmail desconectado. Puedes conectar otra cuenta.");
+  };
+
   const handleSyncGmail = async () => {
     // Try multiple sources for the Gmail token
     const localToken = localStorage.getItem("gmail_token");
@@ -296,10 +305,15 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
               Conectar Gmail
             </Button>
           ) : (
-            <Button size="sm" variant="outline" onClick={handleSyncGmail} disabled={syncing}>
-              {syncing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
-              {syncing ? "Sincronizando..." : "Sync Gmail"}
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={handleSyncGmail} disabled={syncing}>
+                {syncing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                {syncing ? "Sincronizando..." : "Sync Gmail"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleDisconnectGmail} title="Desconectar Gmail">
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            </>
           )}
           <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />{showAdd ? "Cancelar" : "Agregar"}
