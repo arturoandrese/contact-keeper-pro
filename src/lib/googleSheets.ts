@@ -1,4 +1,4 @@
-const GOOGLE_SHEETS_API_KEY = "AIzaSyA-2kvUDWmPgJsVPLBXS35P6ihw_Gh0Tls";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface SheetData {
   headers: string[];
@@ -14,19 +14,15 @@ export interface SheetTab {
 }
 
 export async function fetchSheetTabs(sheetId: string): Promise<SheetTab[]> {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties&key=${GOOGLE_SHEETS_API_KEY}`;
-  const response = await fetch(url);
-  const data = await response.json();
+  const { data, error } = await supabase.functions.invoke("fetch-sheet-report", {
+    body: { sheetId, action: "tabs" },
+  });
 
-  if (!response.ok) {
-    throw new Error(`Google Sheets API error [${response.status}]: ${data.error?.message || JSON.stringify(data)}`);
+  if (error) {
+    throw new Error("Error fetching sheet tabs");
   }
 
-  return (data.sheets || []).map((s: any) => ({
-    title: s.properties.title,
-    index: s.properties.index,
-    rowCount: s.properties.gridProperties?.rowCount || 0,
-  }));
+  return data.tabs || [];
 }
 
 function normalizeYammStatus(rawStatus: string): string {
@@ -47,13 +43,13 @@ function normalizeYammStatus(rawStatus: string): string {
 
 export async function fetchSheetReport(sheetId: string, sheetName?: string): Promise<SheetData> {
   const range = sheetName ? `'${sheetName}'!A:Z` : "A:Z";
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?key=${GOOGLE_SHEETS_API_KEY}`;
 
-  const response = await fetch(url);
-  const data = await response.json();
+  const { data, error } = await supabase.functions.invoke("fetch-sheet-report", {
+    body: { sheetId, range, action: "report" },
+  });
 
-  if (!response.ok) {
-    throw new Error(`Google Sheets API error [${response.status}]: ${data.error?.message || JSON.stringify(data)}`);
+  if (error) {
+    throw new Error("Error fetching sheet report");
   }
 
   const rows = data.values || [];
@@ -64,7 +60,6 @@ export async function fetchSheetReport(sheetId: string, sheetName?: string): Pro
   const headers = rows[0] as string[];
   const dataRows = rows.slice(1);
 
-  // Find the "Merge status" column (YAMM standard) - check multiple patterns
   const mergeIdx = headers.findIndex((h: string) => {
     const lower = h.toLowerCase().trim();
     return (
@@ -78,17 +73,11 @@ export async function fetchSheetReport(sheetId: string, sheetName?: string): Pro
     );
   });
 
-  console.log("📊 Sheet headers:", headers);
-  console.log("📊 Merge status column index:", mergeIdx, mergeIdx >= 0 ? `(${headers[mergeIdx]})` : "(NOT FOUND)");
-
   const stats: Record<string, number> = {};
   const contacts: Array<Record<string, string>> = [];
-  const rawStatusDebug: Record<string, number> = {};
 
   for (const row of dataRows) {
     const rawStatus = mergeIdx >= 0 && mergeIdx < row.length ? (row[mergeIdx] || "").toString() : "";
-    rawStatusDebug[rawStatus || "(EMPTY)"] = (rawStatusDebug[rawStatus || "(EMPTY)"] || 0) + 1;
-    
     const status = rawStatus.trim() ? normalizeYammStatus(rawStatus) : "EMAIL_NOT_SENT";
     stats[status] = (stats[status] || 0) + 1;
 
@@ -100,9 +89,6 @@ export async function fetchSheetReport(sheetId: string, sheetName?: string): Pro
     contact._status = status;
     contacts.push(contact);
   }
-
-  console.log("📊 RAW status values from sheet:", rawStatusDebug);
-  console.log("📊 Normalized stats:", stats);
 
   return { headers, total: dataRows.length, stats, contacts };
 }

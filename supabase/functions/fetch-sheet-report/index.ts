@@ -35,12 +35,17 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
     const GOOGLE_SHEETS_API_KEY = Deno.env.get("GOOGLE_SHEETS_API_KEY");
     if (!GOOGLE_SHEETS_API_KEY) {
-      throw new Error("GOOGLE_SHEETS_API_KEY is not configured");
+      console.error("GOOGLE_SHEETS_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({ error: "Server configuration error" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const { sheetId, range } = await req.json();
+    const { sheetId, range, action } = await req.json();
     if (!sheetId) {
       return new Response(
         JSON.stringify({ error: "sheetId is required" }),
@@ -48,69 +53,55 @@ serve(async (req) => {
       );
     }
 
-    // Default range covers typical YAMM report columns
+    // Handle "tabs" action - return sheet tab metadata
+    if (action === "tabs") {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}?fields=sheets.properties&key=${GOOGLE_SHEETS_API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("Google Sheets API error (tabs):", JSON.stringify(data));
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch sheet tabs" }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const tabs = (data.sheets || []).map((s: any) => ({
+        title: s.properties.title,
+        index: s.properties.index,
+        rowCount: s.properties.gridProperties?.rowCount || 0,
+      }));
+
+      return new Response(
+        JSON.stringify({ tabs }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Default: fetch sheet values (report action)
     const sheetRange = range || "A:Z";
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetRange)}?key=${GOOGLE_SHEETS_API_KEY}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(sheetRange)}?key=${GOOGLE_SHEETS_API_KEY}`;
 
     const response = await fetch(url);
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(`Google Sheets API error [${response.status}]: ${JSON.stringify(data)}`);
-    }
-
-    const rows = data.values || [];
-    if (rows.length === 0) {
+      console.error("Google Sheets API error (report):", JSON.stringify(data));
       return new Response(
-        JSON.stringify({ headers: [], rows: [], stats: {} }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Failed to fetch sheet data" }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const headers = rows[0] as string[];
-    const dataRows = rows.slice(1);
-
-    // Find the "Merge status" column (YAMM standard)
-    const mergeIdx = headers.findIndex(
-      (h: string) => h.toLowerCase().includes("merge status") || h.toLowerCase().includes("status")
-    );
-    const emailIdx = headers.findIndex(
-      (h: string) =>
-        h.toLowerCase().includes("mail") ||
-        h.toLowerCase().includes("email") ||
-        h.toLowerCase().includes("correo")
-    );
-
-    // Calculate stats from merge status
-    const stats: Record<string, number> = {};
-    const contacts: Array<Record<string, string>> = [];
-
-    for (const row of dataRows) {
-      const status = mergeIdx >= 0 ? (row[mergeIdx] || "UNKNOWN").toString().toUpperCase().trim() : "UNKNOWN";
-      stats[status] = (stats[status] || 0) + 1;
-
-      const contact: Record<string, string> = {};
-      headers.forEach((h: string, i: number) => {
-        contact[h] = row[i] || "";
-      });
-      contact._status = status;
-      contacts.push(contact);
-    }
-
     return new Response(
-      JSON.stringify({
-        headers,
-        total: dataRows.length,
-        stats,
-        contacts,
-      }),
+      JSON.stringify({ values: data.values || [] }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
-    console.error("Error fetching sheet:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error in fetch-sheet-report:", error);
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: "An internal error occurred. Please try again." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
