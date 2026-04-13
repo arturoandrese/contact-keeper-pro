@@ -203,7 +203,6 @@ export function parseAndClean(
 
   for (const row of parsed.data) {
     const email1 = extractPrimaryCorporateEmail(row);
-    if (!email1) continue;
 
     const rawFirst = removeAccents(
       getFieldValue(row, ["first_name", "firstname", "nombre", "NOMBRE", "name"])
@@ -220,11 +219,14 @@ export function parseAndClean(
     const apellido2 = lastParts.length > 1 ? lastParts[1].toLowerCase() : "";
 
     const web = extractDomain(
-      getFieldValue(row, ["company_website", "website", "web", "sitio_web", "url"]) 
+      getFieldValue(row, ["company_website", "website", "web", "sitio_web", "web_empresa", "sitio web", "url"]) 
     );
 
+    // Skip rows that have neither email nor web+name to generate from
+    if (!email1 && !(web && nombre && apellido)) continue;
+
     let empresa = "";
-    const domainForOverride = web || email1.split("@")[1] || "";
+    const domainForOverride = web || (email1 ? email1.split("@")[1] : "") || "";
     const override = getOverriddenName(domainForOverride);
     if (override) {
       empresa = override;
@@ -238,7 +240,7 @@ export function parseAndClean(
       empresa = empresa.toUpperCase();
     }
 
-    const domain = web || email1.split("@")[1] || "";
+    const domain = web || (email1 ? email1.split("@")[1] : "") || "";
     const hasNameForPattern = Boolean(nombre && apellido);
 
     let mail1 = email1;
@@ -264,7 +266,7 @@ export function parseAndClean(
           alternatives.add(`${initial}${apellido}@${domain}`);
           alternatives.add(`${nombre}.${apellido}@${domain}`);
           if (apellido2) alternatives.add(`${initial}${apellido}${apellido2.charAt(0)}@${domain}`);
-          alternatives.add(email1);
+          if (email1) alternatives.add(email1);
           alternatives.delete(mail1.toLowerCase());
           alternatives.delete(mail1);
           const altArr = Array.from(alternatives).filter(a => a && a !== mail1.toLowerCase());
@@ -277,11 +279,11 @@ export function parseAndClean(
         // No known pattern: default behavior
         mail1 = `${initial}${apellido}@${domain}`;
         mail2 = `${nombre}.${apellido}@${domain}`;
-        mail3 = email1;
+        mail3 = email1 || "";
         if (apellido2) {
           mail4 = `${initial}${apellido}${apellido2.charAt(0)}@${domain}`;
         } else {
-          mail4 = `${initial}${apellido}@${domain}`;
+          mail4 = "";
         }
       }
     }
