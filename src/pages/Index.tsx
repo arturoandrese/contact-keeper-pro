@@ -404,7 +404,7 @@ const Index = () => {
             <img src={ccpLogo} alt="CCP" className="h-10 w-10 rounded-xl object-cover shadow-md" />
             <div>
               <h1 className="font-display text-xl font-bold tracking-tight">CCP</h1>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Clean · Cross · Prospect <span className="ml-1 text-muted-foreground/60">v1.0.0</span></p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Clean · Cross · Prospect <span className="ml-1 text-muted-foreground/60"><p className="text-[10px] text-muted-foreground uppercase tracking-widest">Clean · Cross · Prospect <span className="ml-1 text-muted-foreground/60">v1.1.0</span></p></span></p>
             </div>
           </div>
           <div className="flex items-center gap-3">
