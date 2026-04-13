@@ -654,6 +654,10 @@ const Index = () => {
           <ProspectsCRM onBack={() => setView("upload")} />
         )}
 
+        {view === "licitaciones" && (
+          <LicitacionesPanel onBack={() => setView("upload")} />
+        )}
+
       </main>
 
       <UploadFilterDialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen} onConfirm={processFileWithFilters} />
