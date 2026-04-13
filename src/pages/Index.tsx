@@ -372,6 +372,47 @@ const Index = () => {
       }
     }
 
+    // Filter duplicates across saved bases
+    if (filters.filterDuplicates) {
+      try {
+        const allMails = new Set<string>();
+        for (const c of cleaned) {
+          if (c.MAIL1) allMails.add(c.MAIL1.toLowerCase());
+        }
+
+        const existingMailsSet = new Set<string>();
+        const mailArray = Array.from(allMails);
+        for (let i = 0; i < mailArray.length; i += 300) {
+          const chunk = mailArray.slice(i, i + 300);
+          const { data } = await supabase
+            .from("contacts")
+            .select("mail1")
+            .in("mail1", chunk);
+          if (data) data.forEach(r => {
+            if (r.mail1) existingMailsSet.add(r.mail1.toLowerCase());
+          });
+        }
+
+        if (existingMailsSet.size > 0) {
+          const before = cleaned.length;
+          let idx = cleaned.length - 1;
+          while (idx >= 0) {
+            const c = cleaned[idx];
+            if (c.MAIL1 && existingMailsSet.has(c.MAIL1.toLowerCase())) {
+              cleaned.splice(idx, 1);
+            }
+            idx--;
+          }
+          const removed = before - cleaned.length;
+          if (removed > 0) {
+            toast.info(`🔄 ${removed} contactos excluidos (ya existen en otras bases)`);
+          }
+        }
+      } catch (err) {
+        console.warn("No se pudo filtrar duplicados entre bases:", err);
+      }
+    }
+
     setContacts(cleaned);
     setSaveOpen(true);
   };
@@ -453,7 +494,7 @@ const Index = () => {
             <img src={ccpLogo} alt="CCP" className="h-10 w-10 rounded-xl object-cover shadow-md" />
             <div>
               <h1 className="font-display text-xl font-bold tracking-tight">CCP</h1>
-              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">v1.3.0</p>
+              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">v1.4.0</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
