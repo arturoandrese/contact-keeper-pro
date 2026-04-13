@@ -35,30 +35,23 @@ serve(async (req) => {
       });
     }
 
-    // Get the user's Google access token from their session
-    const { data: sessionData } = await supabase.auth.getSession();
-    const providerToken = sessionData?.session?.provider_token;
+    const body = await req.json();
+    const { sheetId, tabTitle, sheetIndex, googleAccessToken } = body;
 
-    const { sheetId, tabTitle, tabIndex } = await req.json();
-    if (!sheetId || tabTitle === undefined || tabIndex === undefined) {
+    if (!sheetId || tabTitle === undefined || sheetIndex === undefined) {
       return new Response(
-        JSON.stringify({ error: "sheetId, tabTitle, and tabIndex are required" }),
+        JSON.stringify({ error: "sheetId, tabTitle, and sheetIndex are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // If no provider token in session, try the one passed from client
-    const { accessToken } = await req.json().catch(() => ({}));
-    const googleToken = providerToken || accessToken;
-
-    if (!googleToken) {
+    if (!googleAccessToken) {
       return new Response(
-        JSON.stringify({ error: "No Google access token available. Please reconnect Google." }),
+        JSON.stringify({ error: "No Google access token provided. Please reconnect Google." }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Build batch update request: rename tab + color it
     const newTitle = tabTitle.startsWith("CCP_") ? tabTitle : `CCP_${tabTitle}`;
 
     const batchBody = {
@@ -66,10 +59,10 @@ serve(async (req) => {
         {
           updateSheetProperties: {
             properties: {
-              sheetId: tabIndex,
+              sheetId: sheetIndex,
               title: newTitle,
               tabColorStyle: {
-                rgbColor: { red: 0.2, green: 0.66, blue: 0.33, alpha: 1 },
+                rgbColor: { red: 0.13, green: 0.55, blue: 0.33, alpha: 1 },
               },
             },
             fields: "title,tabColorStyle",
@@ -82,7 +75,7 @@ serve(async (req) => {
     const response = await fetch(sheetsUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${googleToken}`,
+        Authorization: `Bearer ${googleAccessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(batchBody),
