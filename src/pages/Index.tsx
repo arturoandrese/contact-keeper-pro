@@ -13,13 +13,15 @@ import UploadFilterDialog, { type UploadFilters } from "@/components/UploadFilte
 import SegmentsPanel from "@/components/SegmentsPanel";
 import DashboardPanel from "@/components/DashboardPanel";
 import ProspectsCRM from "@/components/ProspectsCRM";
+import LicitacionesPanel from "@/components/LicitacionesPanel";
+import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
 
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
@@ -27,7 +29,7 @@ const Index = () => {
   const [view, setView] = useState<View>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
-    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects"].includes(v)) {
+    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones"].includes(v)) {
       // Clean the URL without reloading
       window.history.replaceState({}, "", window.location.pathname);
       return v as View;
@@ -494,7 +496,7 @@ const Index = () => {
             <img src={ccpLogo} alt="CCP" className="h-10 w-10 rounded-xl object-cover shadow-md" />
             <div>
               <h1 className="font-display text-xl font-bold tracking-tight">CCP</h1>
-              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">v1.6.0</p>
+              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">v1.7.0</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -555,11 +557,20 @@ const Index = () => {
               <Users className="mr-1.5 h-3.5 w-3.5" />
               CRM
             </Button>
+            <Button
+              variant={view === "licitaciones" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("licitaciones")}
+            >
+              <Gavel className="mr-1.5 h-3.5 w-3.5" />
+              Licitaciones
+            </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-10">
+      <main className="mx-auto max-w-7xl px-6 py-10 space-y-6">
+        <UnansweredEmailsAlert />
         {view === "upload" && (
           <div className="mx-auto max-w-xl space-y-8">
             <div className="text-center">
@@ -641,6 +652,10 @@ const Index = () => {
 
         {view === "prospects" && (
           <ProspectsCRM onBack={() => setView("upload")} />
+        )}
+
+        {view === "licitaciones" && (
+          <LicitacionesPanel onBack={() => setView("upload")} />
         )}
 
       </main>
