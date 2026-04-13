@@ -311,6 +311,27 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Hidden file input for merge */}
+          <input
+            ref={mergeInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleMergeFile(file);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => mergeInputRef.current?.click()}
+            disabled={merging}
+          >
+            {merging ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FilePlus2 className="mr-1.5 h-3.5 w-3.5" />}
+            Agregar base
+          </Button>
           {sheetId && (
             <Button size="sm" variant="default" onClick={() => setShowReport(true)}>
               <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
