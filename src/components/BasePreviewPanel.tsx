@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, GitCompare, Link2, BarChart3, Mail, MailX, MailOpen, MousePointerClick, Send, MessageSquareReply, AlertCircle, Download, Search } from "lucide-react";
+import { ArrowLeft, Loader2, GitCompare, Link2, BarChart3, Mail, MailX, MailOpen, MousePointerClick, Send, MessageSquareReply, AlertCircle, Download, Search, FilePlus2 } from "lucide-react";
 import ExportDropdown from "./ExportDropdown";
 import { toast } from "sonner";
 import SheetReportPanel from "./SheetReportPanel";
 import CampaignStatusDialog, { type StatusCategory } from "./CampaignStatusDialog";
 import { fetchSheetTabs, fetchSheetReport, type SheetData } from "@/lib/googleSheets";
 import * as XLSX from "xlsx";
+import Papa from "papaparse";
+import { parseAndClean, type DomainPatternEntry } from "@/lib/contactCleaner";
 
 interface Contact {
   nombre: string;
@@ -46,6 +48,8 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   const [sheetInput, setSheetInput] = useState("");
   const [savingSheet, setSavingSheet] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const mergeInputRef = useRef<HTMLInputElement>(null);
   const [campaignSummary, setCampaignSummary] = useState<{
     total: number;
     sent: number;
@@ -61,6 +65,97 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<StatusCategory>("sent");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const handleMergeFile = useCallback(async (file: File) => {
+    setMerging(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      let csvText = "";
+
+      if (ext === "csv" || ext === "txt") {
+        csvText = await file.text();
+      } else if (ext === "xlsx" || ext === "xls") {
+        const data = new Uint8Array(await file.arrayBuffer());
+        const workbook = XLSX.read(data, { type: "array" });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        csvText = XLSX.utils.sheet_to_csv(firstSheet);
+      } else {
+        toast.error("Formato no soportado. Usa CSV o Excel.");
+        setMerging(false);
+        return;
+      }
+
+      // Load patterns
+      let savedPatterns: DomainPatternEntry[] = [];
+      try {
+        const { data } = await supabase.from("domain_patterns").select("domain, pattern, example_email");
+        if (data) savedPatterns = data as DomainPatternEntry[];
+      } catch {}
+
+      const cleaned = parseAndClean(csvText, savedPatterns);
+      if (cleaned.length === 0) {
+        toast.error("No se encontraron contactos válidos en el archivo");
+        setMerging(false);
+        return;
+      }
+
+      // Dedup against existing contacts in this base
+      const existingMails = new Set(contacts.map(c => (c.mail1 || "").toLowerCase()).filter(Boolean));
+      const newContacts = cleaned.filter(c => !existingMails.has((c.MAIL1 || "").toLowerCase()));
+
+      if (newContacts.length === 0) {
+        toast.info("Todos los contactos del archivo ya existen en esta base");
+        setMerging(false);
+        return;
+      }
+
+      // Insert into DB
+      const rows = newContacts.map(c => ({
+        base_id: baseId,
+        nombre: c.NOMBRE,
+        apellido: c.APELLIDO,
+        apellido2: c.APELLIDO2,
+        empresa: c.EMPRESA,
+        web: c.WEB,
+        mail1: c.MAIL1,
+        mail2: c.MAIL2,
+        mail3: c.MAIL3,
+        mail4: c.MAIL4,
+      }));
+
+      for (let i = 0; i < rows.length; i += 500) {
+        const { error } = await supabase.from("contacts").insert(rows.slice(i, i + 500));
+        if (error) {
+          toast.error("Error insertando contactos");
+          setMerging(false);
+          return;
+        }
+      }
+
+      // Update clean_count
+      const newTotal = contacts.length + newContacts.length;
+      await supabase.from("bases").update({ clean_count: newTotal }).eq("id", baseId);
+
+      // Add to local state
+      const mapped: Contact[] = newContacts.map(c => ({
+        nombre: c.NOMBRE,
+        apellido: c.APELLIDO,
+        apellido2: c.APELLIDO2,
+        empresa: c.EMPRESA,
+        web: c.WEB,
+        mail1: c.MAIL1,
+        mail2: c.MAIL2,
+        mail3: c.MAIL3,
+        mail4: c.MAIL4,
+      }));
+      setContacts(prev => [...prev, ...mapped]);
+      toast.success(`✅ ${newContacts.length} contactos nuevos agregados (${cleaned.length - newContacts.length} duplicados omitidos)`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error procesando archivo");
+    }
+    setMerging(false);
+  }, [baseId, contacts]);
 
   const openStatusDialog = (cat: StatusCategory) => {
     setSelectedCategory(cat);
@@ -216,6 +311,27 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Hidden file input for merge */}
+          <input
+            ref={mergeInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleMergeFile(file);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => mergeInputRef.current?.click()}
+            disabled={merging}
+          >
+            {merging ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FilePlus2 className="mr-1.5 h-3.5 w-3.5" />}
+            Agregar base
+          </Button>
           {sheetId && (
             <Button size="sm" variant="default" onClick={() => setShowReport(true)}>
               <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
