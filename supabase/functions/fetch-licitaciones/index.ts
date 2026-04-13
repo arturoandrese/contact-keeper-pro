@@ -9,16 +9,17 @@ const corsHeaders = {
 const KEYWORDS = [
   "audiovisual",
   "producción audiovisual",
-  "video",
+  "video corporativo",
   "videografía",
   "fotografía",
-  "produccion",
   "contenido audiovisual",
-  "cápsula",
-  "documental",
-  "spot",
+  "spot publicitario",
   "streaming",
-  "transmisión",
+  "transmisión en vivo",
+  "registro audiovisual",
+  "producción de contenido",
+  "edición de video",
+  "cápsula audiovisual",
 ];
 
 serve(async (req) => {
