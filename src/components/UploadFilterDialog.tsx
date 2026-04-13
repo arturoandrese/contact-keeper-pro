@@ -11,13 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Shield, Clock, MessageSquareReply } from "lucide-react";
+import { Shield, Clock, MessageSquareReply, Building2, Copy } from "lucide-react";
 
 export interface UploadFilters {
   filterSent: boolean;
   sentDays: number;
   filterReplied: boolean;
   repliedDays: number;
+  learnFromDelivered: boolean;
+  filterDuplicates: boolean;
 }
 
 interface UploadFilterDialogProps {
@@ -31,9 +33,11 @@ const UploadFilterDialog = ({ open, onOpenChange, onConfirm }: UploadFilterDialo
   const [sentDays, setSentDays] = useState(15);
   const [filterReplied, setFilterReplied] = useState(true);
   const [repliedDays, setRepliedDays] = useState(15);
+  const [learnFromDelivered, setLearnFromDelivered] = useState(true);
+  const [filterDuplicates, setFilterDuplicates] = useState(true);
 
   const handleConfirm = () => {
-    onConfirm({ filterSent, sentDays, filterReplied, repliedDays });
+    onConfirm({ filterSent, sentDays, filterReplied, repliedDays, learnFromDelivered, filterDuplicates });
   };
 
   return (
@@ -49,7 +53,45 @@ const UploadFilterDialog = ({ open, onOpenChange, onConfirm }: UploadFilterDialo
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 py-2">
+        <div className="space-y-4 py-2">
+          {/* Learn patterns from delivered */}
+          <div className="flex items-start gap-3 rounded-lg border border-border p-3">
+            <Checkbox
+              id="learn-delivered"
+              checked={learnFromDelivered}
+              onCheckedChange={(v) => setLearnFromDelivered(!!v)}
+              className="mt-0.5"
+            />
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="learn-delivered" className="flex items-center gap-2 cursor-pointer">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                Aprender emails de empresas conocidas
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Usa el historial de entregas para encontrar patrones de email validados por dominio
+              </p>
+            </div>
+          </div>
+
+          {/* Filter duplicates across bases */}
+          <div className="flex items-start gap-3 rounded-lg border border-border p-3">
+            <Checkbox
+              id="filter-duplicates"
+              checked={filterDuplicates}
+              onCheckedChange={(v) => setFilterDuplicates(!!v)}
+              className="mt-0.5"
+            />
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="filter-duplicates" className="flex items-center gap-2 cursor-pointer">
+                <Copy className="h-4 w-4 text-muted-foreground" />
+                Excluir duplicados entre bases
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Detecta contactos que ya existen en otras bases guardadas
+              </p>
+            </div>
+          </div>
+
           {/* Filter by sent emails */}
           <div className="flex items-start gap-3 rounded-lg border border-border p-3">
             <Checkbox
@@ -118,7 +160,7 @@ const UploadFilterDialog = ({ open, onOpenChange, onConfirm }: UploadFilterDialo
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onConfirm({ filterSent: false, sentDays: 15, filterReplied: false, repliedDays: 15 })}>
+          <Button variant="outline" onClick={() => onConfirm({ filterSent: false, sentDays: 15, filterReplied: false, repliedDays: 15, learnFromDelivered: false, filterDuplicates: false })}>
             Sin filtros
           </Button>
           <Button onClick={handleConfirm}>
