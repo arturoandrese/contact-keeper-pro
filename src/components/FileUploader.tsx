@@ -7,20 +7,22 @@ interface FileUploaderProps {
   onFileLoaded: (content: string) => void;
 }
 
-const REQUIRED_COLUMNS = [
-  ["email1", "email", "mail1", "mail", "correo", "correo1", "work_email", "business_email"],
-];
-
 function validateCsvColumns(content: string): string | null {
   const firstLine = content.split("\n")[0] || "";
   const headers = firstLine.split(",").map(h => h.trim().toLowerCase().replace(/['"]/g, ""));
   
   const hasEmail = headers.some(h => 
-    REQUIRED_COLUMNS[0].includes(h) || h.includes("email") || h.includes("mail") || h.includes("correo")
+    h.includes("email") || h.includes("mail") || h.includes("correo")
+  );
+  const hasName = headers.some(h =>
+    h.includes("nombre") || h.includes("name") || h.includes("first")
+  );
+  const hasWeb = headers.some(h =>
+    h.includes("web") || h.includes("sitio") || h.includes("url") || h.includes("website")
   );
 
-  if (!hasEmail) {
-    return `No se encontró columna de email. Columnas detectadas: ${headers.slice(0, 8).join(", ")}. Se necesita al menos: email, mail1, o correo.`;
+  if (!hasEmail && !(hasName && hasWeb)) {
+    return `No se encontraron columnas suficientes. Columnas detectadas: ${headers.slice(0, 8).join(", ")}. Se necesita email/mail/correo, o bien nombre + web/sitio web.`;
   }
 
   return null;
