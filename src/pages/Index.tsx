@@ -557,6 +557,14 @@ const Index = () => {
               <Users className="mr-1.5 h-3.5 w-3.5" />
               CRM
             </Button>
+            <Button
+              variant={view === "licitaciones" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("licitaciones")}
+            >
+              <Gavel className="mr-1.5 h-3.5 w-3.5" />
+              Licitaciones
+            </Button>
           </div>
         </div>
       </header>
