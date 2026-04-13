@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, GitCompare, Link2, BarChart3, Mail, MailX, MailOpen, MousePointerClick, Send, MessageSquareReply, AlertCircle, Download, Search } from "lucide-react";
+import { ArrowLeft, Loader2, GitCompare, Link2, BarChart3, Mail, MailX, MailOpen, MousePointerClick, Send, MessageSquareReply, AlertCircle, Download, Search, FilePlus2 } from "lucide-react";
 import ExportDropdown from "./ExportDropdown";
 import { toast } from "sonner";
 import SheetReportPanel from "./SheetReportPanel";
 import CampaignStatusDialog, { type StatusCategory } from "./CampaignStatusDialog";
 import { fetchSheetTabs, fetchSheetReport, type SheetData } from "@/lib/googleSheets";
 import * as XLSX from "xlsx";
+import Papa from "papaparse";
+import { parseAndClean, type DomainPatternEntry } from "@/lib/contactCleaner";
 
 interface Contact {
   nombre: string;
