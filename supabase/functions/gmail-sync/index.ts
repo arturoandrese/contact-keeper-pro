@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
+const MAX_THREADS_PER_RUN = 15;
 
 type GmailMessage = {
   id: string;
@@ -99,25 +100,12 @@ function extractCompanyFromEmail(email: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-async function getGmailErrorDetails(res: Response): Promise<string> {
-  const text = await res.text();
-  if (!text) return "Sin detalles";
-
-  try {
-    const parsed = JSON.parse(text);
-    return parsed?.error?.message || parsed?.message || text;
-  } catch {
-    return text;
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate JWT authentication
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -134,15 +122,16 @@ Deno.serve(async (req) => {
 
     const { data: userData, error: authError } = await supabaseAuth.auth.getUser();
     if (authError || !userData?.user) {
-      console.error("[gmail-sync] Auth failed:", authError?.message);
-      return new Response(JSON.stringify({ error: "Unauthorized", details: authError?.message }), {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     console.log("[gmail-sync] Authenticated user:", userData.user.id);
 
-    const { gmail_token } = await req.json();
+    const body = await req.json();
+    const { gmail_token, page_token, query_index = 0 } = body;
+
     if (!gmail_token) {
       return new Response(JSON.stringify({ error: "gmail_token is required" }), {
         status: 400,
@@ -155,80 +144,80 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const result = { created: 0, updated: 0, errors: [] as string[] };
+    const result = { created: 0, updated: 0, errors: [] as string[], has_more: false, next_page_token: null as string | null, next_query_index: query_index };
 
-    // 1. Fetch sent emails with multiple smart queries
-    const MAX_PAGES = 10;
+    // Single query per run, with pagination cursor
     const queries = [
       'in:sent subject:"PROYECTO AUDIOVISUAL" newer_than:7d',
-      'in:sent subject:"PROYECTO AUDIOVISUAL" is:unread older_than:14d',
-      'in:sent subject:"PROYECTO AUDIOVISUAL" label:inbox older_than:60d',
       'in:sent subject:"PROYECTO AUDIOVISUAL"',
     ];
 
-    let allSentMessages: { id: string; threadId: string }[] = [];
-    const seenIds = new Set<string>();
+    const currentQuery = queries[query_index] || queries[0];
 
-    for (const query of queries) {
-      let pageToken: string | undefined;
-      let page = 0;
+    // 1. Fetch one page of message IDs
+    const url = new URL(`${GMAIL_API}/messages`);
+    url.searchParams.set("q", currentQuery);
+    url.searchParams.set("maxResults", "50");
+    if (page_token) url.searchParams.set("pageToken", page_token);
 
-      do {
-        const url = new URL(`${GMAIL_API}/messages`);
-        url.searchParams.set("q", query);
-        url.searchParams.set("maxResults", "500");
-        if (pageToken) url.searchParams.set("pageToken", pageToken);
+    const listRes = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${gmail_token}` },
+    });
 
-        const res = await fetch(url.toString(), {
-          headers: { Authorization: `Bearer ${gmail_token}` },
-        });
-
-        if (!res.ok) {
-          const err = await getGmailErrorDetails(res);
-          if (page === 0 && query === queries[queries.length - 1]) {
-            return new Response(JSON.stringify({ error: `Gmail API error: ${res.status}`, details: err }), {
-              status: res.status === 401 ? 401 : 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-          result.errors.push(`Query "${query}": ${res.status} - ${err}`);
-          break;
-        }
-
-        const data = await res.json();
-        if (data.messages) {
-          for (const m of data.messages) {
-            if (!seenIds.has(m.id)) {
-              seenIds.add(m.id);
-              allSentMessages.push(m);
-            }
-          }
-        }
-        pageToken = data.nextPageToken;
-        page++;
-      } while (pageToken && page < MAX_PAGES);
+    if (!listRes.ok) {
+      const errText = await listRes.text();
+      console.error("[gmail-sync] Gmail list error:", listRes.status, errText);
+      return new Response(JSON.stringify({ error: `Gmail API error: ${listRes.status}`, details: errText }), {
+        status: listRes.status === 401 ? 401 : 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    if (allSentMessages.length === 0) {
+    const listData = await listRes.json();
+    const messages = listData.messages || [];
+
+    if (messages.length === 0 && !page_token) {
+      // Try next query
+      if (query_index + 1 < queries.length) {
+        result.has_more = true;
+        result.next_query_index = query_index + 1;
+        result.next_page_token = null;
+        console.log("[gmail-sync] No messages for query", query_index, "- moving to next");
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ ...result, message: "No emails found" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 2. Process threads
-    const threadIds = [...new Set(allSentMessages.map((m) => m.threadId))];
+    // Determine continuation
+    if (listData.nextPageToken) {
+      result.has_more = true;
+      result.next_page_token = listData.nextPageToken;
+      result.next_query_index = query_index;
+    } else if (query_index + 1 < queries.length) {
+      result.has_more = true;
+      result.next_page_token = null;
+      result.next_query_index = query_index + 1;
+    }
 
-    for (let i = 0; i < threadIds.length; i++) {
-      const threadId = threadIds[i];
+    // 2. Deduplicate and limit threads
+    const threadIds = [...new Set(messages.map((m: { threadId: string }) => m.threadId))].slice(0, MAX_THREADS_PER_RUN);
 
+    console.log(`[gmail-sync] Collected ${messages.length} messages, processing ${threadIds.length} threads`);
+
+    // 3. Process threads
+    for (const threadId of threadIds) {
       try {
         const res = await fetch(`${GMAIL_API}/threads/${threadId}?format=full`, {
           headers: { Authorization: `Bearer ${gmail_token}` },
         });
 
         if (!res.ok) {
-          const details = await getGmailErrorDetails(res);
-          result.errors.push(`Thread ${threadId}: ${res.status} - ${details}`);
+          const details = await res.text();
+          result.errors.push(`Thread ${threadId}: ${res.status}`);
           continue;
         }
 
@@ -299,9 +288,9 @@ Deno.serve(async (req) => {
       } catch (err) {
         result.errors.push(`Thread ${threadId}: ${String(err)}`);
       }
-
-      if (i % 10 === 9) await new Promise((r) => setTimeout(r, 500));
     }
+
+    console.log(`[gmail-sync] Done batch: ${result.created} created, ${result.updated} updated, has_more: ${result.has_more}`);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
