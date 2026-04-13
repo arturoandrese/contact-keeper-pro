@@ -218,7 +218,7 @@ export async function connectGmail(): Promise<string | null> {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      scopes: "https://www.googleapis.com/auth/gmail.readonly",
+      scopes: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/spreadsheets",
       queryParams: {
         access_type: "offline",
         prompt: "consent",
