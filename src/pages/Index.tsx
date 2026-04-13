@@ -13,13 +13,15 @@ import UploadFilterDialog, { type UploadFilters } from "@/components/UploadFilte
 import SegmentsPanel from "@/components/SegmentsPanel";
 import DashboardPanel from "@/components/DashboardPanel";
 import ProspectsCRM from "@/components/ProspectsCRM";
+import LicitacionesPanel from "@/components/LicitacionesPanel";
+import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
 
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
