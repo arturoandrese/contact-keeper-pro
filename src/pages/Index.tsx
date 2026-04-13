@@ -29,7 +29,7 @@ const Index = () => {
   const [view, setView] = useState<View>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
-    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects"].includes(v)) {
+    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones"].includes(v)) {
       // Clean the URL without reloading
       window.history.replaceState({}, "", window.location.pathname);
       return v as View;
@@ -496,7 +496,7 @@ const Index = () => {
             <img src={ccpLogo} alt="CCP" className="h-10 w-10 rounded-xl object-cover shadow-md" />
             <div>
               <h1 className="font-display text-xl font-bold tracking-tight">CCP</h1>
-              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">v1.6.0</p>
+              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">v1.7.0</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
