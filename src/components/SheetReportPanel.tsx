@@ -335,6 +335,37 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         .update({ crossed: true, crossed_at: new Date().toISOString() } as any)
         .eq("id", baseId);
 
+      // Mark the Google Sheet tab with CCP prefix and color
+      try {
+        const selectedTabObj = tabs.find((t) => t.title === selectedTab);
+        const gmailTokens = localStorage.getItem("gmail_tokens");
+        const accessToken = gmailTokens ? JSON.parse(gmailTokens).access_token : localStorage.getItem("gmail_token");
+
+        if (selectedTabObj && accessToken && !selectedTab.startsWith("CCP_")) {
+          const { error: markError } = await supabase.functions.invoke("mark-sheet-ccp", {
+            body: {
+              sheetId,
+              tabTitle: selectedTab,
+              sheetIndex: selectedTabObj.index,
+              googleAccessToken: accessToken,
+            },
+          });
+
+          if (markError) {
+            console.warn("Could not mark sheet tab:", markError);
+          } else {
+            toast.info(`📌 Pestaña renombrada a "CCP_${selectedTab}" en Google Sheets`);
+            // Refresh tabs to reflect the new name
+            const updatedTabs = await fetchSheetTabs(sheetId);
+            setTabs(updatedTabs);
+            const newTab = updatedTabs.find((t) => t.title === `CCP_${selectedTab}`);
+            if (newTab) setSelectedTab(newTab.title);
+          }
+        }
+      } catch (markErr) {
+        console.warn("Error marking sheet:", markErr);
+      }
+
       toast.success(
         `✅ Base actualizada: ${updates.length} contactos corregidos, ${deliveredPayload.length} contactos entregados guardados`
       );

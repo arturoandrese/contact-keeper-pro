@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Database, Trash2, ArrowRight, Loader2 } from "lucide-react";
+import { Database, Trash2, ArrowRight, Loader2, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Base {
   id: string;
@@ -22,6 +23,8 @@ interface Base {
   raw_count: number;
   clean_count: number;
   created_at: string;
+  sheet_id: string | null;
+  crossed: boolean | null;
 }
 
 interface BaseHistoryProps {
@@ -99,7 +102,28 @@ const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
           className="group flex cursor-pointer items-center justify-between rounded-xl border border-border bg-card px-5 py-4 transition-all hover:border-primary/30 hover:shadow-sm"
         >
           <div className="min-w-0 flex-1">
-            <p className="font-display font-semibold truncate">{base.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-display font-semibold truncate">{base.name}</p>
+              {base.sheet_id && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        base.crossed
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          : "bg-primary/10 text-primary"
+                      }`}>
+                        <FileSpreadsheet className="h-3 w-3" />
+                        CCP
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Vinculada a Google Sheet — {base.crossed ? "cruzada ✅" : "pendiente de cruce"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
             <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
               <span>
                 {format(new Date(base.created_at), "dd MMM yyyy, HH:mm", { locale: es })}
