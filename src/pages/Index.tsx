@@ -13,13 +13,13 @@ import UploadFilterDialog, { type UploadFilters } from "@/components/UploadFilte
 import SegmentsPanel from "@/components/SegmentsPanel";
 import DashboardPanel from "@/components/DashboardPanel";
 import ProspectsCRM from "@/components/ProspectsCRM";
-import PitchGenerator from "@/components/PitchGenerator";
+
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Mail } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "pitch";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
@@ -27,7 +27,7 @@ const Index = () => {
   const [view, setView] = useState<View>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
-    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","pitch"].includes(v)) {
+    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects"].includes(v)) {
       // Clean the URL without reloading
       window.history.replaceState({}, "", window.location.pathname);
       return v as View;
@@ -465,14 +465,6 @@ const Index = () => {
               <Users className="mr-1.5 h-3.5 w-3.5" />
               CRM
             </Button>
-            <Button
-              variant={view === "pitch" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setView("pitch")}
-            >
-              <Mail className="mr-1.5 h-3.5 w-3.5" />
-              Pitch
-            </Button>
           </div>
         </div>
       </header>
@@ -561,9 +553,6 @@ const Index = () => {
           <ProspectsCRM onBack={() => setView("upload")} />
         )}
 
-        {view === "pitch" && (
-          <PitchGenerator onBack={() => setView("upload")} />
-        )}
       </main>
 
       <UploadFilterDialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen} onConfirm={processFileWithFilters} />
