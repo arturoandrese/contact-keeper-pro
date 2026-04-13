@@ -202,45 +202,64 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
     console.log("[Gmail] Starting sync, token length:", token.length);
     setSyncing(true);
     setSyncProgress("Sincronizando con Gmail...");
+
+    let totalCreated = 0;
+    let totalUpdated = 0;
+    let allErrors: string[] = [];
+    let pageToken: string | null = null;
+    let queryIndex = 0;
+    let batchNum = 0;
+    const MAX_BATCHES = 20;
+
     try {
-      const { data, error } = await supabase.functions.invoke("gmail-sync", {
-        body: { gmail_token: token },
-      });
-      console.log("[Gmail] Edge function response:", { data, error });
-      if (error) {
-        const exactError = await getEdgeInvokeErrorMessage(error);
-        throw new Error(exactError);
-      }
+      let hasMore = true;
+      while (hasMore && batchNum < MAX_BATCHES) {
+        batchNum++;
+        setSyncProgress(`Sincronizando lote ${batchNum}... (${totalCreated} nuevos, ${totalUpdated} actualizados)`);
 
-      if (data?.error) {
-        const details = extractErrorMessageFromUnknown(data.details);
-        const fullError = details ? `${data.error} — ${details}` : data.error;
+        const { data, error } = await supabase.functions.invoke("gmail-sync", {
+          body: { gmail_token: token, page_token: pageToken, query_index: queryIndex },
+        });
 
-        if (fullError.includes("401") || fullError.includes("invalid")) {
-          setGmailConnected(false);
-          clearTokens();
-          setGmailTokenStatus("✗ Token Gmail expirado o inválido. Reconecta Gmail.");
-          setSyncProgress("✗ Token expirado. Reconecta Gmail.");
-        } else {
-          setSyncProgress(`✗ Error Gmail API: ${fullError}`);
+        console.log(`[Gmail] Batch ${batchNum} response:`, { data, error });
+
+        if (error) {
+          const exactError = await getEdgeInvokeErrorMessage(error);
+          throw new Error(exactError);
         }
-        toast.error(fullError);
-        return;
+
+        if (data?.error) {
+          const details = extractErrorMessageFromUnknown(data.details);
+          const fullError = details ? `${data.error} — ${details}` : data.error;
+
+          if (fullError.includes("401") || fullError.includes("invalid")) {
+            setGmailConnected(false);
+            clearTokens();
+            setGmailTokenStatus("✗ Token Gmail expirado o inválido. Reconecta Gmail.");
+            setSyncProgress("✗ Token expirado. Reconecta Gmail.");
+          } else {
+            setSyncProgress(`✗ Error Gmail API: ${fullError}`);
+          }
+          toast.error(fullError);
+          return;
+        }
+
+        const { created = 0, updated = 0, errors = [], has_more = false, next_page_token = null, next_query_index = 0 } = data || {};
+        totalCreated += created;
+        totalUpdated += updated;
+        allErrors = allErrors.concat(errors);
+
+        hasMore = has_more;
+        pageToken = next_page_token;
+        queryIndex = next_query_index;
       }
 
-      const { created = 0, updated = 0, errors = [], message = "" } = data || {};
-
-      if (message) {
-        setSyncProgress(`⚠ ${message}`);
-        toast.warning(message);
-      }
-
-      if (errors.length > 0) {
-        setSyncProgress(`⚠ ${created} nuevos, ${updated} actualizados, ${errors.length} errores. Detalle: ${errors[0]}`);
-        toast.warning(`Sync parcial: ${errors.length} errores`);
+      if (allErrors.length > 0) {
+        setSyncProgress(`⚠ ${totalCreated} nuevos, ${totalUpdated} actualizados, ${allErrors.length} errores. Detalle: ${allErrors[0]}`);
+        toast.warning(`Sync parcial: ${allErrors.length} errores`);
       } else {
-        setSyncProgress(`✓ ${created + updated} prospectos sincronizados (${created} nuevos, ${updated} actualizados)`);
-        toast.success(`${created + updated} prospectos sincronizados`);
+        setSyncProgress(`✓ ${totalCreated + totalUpdated} prospectos sincronizados (${totalCreated} nuevos, ${totalUpdated} actualizados)`);
+        toast.success(`${totalCreated + totalUpdated} prospectos sincronizados`);
       }
       loadProspects();
     } catch (err: any) {
