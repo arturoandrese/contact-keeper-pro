@@ -937,14 +937,7 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
         </div>
       )}
 
-      {statusFilter !== "TODOS" ? (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {filteredContacts.length} contactos con status "{statusFilter}" en todas las empresas
-          </p>
-          <ContactsTable />
-        </div>
-      ) : displayedCompanies.length === 0 ? (
+      {displayedCompanies.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-12 text-center">
           <Building2 className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
           <p className="font-semibold">{companySearch ? "Sin resultados" : "Sin datos aún"}</p>
