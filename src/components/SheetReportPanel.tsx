@@ -141,6 +141,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const [loadingTabs, setLoadingTabs] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [crossedResults, setCrossedResults] = useState<CrossReferencedContact[] | null>(null);
+  const [crossedStats, setCrossedStats] = useState<{ bounced: number; noAlt: number; recovered: number } | null>(null);
 
   // Fetch available tabs on mount
   useEffect(() => {
@@ -212,10 +213,20 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
       const log = toEmailLog(data.contacts);
       const cleanedContacts = toCleanedContacts(existingContacts);
-      const { filtered, delivered } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true, savedPatterns, deliveredHistory });
+      const { filtered, delivered, stats } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true, savedPatterns, deliveredHistory });
 
       setCrossedResults(filtered);
 
+      // Count bounced from sheet
+      const bouncedCount = log.filter(e => {
+        const s = (e.status || "").toUpperCase();
+        return s.includes("BOUNCE");
+      }).length;
+      setCrossedStats({
+        bounced: bouncedCount,
+        noAlt: stats.excludedBounceNoAlt,
+        recovered: filtered.length,
+      });
       const correctionMap = new Map<string, string>();
       for (const row of filtered) {
         const key = `${row.NOMBRE}|${row.APELLIDO}|${row.MAIL_ORIGINAL}`.toLowerCase();
@@ -491,6 +502,11 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                     rows: crossedResults.map(r => [r.NOMBRE, r.APELLIDO, r.EMPRESA_SHORT || r.EMPRESA, r.WEB, r.MAIL1, r.MAIL2, r.MAIL3]),
                   })}
                 />
+              )}
+              {crossedStats && (
+                <span className="text-xs text-muted-foreground ml-2">
+                  {crossedStats.bounced} rebotados → {crossedStats.recovered} recuperados · {crossedStats.noAlt} sin alternativa
+                </span>
               )}
             </>
           )}

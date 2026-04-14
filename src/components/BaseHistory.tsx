@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Database, Trash2, ArrowRight, Loader2, FileSpreadsheet } from "lucide-react";
+import { Database, Trash2, ArrowRight, Loader2, FileSpreadsheet, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -32,10 +32,13 @@ interface BaseHistoryProps {
   refreshKey?: number;
 }
 
+const INITIAL_VISIBLE = 20;
+
 const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
   const [bases, setBases] = useState<Base[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   const fetchBases = async () => {
     setLoading(true);
@@ -93,9 +96,12 @@ const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
     );
   }
 
+  const visibleBases = showAll ? bases : bases.slice(0, INITIAL_VISIBLE);
+  const hasMore = bases.length > INITIAL_VISIBLE;
+
   return (
     <div className="space-y-2">
-      {bases.map((base) => (
+      {visibleBases.map((base, index) => (
         <div
           key={base.id}
           onClick={() => onSelectBase(base.id, base.name)}
@@ -103,6 +109,7 @@ const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
         >
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-muted-foreground/50 min-w-[24px]">{index + 1}.</span>
               <p className="font-display font-semibold truncate">{base.name}</p>
               {base.sheet_id && (
                 <TooltipProvider>
@@ -124,7 +131,7 @@ const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
                 </TooltipProvider>
               )}
             </div>
-            <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground ml-[32px]">
               <span>
                 {format(new Date(base.created_at), "dd MMM yyyy, HH:mm", { locale: es })}
               </span>
@@ -147,6 +154,18 @@ const BaseHistory = ({ onSelectBase, refreshKey }: BaseHistoryProps) => {
           </div>
         </div>
       ))}
+
+      {hasMore && !showAll && (
+        <Button
+          variant="ghost"
+          className="w-full text-sm text-muted-foreground hover:text-foreground"
+          onClick={() => setShowAll(true)}
+        >
+          <ChevronDown className="mr-1.5 h-4 w-4" />
+          Ver más ({bases.length - INITIAL_VISIBLE} bases restantes)
+        </Button>
+      )}
+
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
