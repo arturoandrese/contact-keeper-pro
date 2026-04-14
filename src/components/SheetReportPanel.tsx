@@ -213,10 +213,20 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
       const log = toEmailLog(data.contacts);
       const cleanedContacts = toCleanedContacts(existingContacts);
-      const { filtered, delivered } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true, savedPatterns, deliveredHistory });
+      const { filtered, delivered, stats } = crossReference(cleanedContacts, log, undefined, { onlyBounced: true, savedPatterns, deliveredHistory });
 
       setCrossedResults(filtered);
 
+      // Count bounced from sheet
+      const bouncedCount = log.filter(e => {
+        const s = (e.status || "").toUpperCase();
+        return s.includes("BOUNCE");
+      }).length;
+      setCrossedStats({
+        bounced: bouncedCount,
+        noAlt: stats.excludedBounceNoAlt,
+        recovered: filtered.length,
+      });
       const correctionMap = new Map<string, string>();
       for (const row of filtered) {
         const key = `${row.NOMBRE}|${row.APELLIDO}|${row.MAIL_ORIGINAL}`.toLowerCase();
