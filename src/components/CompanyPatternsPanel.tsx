@@ -840,6 +840,69 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
 
       <StatusFilterBar />
 
+      {/* Person Search */}
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <UserSearch className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold">Buscar persona</span>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre, apellido o email..."
+            value={personSearch}
+            onChange={(e) => { setPersonSearch(e.target.value); setPersonShowAll(false); }}
+            className="pl-9 text-sm"
+          />
+          {personSearch.trim().length >= 2 && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              {personResults.length} resultado{personResults.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        {personSearch.trim().length >= 2 && personResults.length > 0 && (
+          <div className="space-y-1">
+            {personVisible.map((c, idx) => (
+              <div
+                key={c.id}
+                className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-2.5 hover:border-primary/30 transition-all cursor-pointer"
+                onClick={() => {
+                  const emp = c.empresa_short?.trim() || "Sin empresa";
+                  handleSelectCompany(emp);
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground font-mono w-6 text-right">{(personShowAll ? idx : idx) + 1}.</span>
+                  <div>
+                    <p className="text-sm font-medium">{c.nombre} {c.apellido}</p>
+                    <p className="text-xs text-muted-foreground">{c.empresa_short || "Sin empresa"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs text-primary">{c.mail}</span>
+                  <span className={`inline-block rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold ${statusColor[c.status] || "text-muted-foreground bg-muted"}`}>
+                    {c.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {personResults.length > PERSON_VISIBLE && (
+              <button
+                onClick={() => setPersonShowAll(!personShowAll)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border py-2.5 text-xs font-medium text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors"
+              >
+                <ChevronDown className={`h-4 w-4 transition-transform ${personShowAll ? "rotate-180" : ""}`} />
+                {personShowAll ? "Mostrar menos" : `Ver los ${personResults.length - PERSON_VISIBLE} resultados restantes`}
+              </button>
+            )}
+          </div>
+        )}
+        {personSearch.trim().length >= 2 && personResults.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-2">No se encontraron personas con "{personSearch}"</p>
+        )}
+      </div>
+
+
       {/* Search + Add Company */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
