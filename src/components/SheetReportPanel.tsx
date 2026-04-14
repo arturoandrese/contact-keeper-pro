@@ -503,6 +503,11 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                   })}
                 />
               )}
+              {crossedStats && (
+                <span className="text-xs text-muted-foreground ml-2">
+                  {crossedStats.bounced} rebotados → {crossedStats.recovered} recuperados · {crossedStats.noAlt} sin alternativa
+                </span>
+              )}
             </>
           )}
           <Button size="sm" variant="outline" onClick={fetchReport} disabled={loading}>
