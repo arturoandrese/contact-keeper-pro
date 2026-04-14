@@ -554,6 +554,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/60">
+                  <th className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[40px]">#</th>
                   {columns.map((col) => (
                     <th key={col} className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {col}
@@ -562,8 +563,9 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                 </tr>
               </thead>
               <tbody>
-                {filteredContacts.slice(0, 500).map((c, i) => (
+                {(showAllContacts || searchQuery ? filteredContacts : filteredContacts.slice(0, 20)).map((c, i) => (
                   <tr key={i} className="border-b border-border/50 transition-colors hover:bg-muted/30">
+                    <td className="whitespace-nowrap px-3 py-2.5 text-center font-mono text-xs text-muted-foreground/50">{i + 1}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.nombre || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.apellido || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.apellido2 || "—"}</td>
@@ -578,9 +580,17 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
               </tbody>
             </table>
           </div>
-          {filteredContacts.length > 500 && (
-            <div className="border-t border-border bg-muted/30 px-4 py-2 text-center text-xs text-muted-foreground">
-              Mostrando primeros 500 de {filteredContacts.length} contactos. Usa el buscador para encontrar contactos específicos.
+          {!showAllContacts && !searchQuery && filteredContacts.length > 20 && (
+            <div className="border-t border-border bg-muted/30 px-4 py-3 text-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-sm text-muted-foreground hover:text-foreground"
+                onClick={() => setShowAllContacts(true)}
+              >
+                <ChevronDown className="mr-1.5 h-4 w-4" />
+                Ver más ({filteredContacts.length - 20} contactos restantes)
+              </Button>
             </div>
           )}
         </div>
