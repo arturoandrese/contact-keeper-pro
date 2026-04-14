@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown } from "lucide-react";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -55,6 +55,9 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   const [editName, setEditName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [dragSourceId, setDragSourceId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [deduping, setDeduping] = useState(false);
 
   const fetchBases = async () => {
     setLoading(true);
@@ -380,6 +383,104 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     }
   };
 
+  // --- Drag & Drop base-to-base dedup ---
+  const handleDragStart = useCallback((baseId: string) => {
+    setDragSourceId(baseId);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, baseId: string) => {
+    e.preventDefault();
+    if (baseId !== dragSourceId) setDragOverId(baseId);
+  }, [dragSourceId]);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverId(null);
+  }, []);
+
+  const handleDrop = useCallback(async (targetBaseId: string) => {
+    const sourceId = dragSourceId;
+    setDragSourceId(null);
+    setDragOverId(null);
+    if (!sourceId || sourceId === targetBaseId) return;
+
+    const sourceBase = bases.find(b => b.id === sourceId);
+    const targetBase = bases.find(b => b.id === targetBaseId);
+    if (!sourceBase || !targetBase) return;
+
+    setDeduping(true);
+    const toastId = toast.loading(`Deduplicando "${sourceBase.name}" contra "${targetBase.name}"…`);
+
+    try {
+      // 1. Fetch all emails from target base
+      const targetEmails = new Set<string>();
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("mail1, mail2, mail3, mail4")
+          .eq("base_id", targetBaseId)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const c of data as any[]) {
+          [c.mail1, c.mail2, c.mail3, c.mail4].forEach((m: string) => {
+            if (m) targetEmails.add(m.toLowerCase().trim());
+          });
+        }
+        if (data.length < pageSize) break;
+      }
+
+      // 2. Fetch source contacts and find duplicates
+      const duplicateIds: string[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("id, mail1, mail2, mail3, mail4")
+          .eq("base_id", sourceId)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const c of data as any[]) {
+          const mails = [c.mail1, c.mail2, c.mail3, c.mail4].filter(Boolean).map((m: string) => m.toLowerCase().trim());
+          if (mails.some(m => targetEmails.has(m))) {
+            duplicateIds.push(c.id);
+          }
+        }
+        if (data.length < pageSize) break;
+      }
+
+      if (duplicateIds.length === 0) {
+        toast.success("No hay duplicados entre ambas bases 👍", { id: toastId });
+        setDeduping(false);
+        return;
+      }
+
+      // 3. Delete duplicates in batches
+      const batchSize = 500;
+      for (let i = 0; i < duplicateIds.length; i += batchSize) {
+        const batch = duplicateIds.slice(i, i + batchSize);
+        const { error } = await supabase.from("contacts").delete().in("id", batch);
+        if (error) throw error;
+      }
+
+      // 4. Update clean_count
+      const newCount = (sourceBase.clean_count || 0) - duplicateIds.length;
+      await supabase.from("bases").update({ clean_count: Math.max(0, newCount) }).eq("id", sourceId);
+      setBases(prev => prev.map(b => b.id === sourceId ? { ...b, clean_count: Math.max(0, newCount) } : b));
+
+      toast.success(`🗑️ ${duplicateIds.length} contactos duplicados eliminados de "${sourceBase.name}"`, { id: toastId });
+    } catch (err: any) {
+      toast.error("Error deduplicando: " + (err?.message || "desconocido"), { id: toastId });
+    } finally {
+      setDeduping(false);
+    }
+  }, [dragSourceId, bases]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragSourceId(null);
+    setDragOverId(null);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -406,13 +507,31 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         </div>
       ) : (
         <div className="space-y-2">
+          {dragSourceId && (
+            <div className="text-xs text-primary font-medium text-center py-2 px-4 rounded-lg bg-primary/5 border border-primary/20 animate-pulse">
+              ⇄ Suelta sobre otra base para deduplicar emails repetidos
+            </div>
+          )}
           {bases.map((base) => (
             <div
               key={base.id}
-              onClick={() => editingId !== base.id && onSelectBase(base.id, base.name, base.crossed)}
-              className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4 cursor-pointer transition-all hover:shadow-md hover:border-primary/30"
+              draggable={!editingId && !deduping}
+              onDragStart={() => handleDragStart(base.id)}
+              onDragOver={(e) => handleDragOver(e, base.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={() => handleDrop(base.id)}
+              onDragEnd={handleDragEnd}
+              onClick={() => editingId !== base.id && !deduping && onSelectBase(base.id, base.name, base.crossed)}
+              className={`flex items-center justify-between rounded-xl border bg-card px-5 py-4 cursor-pointer transition-all hover:shadow-md
+                ${dragOverId === base.id && dragSourceId !== base.id
+                  ? "border-primary border-2 bg-primary/5 shadow-lg scale-[1.01]"
+                  : dragSourceId === base.id
+                    ? "opacity-50 border-dashed border-muted-foreground"
+                    : "border-border hover:border-primary/30"
+                }`}
             >
-              <div className="flex items-center gap-4 min-w-0 flex-1">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0 cursor-grab active:cursor-grabbing" />
                 {base.crossed ? (
                   <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                 ) : (
