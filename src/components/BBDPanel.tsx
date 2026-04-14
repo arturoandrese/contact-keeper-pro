@@ -510,8 +510,20 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
           {bases.map((base) => (
             <div
               key={base.id}
-              onClick={() => editingId !== base.id && onSelectBase(base.id, base.name, base.crossed)}
-              className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4 cursor-pointer transition-all hover:shadow-md hover:border-primary/30"
+              draggable={!editingId && !deduping}
+              onDragStart={() => handleDragStart(base.id)}
+              onDragOver={(e) => handleDragOver(e, base.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={() => handleDrop(base.id)}
+              onDragEnd={handleDragEnd}
+              onClick={() => editingId !== base.id && !deduping && onSelectBase(base.id, base.name, base.crossed)}
+              className={`flex items-center justify-between rounded-xl border bg-card px-5 py-4 cursor-pointer transition-all hover:shadow-md
+                ${dragOverId === base.id && dragSourceId !== base.id
+                  ? "border-primary border-2 bg-primary/5 shadow-lg scale-[1.01]"
+                  : dragSourceId === base.id
+                    ? "opacity-50 border-dashed border-muted-foreground"
+                    : "border-border hover:border-primary/30"
+                }`}
             >
               <div className="flex items-center gap-4 min-w-0 flex-1">
                 {base.crossed ? (
