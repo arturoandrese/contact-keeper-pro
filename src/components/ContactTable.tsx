@@ -1,4 +1,6 @@
-import { CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { CleanedContact } from "@/lib/contactCleaner";
 
 interface ContactTableProps {
@@ -10,8 +12,14 @@ const columns: (keyof CleanedContact)[] = [
   "MAIL1", "MAIL2", "MAIL3", "MAIL4",
 ];
 
+const INITIAL_VISIBLE = 20;
+
 const ContactTable = ({ contacts }: ContactTableProps) => {
+  const [showAll, setShowAll] = useState(false);
+
   if (contacts.length === 0) return null;
+
+  const visibleContacts = showAll ? contacts : contacts.slice(0, INITIAL_VISIBLE);
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -19,6 +27,7 @@ const ContactTable = ({ contacts }: ContactTableProps) => {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/60">
+              <th className="whitespace-nowrap px-3 py-3 text-center font-mono-custom text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[40px]">#</th>
               {columns.map((col) => (
                 <th
                   key={col}
@@ -30,11 +39,12 @@ const ContactTable = ({ contacts }: ContactTableProps) => {
             </tr>
           </thead>
           <tbody>
-            {contacts.slice(0, 100).map((contact, i) => (
+            {visibleContacts.map((contact, i) => (
               <tr
                 key={i}
                 className="border-b border-border/50 transition-colors hover:bg-muted/30"
               >
+                <td className="whitespace-nowrap px-3 py-2.5 text-center font-mono text-xs text-muted-foreground/50">{i + 1}</td>
                 {columns.map((col) => (
                   <td
                     key={col}
@@ -57,9 +67,22 @@ const ContactTable = ({ contacts }: ContactTableProps) => {
           </tbody>
         </table>
       </div>
-      {contacts.length > 100 && (
+      {!showAll && contacts.length > INITIAL_VISIBLE && (
+        <div className="border-t border-border bg-muted/30 px-4 py-3 text-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => setShowAll(true)}
+          >
+            <ChevronDown className="mr-1.5 h-4 w-4" />
+            Ver más ({contacts.length - INITIAL_VISIBLE} contactos restantes)
+          </Button>
+        </div>
+      )}
+      {showAll && contacts.length > INITIAL_VISIBLE && (
         <div className="border-t border-border bg-muted/30 px-4 py-2 text-center text-xs text-muted-foreground">
-          Mostrando 100 de {contacts.length} contactos
+          Mostrando {contacts.length} contactos
         </div>
       )}
     </div>
