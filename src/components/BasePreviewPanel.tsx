@@ -65,7 +65,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<StatusCategory>("sent");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [showAllContacts, setShowAllContacts] = useState(false);
 
   const handleMergeFile = useCallback(async (file: File) => {
     setMerging(true);
