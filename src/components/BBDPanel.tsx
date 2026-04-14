@@ -507,6 +507,11 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         </div>
       ) : (
         <div className="space-y-2">
+          {dragSourceId && (
+            <div className="text-xs text-primary font-medium text-center py-2 px-4 rounded-lg bg-primary/5 border border-primary/20 animate-pulse">
+              ⇄ Suelta sobre otra base para deduplicar emails repetidos
+            </div>
+          )}
           {bases.map((base) => (
             <div
               key={base.id}
