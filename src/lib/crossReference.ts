@@ -448,9 +448,12 @@ export function crossReference(
 
     if (effectiveBounced) {
       originalMail = bouncedMatch || nameMatch?.mail || m1;
+      // Also add the bounced mail from sheet to the exclusion set (it may not be in MAIL1-4)
+      const bouncedSheetMail = nameMatch?.mail || "";
       const alternatives = mailCandidates.filter(
         (m) =>
           m !== originalMail &&
+          m !== bouncedSheetMail &&
           isValidEmail(m) &&
           !bouncedMails.has(m) &&
           !deliveredMails.has(m) &&
