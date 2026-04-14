@@ -141,6 +141,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const [loadingTabs, setLoadingTabs] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [crossedResults, setCrossedResults] = useState<CrossReferencedContact[] | null>(null);
+  const [crossedStats, setCrossedStats] = useState<{ bounced: number; noAlt: number; recovered: number } | null>(null);
 
   // Fetch available tabs on mount
   useEffect(() => {
