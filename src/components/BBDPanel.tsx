@@ -55,6 +55,9 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   const [editName, setEditName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [dragSourceId, setDragSourceId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [deduping, setDeduping] = useState(false);
 
   const fetchBases = async () => {
     setLoading(true);
