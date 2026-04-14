@@ -383,6 +383,104 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     }
   };
 
+  // --- Drag & Drop base-to-base dedup ---
+  const handleDragStart = useCallback((baseId: string) => {
+    setDragSourceId(baseId);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, baseId: string) => {
+    e.preventDefault();
+    if (baseId !== dragSourceId) setDragOverId(baseId);
+  }, [dragSourceId]);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverId(null);
+  }, []);
+
+  const handleDrop = useCallback(async (targetBaseId: string) => {
+    const sourceId = dragSourceId;
+    setDragSourceId(null);
+    setDragOverId(null);
+    if (!sourceId || sourceId === targetBaseId) return;
+
+    const sourceBase = bases.find(b => b.id === sourceId);
+    const targetBase = bases.find(b => b.id === targetBaseId);
+    if (!sourceBase || !targetBase) return;
+
+    setDeduping(true);
+    const toastId = toast.loading(`Deduplicando "${sourceBase.name}" contra "${targetBase.name}"…`);
+
+    try {
+      // 1. Fetch all emails from target base
+      const targetEmails = new Set<string>();
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("mail1, mail2, mail3, mail4")
+          .eq("base_id", targetBaseId)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const c of data as any[]) {
+          [c.mail1, c.mail2, c.mail3, c.mail4].forEach((m: string) => {
+            if (m) targetEmails.add(m.toLowerCase().trim());
+          });
+        }
+        if (data.length < pageSize) break;
+      }
+
+      // 2. Fetch source contacts and find duplicates
+      const duplicateIds: string[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("id, mail1, mail2, mail3, mail4")
+          .eq("base_id", sourceId)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const c of data as any[]) {
+          const mails = [c.mail1, c.mail2, c.mail3, c.mail4].filter(Boolean).map((m: string) => m.toLowerCase().trim());
+          if (mails.some(m => targetEmails.has(m))) {
+            duplicateIds.push(c.id);
+          }
+        }
+        if (data.length < pageSize) break;
+      }
+
+      if (duplicateIds.length === 0) {
+        toast.success("No hay duplicados entre ambas bases 👍", { id: toastId });
+        setDeduping(false);
+        return;
+      }
+
+      // 3. Delete duplicates in batches
+      const batchSize = 500;
+      for (let i = 0; i < duplicateIds.length; i += batchSize) {
+        const batch = duplicateIds.slice(i, i + batchSize);
+        const { error } = await supabase.from("contacts").delete().in("id", batch);
+        if (error) throw error;
+      }
+
+      // 4. Update clean_count
+      const newCount = (sourceBase.clean_count || 0) - duplicateIds.length;
+      await supabase.from("bases").update({ clean_count: Math.max(0, newCount) }).eq("id", sourceId);
+      setBases(prev => prev.map(b => b.id === sourceId ? { ...b, clean_count: Math.max(0, newCount) } : b));
+
+      toast.success(`🗑️ ${duplicateIds.length} contactos duplicados eliminados de "${sourceBase.name}"`, { id: toastId });
+    } catch (err: any) {
+      toast.error("Error deduplicando: " + (err?.message || "desconocido"), { id: toastId });
+    } finally {
+      setDeduping(false);
+    }
+  }, [dragSourceId, bases]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragSourceId(null);
+    setDragOverId(null);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
