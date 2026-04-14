@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown } from "lucide-react";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
