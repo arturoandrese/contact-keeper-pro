@@ -190,6 +190,23 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   const [newCompanyPattern, setNewCompanyPattern] = useState("");
   const [newCompanyExample, setNewCompanyExample] = useState("");
   const [savingNewCompany, setSavingNewCompany] = useState(false);
+  const [personSearch, setPersonSearch] = useState("");
+  const [personShowAll, setPersonShowAll] = useState(false);
+
+  const personResults = personSearch.trim().length >= 2
+    ? allContacts.filter(c => {
+        const q = personSearch.toLowerCase();
+        return (
+          (c.nombre?.toLowerCase().includes(q)) ||
+          (c.apellido?.toLowerCase().includes(q)) ||
+          (c.mail?.toLowerCase().includes(q)) ||
+          (`${c.nombre} ${c.apellido}`.toLowerCase().includes(q))
+        );
+      })
+    : [];
+
+  const PERSON_VISIBLE = 20;
+  const personVisible = personShowAll ? personResults : personResults.slice(0, PERSON_VISIBLE);
 
   useEffect(() => {
     fetchAllContacts();
