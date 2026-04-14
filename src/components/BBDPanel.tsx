@@ -525,7 +525,8 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                     : "border-border hover:border-primary/30"
                 }`}
             >
-              <div className="flex items-center gap-4 min-w-0 flex-1">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0 cursor-grab active:cursor-grabbing" />
                 {base.crossed ? (
                   <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                 ) : (
