@@ -1,11 +1,12 @@
 import { useState, useCallback } from "react";
-import { ArrowLeft, Users, MailOpen, Send, Clock, MessageSquareReply, Download, Loader2, Filter } from "lucide-react";
+import { ArrowLeft, Users, MailOpen, Send, Clock, MessageSquareReply, Loader2, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import ExportDropdown from "@/components/ExportDropdown";
 import * as XLSX from "xlsx";
 
 interface SegmentsPanelProps {
