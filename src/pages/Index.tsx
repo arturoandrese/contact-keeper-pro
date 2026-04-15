@@ -560,6 +560,14 @@ const Index = () => {
               CRM
             </Button>
             <Button
+              variant={view === "performance" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("performance")}
+            >
+              <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
+              Rendimiento
+            </Button>
+            <Button
               variant={view === "licitaciones" ? "default" : "outline"}
               size="sm"
               onClick={() => setView("licitaciones")}
@@ -658,6 +666,10 @@ const Index = () => {
 
         {view === "licitaciones" && (
           <LicitacionesPanel onBack={() => setView("upload")} />
+        )}
+
+        {view === "performance" && (
+          <CampaignPerformancePanel onBack={() => setView("upload")} />
         )}
 
       </main>
