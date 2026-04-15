@@ -31,7 +31,7 @@ const Index = () => {
   const [view, setView] = useState<View>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
-    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones"].includes(v)) {
+    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones","performance"].includes(v)) {
       // Clean the URL without reloading
       window.history.replaceState({}, "", window.location.pathname);
       return v as View;
