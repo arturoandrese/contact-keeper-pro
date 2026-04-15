@@ -1,82 +1,110 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
-
-const APP_VERSION = "2026.04.15.2";
+import { APP_VERSION } from "@/generated/appVersion";
 
 const PwaUpdatePrompt = () => {
   const [needRefresh, setNeedRefresh] = useState(false);
-  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const isPreviewContext = useMemo(() => {
+    const isPreviewHost =
+      window.location.hostname.includes("id-preview--") ||
+      window.location.hostname.includes("lovableproject.com");
+
+    try {
+      return isPreviewHost || window.self !== window.top;
+    } catch {
+      return true;
+    }
+  }, []);
 
   useEffect(() => {
-    // Check version mismatch via fetching version.txt
+    if (import.meta.env.DEV || isPreviewContext) {
+      return;
+    }
+
     const checkVersion = async () => {
       try {
         const res = await fetch("/version.txt?t=" + Date.now(), { cache: "no-store" });
         if (res.ok) {
           const remote = (await res.text()).trim();
-          const stored = localStorage.getItem("app_version");
-          if (stored && stored !== remote) {
+          if (remote && remote !== APP_VERSION) {
             setNeedRefresh(true);
           }
-          localStorage.setItem("app_version", remote);
         }
       } catch {}
     };
-
-    checkVersion();
-    const versionInterval = setInterval(checkVersion, 60000);
-
-    if (!("serviceWorker" in navigator)) return () => clearInterval(versionInterval);
 
     const handleControllerChange = () => {
       window.location.reload();
     };
 
-    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
-
-    const onNeedRefresh = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.registration) setRegistration(detail.registration);
-      setNeedRefresh(true);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void checkVersion();
+      }
     };
-
-    window.addEventListener("vite-pwa:need-refresh", onNeedRefresh);
 
     const checkForUpdate = async () => {
       try {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) {
-          await reg.update();
-          if (reg.waiting) {
-            setRegistration(reg);
-            setNeedRefresh(true);
-          }
+        if (!("serviceWorker" in navigator)) {
+          return;
         }
+
+        const reg = await navigator.serviceWorker.getRegistration();
+        await reg?.update();
       } catch {}
     };
 
-    checkForUpdate();
-    const interval = setInterval(checkForUpdate, 30000);
+    void checkVersion();
+    void checkForUpdate();
+
+    const versionInterval = window.setInterval(checkVersion, 60000);
+    const swInterval = window.setInterval(checkForUpdate, 30000);
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+    }
+
+    window.addEventListener("focus", checkVersion);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
-      window.removeEventListener("vite-pwa:need-refresh", onNeedRefresh);
-      clearInterval(interval);
-      clearInterval(versionInterval);
-    };
-  }, []);
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+      }
 
-  const updateApp = () => {
-    if (registration?.waiting) {
-      registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      window.removeEventListener("focus", checkVersion);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.clearInterval(swInterval);
+      window.clearInterval(versionInterval);
+    };
+  }, [isPreviewContext]);
+
+  const updateApp = async () => {
+    setIsUpdating(true);
+
+    try {
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+
+        await Promise.all(
+          registrations.map(async (registration) => {
+            registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+            await registration.update().catch(() => undefined);
+          })
+        );
+      }
+
+      if ("caches" in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      }
+
+      window.location.reload();
+    } finally {
+      setIsUpdating(false);
     }
-    // Clear all caches
-    caches.keys().then(names => {
-      Promise.all(names.map(name => caches.delete(name))).then(() => {
-        window.location.reload();
-      });
-    });
   };
 
   if (!needRefresh) return null;
@@ -85,8 +113,8 @@ const PwaUpdatePrompt = () => {
     <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 animate-in slide-in-from-bottom-4">
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-5 py-3 shadow-lg">
         <span className="text-sm font-medium">🚀 Nueva versión disponible</span>
-        <Button size="sm" onClick={updateApp} className="gap-1.5">
-          <RefreshCw className="h-3.5 w-3.5" />
+        <Button size="sm" onClick={() => void updateApp()} className="gap-1.5" disabled={isUpdating}>
+          <RefreshCw className={`h-3.5 w-3.5 ${isUpdating ? "animate-spin" : ""}`} />
           Actualizar aquí
         </Button>
       </div>

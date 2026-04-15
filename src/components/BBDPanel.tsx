@@ -383,7 +383,9 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   };
 
   // --- Drag & Drop base-to-base dedup ---
-  const handleDragStart = useCallback((baseId: string) => {
+  const handleDragStart = useCallback((e: React.DragEvent, baseId: string) => {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", baseId);
     setDragSourceId(baseId);
   }, []);
 
@@ -391,6 +393,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
 
   const handleDragOver = useCallback((e: React.DragEvent, baseId: string) => {
     e.preventDefault();
+    e.stopPropagation();
     if (baseId !== dragSourceId) setDragOverId(baseId);
   }, [dragSourceId]);
 
@@ -398,10 +401,14 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     setDragOverId(null);
   }, []);
 
-  const handleDropAll = useCallback(async () => {
-    const sourceId = dragSourceId;
+  const handleDropAll = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const sourceId = e.dataTransfer.getData("text/plain") || dragSourceId;
     setDragSourceId(null);
     setDragOverAll(false);
+    setDragOverId(null);
     if (!sourceId) return;
 
     const sourceBase = bases.find(b => b.id === sourceId);
@@ -481,10 +488,14 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     }
   }, [dragSourceId, bases]);
 
-  const handleDrop = useCallback(async (targetBaseId: string) => {
-    const sourceId = dragSourceId;
+  const handleDrop = useCallback(async (e: React.DragEvent, targetBaseId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const sourceId = e.dataTransfer.getData("text/plain") || dragSourceId;
     setDragSourceId(null);
     setDragOverId(null);
+    setDragOverAll(false);
     if (!sourceId || sourceId === targetBaseId) return;
 
     const sourceBase = bases.find(b => b.id === sourceId);
@@ -591,18 +602,24 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         </div>
       ) : (
         <div className="space-y-2">
-          {dragSourceId && (
-            <div className="space-y-2">
-              <div className="text-xs text-primary font-medium text-center py-2 px-4 rounded-lg bg-primary/5 border border-primary/20 animate-pulse">
+          {dragSourceId && !deduping && (
+            <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex flex-col items-center gap-2 px-4">
+              <div className="rounded-lg border border-primary/20 bg-background/95 px-4 py-2 text-xs font-medium text-primary shadow-lg backdrop-blur-sm animate-pulse">
                 ⇄ Suelta sobre otra base para deduplicar, o sobre "TODAS" para deduplicar contra todas
               </div>
               <div
-                onDragOver={(e) => { e.preventDefault(); setDragOverAll(true); }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverAll(true);
+                }}
                 onDragLeave={() => setDragOverAll(false)}
-                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropAll(); }}
-                className={`flex items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm font-bold transition-all cursor-pointer
+                onDrop={(e) => {
+                  void handleDropAll(e);
+                }}
+                className={`pointer-events-auto flex w-full max-w-xl items-center justify-center gap-2 rounded-xl border-2 border-dashed bg-background/95 px-5 py-4 text-sm font-bold shadow-xl backdrop-blur-sm transition-all
                   ${dragOverAll
-                    ? "border-primary bg-primary/10 text-primary scale-[1.02] shadow-lg"
+                    ? "border-primary bg-primary/10 text-primary scale-[1.02]"
                     : "border-muted-foreground/30 text-muted-foreground hover:border-primary/50"
                   }`}
               >
@@ -614,10 +631,12 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
             <div
               key={base.id}
               draggable={!editingId && !deduping}
-              onDragStart={() => handleDragStart(base.id)}
+              onDragStart={(e) => handleDragStart(e, base.id)}
               onDragOver={(e) => handleDragOver(e, base.id)}
               onDragLeave={handleDragLeave}
-              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDrop(base.id); }}
+              onDrop={(e) => {
+                void handleDrop(e, base.id);
+              }}
               onDragEnd={handleDragEnd}
               onClick={() => editingId !== base.id && !deduping && onSelectBase(base.id, base.name, base.crossed)}
               className={`flex items-center justify-between rounded-xl border bg-card px-5 py-4 cursor-pointer transition-all hover:shadow-md
