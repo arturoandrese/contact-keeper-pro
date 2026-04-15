@@ -17,17 +17,22 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     mode === "production" &&
       VitePWA({
-        registerType: "prompt",
+        registerType: "autoUpdate",
+        devOptions: {
+          enabled: false,
+        },
         includeAssets: ["favicon.ico", "favicon.jpg", "robots.txt", "pwa-192x192.png", "pwa-512x512.png"],
         workbox: {
-          navigateFallbackDenylist: [/^\/~oauth/],
+          navigateFallbackDenylist: [/^\/~oauth/, /^\/version\.txt$/],
           globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2}"],
-          // Force new SW on every build
-          additionalManifestEntries: [
-            { url: "/version.txt", revision: Date.now().toString() },
+          runtimeCaching: [
+            {
+              urlPattern: ({ url }) => url.pathname === "/version.txt",
+              handler: "NetworkOnly",
+            },
           ],
           cleanupOutdatedCaches: true,
-          skipWaiting: false,
+          skipWaiting: true,
           clientsClaim: true,
         },
         manifest: {

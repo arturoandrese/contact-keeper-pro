@@ -1,0 +1,1 @@
+export const APP_VERSION = "2026-04-15T15:05:00.000Z";
