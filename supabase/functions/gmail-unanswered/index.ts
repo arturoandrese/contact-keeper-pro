@@ -15,7 +15,6 @@ serve(async (req) => {
   }
 
   try {
-    const { accessToken } = await req.json();
     const { accessToken, userEmail } = await req.json();
 
     if (!accessToken || !userEmail) {
