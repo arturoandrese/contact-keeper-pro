@@ -585,6 +585,7 @@ const Index = () => {
               <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
               Agenda
             </Button>
+          </div>
         </div>
       </header>
 
