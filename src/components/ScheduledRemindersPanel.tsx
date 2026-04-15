@@ -133,6 +133,7 @@ export default function ScheduledRemindersPanel({ onBack, prefill, onClearPrefil
     }
     toast.success("Recordatorio agendado");
     setEmail("");
+    setSearchQuery("");
     setSubject("");
     setNote("");
     setDate(undefined);
