@@ -45,6 +45,8 @@ export function removeAccents(str: string): string {
 function extractDomain(url: string): string {
   if (!url) return "";
   let d = url.trim().toLowerCase();
+  // Ignore LinkedIn / social media URLs — they're not company websites
+  if (/linkedin\.com|facebook\.com|twitter\.com|instagram\.com|tiktok\.com/i.test(d)) return "";
   d = d.replace(/^https?:\/\//, "").replace(/^www\./, "");
   d = d.split("/")[0].split("?")[0];
   return d;
