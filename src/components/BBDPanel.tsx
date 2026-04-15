@@ -599,7 +599,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOverAll(true); }}
                 onDragLeave={() => setDragOverAll(false)}
-                onDrop={() => handleDropAll()}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropAll(); }}
                 className={`flex items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm font-bold transition-all cursor-pointer
                   ${dragOverAll
                     ? "border-primary bg-primary/10 text-primary scale-[1.02] shadow-lg"
@@ -617,7 +617,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
               onDragStart={() => handleDragStart(base.id)}
               onDragOver={(e) => handleDragOver(e, base.id)}
               onDragLeave={handleDragLeave}
-              onDrop={() => handleDrop(base.id)}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDrop(base.id); }}
               onDragEnd={handleDragEnd}
               onClick={() => editingId !== base.id && !deduping && onSelectBase(base.id, base.name, base.crossed)}
               className={`flex items-center justify-between rounded-xl border bg-card px-5 py-4 cursor-pointer transition-all hover:shadow-md
