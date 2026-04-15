@@ -17,12 +17,13 @@ import LicitacionesPanel from "@/components/LicitacionesPanel";
 import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
 import { APP_VERSION } from "@/generated/appVersion";
 
+import CampaignPerformancePanel from "@/components/CampaignPerformancePanel";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones" | "performance";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
@@ -30,7 +31,7 @@ const Index = () => {
   const [view, setView] = useState<View>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
-    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones"].includes(v)) {
+    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones","performance"].includes(v)) {
       // Clean the URL without reloading
       window.history.replaceState({}, "", window.location.pathname);
       return v as View;
@@ -559,6 +560,14 @@ const Index = () => {
               CRM
             </Button>
             <Button
+              variant={view === "performance" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("performance")}
+            >
+              <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
+              Rendimiento
+            </Button>
+            <Button
               variant={view === "licitaciones" ? "default" : "outline"}
               size="sm"
               onClick={() => setView("licitaciones")}
@@ -657,6 +666,10 @@ const Index = () => {
 
         {view === "licitaciones" && (
           <LicitacionesPanel onBack={() => setView("upload")} />
+        )}
+
+        {view === "performance" && (
+          <CampaignPerformancePanel onBack={() => setView("upload")} />
         )}
 
       </main>
