@@ -47,16 +47,63 @@ export default function ScheduledRemindersPanel({ onBack, prefill, onClearPrefil
 
   useEffect(() => {
     fetchReminders();
+    loadContacts();
   }, []);
 
   useEffect(() => {
     if (prefill) {
       setEmail(prefill.email);
+      setSearchQuery(prefill.email);
       setSubject(prefill.subject);
       setShowForm(true);
       onClearPrefill?.();
     }
   }, [prefill]);
+
+  const loadContacts = async () => {
+    const contactMap = new Map<string, ContactSuggestion>();
+
+    // Load from delivered_contacts
+    const { data: delivered } = await supabase
+      .from("delivered_contacts")
+      .select("mail, nombre, apellido, empresa")
+      .limit(2000);
+    if (delivered) {
+      for (const c of delivered) {
+        if (!c.mail) continue;
+        const label = [c.nombre, c.apellido, c.empresa ? `(${c.empresa})` : ""].filter(Boolean).join(" ").trim();
+        contactMap.set(c.mail.toLowerCase(), { email: c.mail, label: label || c.mail });
+      }
+    }
+
+    // Load from replied_contacts
+    const { data: replied } = await supabase
+      .from("replied_contacts")
+      .select("email, nombre, apellido, empresa");
+    if (replied) {
+      for (const c of replied) {
+        if (!c.email) continue;
+        const label = [c.nombre, c.apellido, c.empresa ? `(${c.empresa})` : ""].filter(Boolean).join(" ").trim();
+        contactMap.set(c.email.toLowerCase(), { email: c.email, label: label || c.email });
+      }
+    }
+
+    setAllContacts(Array.from(contactMap.values()));
+  };
+
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const q = searchQuery.toLowerCase();
+    const matches = allContacts
+      .filter(c => c.email.toLowerCase().includes(q) || c.label.toLowerCase().includes(q))
+      .slice(0, 8);
+    setSuggestions(matches);
+    setShowSuggestions(matches.length > 0);
+  }, [searchQuery, allContacts]);
 
   const fetchReminders = async () => {
     setLoading(true);
