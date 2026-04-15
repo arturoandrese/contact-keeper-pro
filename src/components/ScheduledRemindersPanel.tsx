@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, Check, Trash2, ExternalLink, ArrowLeft, Plus } from "lucide-react";
+import { CalendarIcon, Check, Trash2, ExternalLink, ArrowLeft, Plus, Search } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,11 @@ interface ScheduledRemindersPanelProps {
   onClearPrefill?: () => void;
 }
 
+interface ContactSuggestion {
+  email: string;
+  label: string;
+}
+
 export default function ScheduledRemindersPanel({ onBack, prefill, onClearPrefill }: ScheduledRemindersPanelProps) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +40,10 @@ export default function ScheduledRemindersPanel({ onBack, prefill, onClearPrefil
   const [note, setNote] = useState("");
   const [date, setDate] = useState<Date>();
   const [showForm, setShowForm] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [allContacts, setAllContacts] = useState<ContactSuggestion[]>([]);
 
   useEffect(() => {
     fetchReminders();
