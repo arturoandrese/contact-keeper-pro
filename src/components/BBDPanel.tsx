@@ -298,13 +298,12 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         EMPRESA: (c["EMPRESA"] || c["Company"] || "").toString().trim(),
         WEB: (c["WEB"] || c["Website"] || "").toString().trim(),
         MAIL: (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "").toString().toLowerCase().trim(),
-        MAIL2: (c["MAIL2"] || "").toString().trim(),
         ESTADO: (c._status || "").toString().trim(),
         PESTAÑA: tabs[tabIndex]?.title || "",
       }));
 
       if (mode === "copy") {
-        const headers = ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL", "MAIL2", "ESTADO", "PESTAÑA"];
+        const headers = ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL", "ESTADO", "PESTAÑA"];
         const tsv = [headers.join("\t"), ...rows.map(r => Object.values(r).join("\t"))].join("\n");
         await navigator.clipboard.writeText(tsv);
         toast.success(`📋 ${rows.length} mails buenos copiados`);
