@@ -2,12 +2,32 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 
+const APP_VERSION = "2026.04.15.2";
+
 const PwaUpdatePrompt = () => {
   const [needRefresh, setNeedRefresh] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    // Check version mismatch via fetching version.txt
+    const checkVersion = async () => {
+      try {
+        const res = await fetch("/version.txt?t=" + Date.now(), { cache: "no-store" });
+        if (res.ok) {
+          const remote = (await res.text()).trim();
+          const stored = localStorage.getItem("app_version");
+          if (stored && stored !== remote) {
+            setNeedRefresh(true);
+          }
+          localStorage.setItem("app_version", remote);
+        }
+      } catch {}
+    };
+
+    checkVersion();
+    const versionInterval = setInterval(checkVersion, 60000);
+
+    if (!("serviceWorker" in navigator)) return () => clearInterval(versionInterval);
 
     const handleControllerChange = () => {
       window.location.reload();
@@ -15,23 +35,23 @@ const PwaUpdatePrompt = () => {
 
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
 
-    // Listen for the custom event from vite-plugin-pwa
     const onNeedRefresh = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.registration) setRegistration(detail.registration);
       setNeedRefresh(true);
     };
 
-    // vite-plugin-pwa with registerType: 'prompt' dispatches these events
     window.addEventListener("vite-pwa:need-refresh", onNeedRefresh);
 
-    // Also check on interval for waiting SW
     const checkForUpdate = async () => {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
-        if (reg?.waiting) {
-          setRegistration(reg);
-          setNeedRefresh(true);
+        if (reg) {
+          await reg.update();
+          if (reg.waiting) {
+            setRegistration(reg);
+            setNeedRefresh(true);
+          }
         }
       } catch {}
     };
@@ -43,15 +63,20 @@ const PwaUpdatePrompt = () => {
       navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
       window.removeEventListener("vite-pwa:need-refresh", onNeedRefresh);
       clearInterval(interval);
+      clearInterval(versionInterval);
     };
   }, []);
 
   const updateApp = () => {
     if (registration?.waiting) {
       registration.waiting.postMessage({ type: "SKIP_WAITING" });
-    } else {
-      window.location.reload();
     }
+    // Clear all caches
+    caches.keys().then(names => {
+      Promise.all(names.map(name => caches.delete(name))).then(() => {
+        window.location.reload();
+      });
+    });
   };
 
   if (!needRefresh) return null;
