@@ -17,12 +17,19 @@ function validateCsvColumns(content: string): string | null {
   const hasName = headers.some(h =>
     h.includes("nombre") || h.includes("name") || h.includes("first")
   );
+  const hasLastName = headers.some(h =>
+    h.includes("apellido") || h.includes("last") || h.includes("surname")
+  );
   const hasWeb = headers.some(h =>
     h.includes("web") || h.includes("sitio") || h.includes("url") || h.includes("website")
   );
+  const hasCompany = headers.some(h =>
+    h.includes("empresa") || h.includes("company") || h.includes("organizacion")
+  );
 
-  if (!hasEmail && !(hasName && hasWeb)) {
-    return `No se encontraron columnas suficientes. Columnas detectadas: ${headers.slice(0, 8).join(", ")}. Se necesita email/mail/correo, o bien nombre + web/sitio web.`;
+  // Valid if: has email column, OR has name+web, OR has name+lastname+company
+  if (!hasEmail && !(hasName && hasWeb) && !(hasName && hasLastName && hasCompany)) {
+    return `No se encontraron columnas suficientes. Columnas detectadas: ${headers.slice(0, 8).join(", ")}. Se necesita email/mail, o nombre + web, o nombre + apellido + empresa.`;
   }
 
   return null;
