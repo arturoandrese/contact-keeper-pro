@@ -43,6 +43,7 @@ const Index = () => {
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [pendingContent, setPendingContent] = useState<string | null>(null);
   const [selectedBase, setSelectedBase] = useState<{ id: string; name: string; crossed: boolean; sheetId?: string } | null>(null);
+  const [reminderPrefill, setReminderPrefill] = useState<{ email: string; subject: string } | null>(null);
   const [dark, setDark] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("theme") === "dark";
@@ -576,7 +577,14 @@ const Index = () => {
               <Gavel className="mr-1.5 h-3.5 w-3.5" />
               Licitaciones
             </Button>
-          </div>
+            <Button
+              variant={view === "reminders" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("reminders")}
+            >
+              <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+              Agenda
+            </Button>
         </div>
       </header>
 
