@@ -45,6 +45,8 @@ export function removeAccents(str: string): string {
 function extractDomain(url: string): string {
   if (!url) return "";
   let d = url.trim().toLowerCase();
+  // Ignore LinkedIn / social media URLs — they're not company websites
+  if (/linkedin\.com|facebook\.com|twitter\.com|instagram\.com|tiktok\.com/i.test(d)) return "";
   d = d.replace(/^https?:\/\//, "").replace(/^www\./, "");
   d = d.split("/")[0].split("?")[0];
   return d;
@@ -64,15 +66,28 @@ function isCorporateEmail(email: string): boolean {
 }
 
 function normalizeHeaderKey(key: string): string {
-  return removeAccents((key || "").toLowerCase()).replace(/[\s._-]/g, "");
+  return removeAccents((key || "").toLowerCase()).replace(/[\s._\-()]/g, "");
 }
 
 function getFieldValue(row: Record<string, string>, candidates: string[]): string {
   const wanted = new Set(candidates.map(normalizeHeaderKey));
   for (const [key, value] of Object.entries(row)) {
     if (!value) continue;
-    if (wanted.has(normalizeHeaderKey(key))) {
+    const norm = normalizeHeaderKey(key);
+    // Exact match first
+    if (wanted.has(norm)) {
       return String(value).trim();
+    }
+  }
+  // Fuzzy: check if any normalized header starts with or contains a candidate
+  for (const [key, value] of Object.entries(row)) {
+    if (!value) continue;
+    const norm = normalizeHeaderKey(key);
+    for (const candidate of candidates) {
+      const normCandidate = normalizeHeaderKey(candidate);
+      if (norm.startsWith(normCandidate) || norm.includes(normCandidate)) {
+        return String(value).trim();
+      }
     }
   }
   return "";

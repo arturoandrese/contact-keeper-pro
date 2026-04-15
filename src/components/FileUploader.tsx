@@ -17,12 +17,19 @@ function validateCsvColumns(content: string): string | null {
   const hasName = headers.some(h =>
     h.includes("nombre") || h.includes("name") || h.includes("first")
   );
+  const hasLastName = headers.some(h =>
+    h.includes("apellido") || h.includes("last") || h.includes("surname")
+  );
   const hasWeb = headers.some(h =>
     h.includes("web") || h.includes("sitio") || h.includes("url") || h.includes("website")
   );
+  const hasCompany = headers.some(h =>
+    h.includes("empresa") || h.includes("company") || h.includes("organizacion")
+  );
 
-  if (!hasEmail && !(hasName && hasWeb)) {
-    return `No se encontraron columnas suficientes. Columnas detectadas: ${headers.slice(0, 8).join(", ")}. Se necesita email/mail/correo, o bien nombre + web/sitio web.`;
+  // Valid if: has email column, OR has name+web, OR has name+lastname+company
+  if (!hasEmail && !(hasName && hasWeb) && !(hasName && hasLastName && hasCompany)) {
+    return `No se encontraron columnas suficientes. Columnas detectadas: ${headers.slice(0, 8).join(", ")}. Se necesita email/mail, o nombre + web, o nombre + apellido + empresa.`;
   }
 
   return null;
@@ -57,6 +64,29 @@ const FileUploader = ({ onFileLoaded }: FileUploaderProps) => {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: "array" });
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+          // Detect header row: find first row where multiple cells look like headers
+          const range = XLSX.utils.decode_range(firstSheet["!ref"] || "A1");
+          let headerRow = range.s.r;
+          for (let r = range.s.r; r <= Math.min(range.s.r + 5, range.e.r); r++) {
+            let filledCols = 0;
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const cell = firstSheet[XLSX.utils.encode_cell({ r, c })];
+              if (cell && cell.v != null) filledCols++;
+            }
+            // Header row typically fills most columns
+            if (filledCols >= Math.max(3, (range.e.c - range.s.c + 1) * 0.6)) {
+              headerRow = r;
+              break;
+            }
+          }
+
+          // If header isn't the first row, shift the range
+          if (headerRow > range.s.r) {
+            const newRange = { ...range, s: { ...range.s, r: headerRow } };
+            firstSheet["!ref"] = XLSX.utils.encode_range(newRange);
+          }
+
           const csv = XLSX.utils.sheet_to_csv(firstSheet);
           const validationError = validateCsvColumns(csv);
           if (validationError) {
