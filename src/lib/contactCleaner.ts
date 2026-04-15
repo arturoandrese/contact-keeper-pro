@@ -64,15 +64,28 @@ function isCorporateEmail(email: string): boolean {
 }
 
 function normalizeHeaderKey(key: string): string {
-  return removeAccents((key || "").toLowerCase()).replace(/[\s._-]/g, "");
+  return removeAccents((key || "").toLowerCase()).replace(/[\s._\-()]/g, "");
 }
 
 function getFieldValue(row: Record<string, string>, candidates: string[]): string {
   const wanted = new Set(candidates.map(normalizeHeaderKey));
   for (const [key, value] of Object.entries(row)) {
     if (!value) continue;
-    if (wanted.has(normalizeHeaderKey(key))) {
+    const norm = normalizeHeaderKey(key);
+    // Exact match first
+    if (wanted.has(norm)) {
       return String(value).trim();
+    }
+  }
+  // Fuzzy: check if any normalized header starts with or contains a candidate
+  for (const [key, value] of Object.entries(row)) {
+    if (!value) continue;
+    const norm = normalizeHeaderKey(key);
+    for (const candidate of candidates) {
+      const normCandidate = normalizeHeaderKey(candidate);
+      if (norm.startsWith(normCandidate) || norm.includes(normCandidate)) {
+        return String(value).trim();
+      }
     }
   }
   return "";
