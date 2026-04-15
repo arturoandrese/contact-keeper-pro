@@ -214,7 +214,40 @@ export default function ScheduledRemindersPanel({ onBack, prefill, onClearPrefil
       {showForm && (
         <div className="rounded-xl border border-border bg-card p-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input placeholder="Email destinatario *" value={email} onChange={e => setEmail(e.target.value)} />
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Buscar por nombre o email *"
+                  className="pl-8"
+                  value={searchQuery}
+                  onChange={e => {
+                    setSearchQuery(e.target.value);
+                    setEmail(e.target.value);
+                  }}
+                  onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                />
+              </div>
+              {showSuggestions && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-lg border border-border bg-popover shadow-lg max-h-48 overflow-y-auto">
+                  {suggestions.map(s => (
+                    <button
+                      key={s.email}
+                      className="w-full text-left px-3 py-2 hover:bg-accent text-sm flex flex-col"
+                      onMouseDown={() => {
+                        setEmail(s.email);
+                        setSearchQuery(s.email);
+                        setShowSuggestions(false);
+                      }}
+                    >
+                      <span className="font-medium truncate">{s.label}</span>
+                      <span className="text-xs text-muted-foreground truncate">{s.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Input placeholder="Asunto" value={subject} onChange={e => setSubject(e.target.value)} />
           </div>
           <Input placeholder="Nota (opcional)" value={note} onChange={e => setNote(e.target.value)} />
