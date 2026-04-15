@@ -15,6 +15,7 @@ import DashboardPanel from "@/components/DashboardPanel";
 import ProspectsCRM from "@/components/ProspectsCRM";
 import LicitacionesPanel from "@/components/LicitacionesPanel";
 import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
+import { APP_VERSION } from "@/generated/appVersion";
 
 import { Button } from "@/components/ui/button";
 import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel } from "lucide-react";
@@ -491,15 +492,15 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView("upload")}>
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex cursor-pointer items-center gap-3" onClick={() => setView("upload")}>
             <img src={ccpLogo} alt="CCP" className="h-10 w-10 rounded-xl object-cover shadow-md" />
             <div>
               <h1 className="font-display text-xl font-bold tracking-tight">CCP</h1>
-              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">v1.8.1</p>
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60">build {APP_VERSION}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="ghost"
               size="icon"

@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
-import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => ({
   server: {
@@ -12,58 +11,7 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [
-    react(),
-    mode === "development" && componentTagger(),
-    mode === "production" &&
-      VitePWA({
-        registerType: "autoUpdate",
-        devOptions: {
-          enabled: false,
-        },
-        includeAssets: ["favicon.ico", "favicon.jpg", "robots.txt", "pwa-192x192.png", "pwa-512x512.png"],
-        workbox: {
-          navigateFallbackDenylist: [/^\/~oauth/, /^\/version\.txt$/],
-          globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2}"],
-          runtimeCaching: [
-            {
-              urlPattern: ({ url }) => url.pathname === "/version.txt",
-              handler: "NetworkOnly",
-            },
-          ],
-          cleanupOutdatedCaches: true,
-          skipWaiting: true,
-          clientsClaim: true,
-        },
-        manifest: {
-          name: "CCP — Clean · Cross · Prospect",
-          short_name: "CCP",
-          description: "Clean · Cross · Prospect — Gestión de bases de contactos",
-          theme_color: "#0f172a",
-          background_color: "#0f172a",
-          display: "standalone",
-          start_url: "/",
-          icons: [
-            {
-              src: "/pwa-192x192.png",
-              sizes: "192x192",
-              type: "image/png",
-            },
-            {
-              src: "/pwa-512x512.png",
-              sizes: "512x512",
-              type: "image/png",
-            },
-            {
-              src: "/pwa-512x512.png",
-              sizes: "512x512",
-              type: "image/png",
-              purpose: "maskable",
-            },
-          ],
-        },
-      }),
-  ].filter(Boolean),
+  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   optimizeDeps: {
     include: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
   },
