@@ -590,7 +590,10 @@ const Index = () => {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-10 space-y-6">
-        <UnansweredEmailsAlert />
+        <UnansweredEmailsAlert onSchedule={(email, subject) => {
+          setReminderPrefill({ email, subject });
+          setView("reminders");
+        }} />
         {view === "upload" && (
           <div className="mx-auto max-w-xl space-y-8">
             <div className="text-center">
@@ -682,6 +685,13 @@ const Index = () => {
           <CampaignPerformancePanel onBack={() => setView("upload")} />
         )}
 
+        {view === "reminders" && (
+          <ScheduledRemindersPanel
+            onBack={() => setView("upload")}
+            prefill={reminderPrefill}
+            onClearPrefill={() => setReminderPrefill(null)}
+          />
+        )}
       </main>
 
       <UploadFilterDialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen} onConfirm={processFileWithFilters} />
