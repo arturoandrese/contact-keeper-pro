@@ -279,13 +279,14 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
               {contacts.length} contactos en segmento
             </p>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={copyToClipboard}>
-                📋 Copiar para Sheets
-              </Button>
-              <Button size="sm" onClick={exportSegment}>
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                Excel
-              </Button>
+              <ExportDropdown
+                label="Exportar segmento"
+                onDownload={exportSegment}
+                getData={() => ({
+                  headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL1"],
+                  rows: contacts.map(c => [c.nombre, c.apellido, c.empresa, c.web, c.mail]),
+                })}
+              />
             </div>
           </div>
 
