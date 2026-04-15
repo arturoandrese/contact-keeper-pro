@@ -497,7 +497,7 @@ const Index = () => {
             <img src={ccpLogo} alt="CCP" className="h-10 w-10 rounded-xl object-cover shadow-md" />
             <div>
               <h1 className="font-display text-xl font-bold tracking-tight">CCP</h1>
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60">build {APP_VERSION}</p>
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60">{APP_VERSION}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
