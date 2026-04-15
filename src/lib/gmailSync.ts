@@ -3,6 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 // --- Token storage helpers ---
+// SECURITY: Only the short-lived access token is stored in localStorage.
+// The refresh token is kept only in memory for the current session and
+// never persisted, reducing the impact of XSS attacks.
 
 interface StoredTokens {
   access_token: string;
@@ -10,25 +13,34 @@ interface StoredTokens {
   expires_at: number; // ms timestamp
 }
 
+// In-memory only — never persisted to localStorage
+let _memoryRefreshToken: string | null = null;
+
 function getStoredTokens(): StoredTokens | null {
   try {
     const raw = localStorage.getItem("gmail_tokens");
     if (!raw) {
       // Migration: check old single-token storage
       const legacy = localStorage.getItem("gmail_token");
-      if (legacy) return { access_token: legacy, refresh_token: "", expires_at: 0 };
+      if (legacy) return { access_token: legacy, refresh_token: _memoryRefreshToken || "", expires_at: 0 };
       return null;
     }
-    return JSON.parse(raw) as StoredTokens;
+    const parsed = JSON.parse(raw) as StoredTokens;
+    // Attach in-memory refresh token (not from storage)
+    parsed.refresh_token = _memoryRefreshToken || "";
+    return parsed;
   } catch {
     return null;
   }
 }
 
 function storeTokens(access_token: string, refresh_token: string, expires_in: number) {
-  const tokens: StoredTokens = {
+  // Keep refresh token in memory only — never in localStorage
+  if (refresh_token) {
+    _memoryRefreshToken = refresh_token;
+  }
+  const tokens = {
     access_token,
-    refresh_token,
     expires_at: Date.now() + expires_in * 1000,
   };
   localStorage.setItem("gmail_tokens", JSON.stringify(tokens));
@@ -37,6 +49,7 @@ function storeTokens(access_token: string, refresh_token: string, expires_in: nu
 }
 
 function clearTokens() {
+  _memoryRefreshToken = null;
   localStorage.removeItem("gmail_tokens");
   localStorage.removeItem("gmail_token");
 }
