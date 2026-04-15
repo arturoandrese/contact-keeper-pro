@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, Check, Trash2, ExternalLink, ArrowLeft, Plus } from "lucide-react";
+import { CalendarIcon, Check, Trash2, ExternalLink, ArrowLeft, Plus, Search } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,11 @@ interface ScheduledRemindersPanelProps {
   onClearPrefill?: () => void;
 }
 
+interface ContactSuggestion {
+  email: string;
+  label: string;
+}
+
 export default function ScheduledRemindersPanel({ onBack, prefill, onClearPrefill }: ScheduledRemindersPanelProps) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,19 +40,70 @@ export default function ScheduledRemindersPanel({ onBack, prefill, onClearPrefil
   const [note, setNote] = useState("");
   const [date, setDate] = useState<Date>();
   const [showForm, setShowForm] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [allContacts, setAllContacts] = useState<ContactSuggestion[]>([]);
 
   useEffect(() => {
     fetchReminders();
+    loadContacts();
   }, []);
 
   useEffect(() => {
     if (prefill) {
       setEmail(prefill.email);
+      setSearchQuery(prefill.email);
       setSubject(prefill.subject);
       setShowForm(true);
       onClearPrefill?.();
     }
   }, [prefill]);
+
+  const loadContacts = async () => {
+    const contactMap = new Map<string, ContactSuggestion>();
+
+    // Load from delivered_contacts
+    const { data: delivered } = await supabase
+      .from("delivered_contacts")
+      .select("mail, nombre, apellido, empresa")
+      .limit(2000);
+    if (delivered) {
+      for (const c of delivered) {
+        if (!c.mail) continue;
+        const label = [c.nombre, c.apellido, c.empresa ? `(${c.empresa})` : ""].filter(Boolean).join(" ").trim();
+        contactMap.set(c.mail.toLowerCase(), { email: c.mail, label: label || c.mail });
+      }
+    }
+
+    // Load from replied_contacts
+    const { data: replied } = await supabase
+      .from("replied_contacts")
+      .select("email, nombre, apellido, empresa");
+    if (replied) {
+      for (const c of replied) {
+        if (!c.email) continue;
+        const label = [c.nombre, c.apellido, c.empresa ? `(${c.empresa})` : ""].filter(Boolean).join(" ").trim();
+        contactMap.set(c.email.toLowerCase(), { email: c.email, label: label || c.email });
+      }
+    }
+
+    setAllContacts(Array.from(contactMap.values()));
+  };
+
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const q = searchQuery.toLowerCase();
+    const matches = allContacts
+      .filter(c => c.email.toLowerCase().includes(q) || c.label.toLowerCase().includes(q))
+      .slice(0, 8);
+    setSuggestions(matches);
+    setShowSuggestions(matches.length > 0);
+  }, [searchQuery, allContacts]);
 
   const fetchReminders = async () => {
     setLoading(true);
@@ -77,6 +133,7 @@ export default function ScheduledRemindersPanel({ onBack, prefill, onClearPrefil
     }
     toast.success("Recordatorio agendado");
     setEmail("");
+    setSearchQuery("");
     setSubject("");
     setNote("");
     setDate(undefined);
@@ -158,7 +215,40 @@ export default function ScheduledRemindersPanel({ onBack, prefill, onClearPrefil
       {showForm && (
         <div className="rounded-xl border border-border bg-card p-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input placeholder="Email destinatario *" value={email} onChange={e => setEmail(e.target.value)} />
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Buscar por nombre o email *"
+                  className="pl-8"
+                  value={searchQuery}
+                  onChange={e => {
+                    setSearchQuery(e.target.value);
+                    setEmail(e.target.value);
+                  }}
+                  onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                />
+              </div>
+              {showSuggestions && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-lg border border-border bg-popover shadow-lg max-h-48 overflow-y-auto">
+                  {suggestions.map(s => (
+                    <button
+                      key={s.email}
+                      className="w-full text-left px-3 py-2 hover:bg-accent text-sm flex flex-col"
+                      onMouseDown={() => {
+                        setEmail(s.email);
+                        setSearchQuery(s.email);
+                        setShowSuggestions(false);
+                      }}
+                    >
+                      <span className="font-medium truncate">{s.label}</span>
+                      <span className="text-xs text-muted-foreground truncate">{s.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Input placeholder="Asunto" value={subject} onChange={e => setSubject(e.target.value)} />
           </div>
           <Input placeholder="Nota (opcional)" value={note} onChange={e => setNote(e.target.value)} />
