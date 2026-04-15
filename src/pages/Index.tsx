@@ -17,12 +17,13 @@ import LicitacionesPanel from "@/components/LicitacionesPanel";
 import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
 import { APP_VERSION } from "@/generated/appVersion";
 
+import CampaignPerformancePanel from "@/components/CampaignPerformancePanel";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones" | "performance";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
