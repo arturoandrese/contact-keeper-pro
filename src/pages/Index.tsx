@@ -15,15 +15,16 @@ import DashboardPanel from "@/components/DashboardPanel";
 import ProspectsCRM from "@/components/ProspectsCRM";
 import LicitacionesPanel from "@/components/LicitacionesPanel";
 import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
+import ScheduledRemindersPanel from "@/components/ScheduledRemindersPanel";
 import { APP_VERSION } from "@/generated/appVersion";
 
 import CampaignPerformancePanel from "@/components/CampaignPerformancePanel";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel, BarChart3 } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel, BarChart3, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones" | "performance";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones" | "performance" | "reminders";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
@@ -31,7 +32,7 @@ const Index = () => {
   const [view, setView] = useState<View>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
-    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones","performance"].includes(v)) {
+    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones","performance","reminders"].includes(v)) {
       // Clean the URL without reloading
       window.history.replaceState({}, "", window.location.pathname);
       return v as View;
@@ -42,6 +43,7 @@ const Index = () => {
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [pendingContent, setPendingContent] = useState<string | null>(null);
   const [selectedBase, setSelectedBase] = useState<{ id: string; name: string; crossed: boolean; sheetId?: string } | null>(null);
+  const [reminderPrefill, setReminderPrefill] = useState<{ email: string; subject: string } | null>(null);
   const [dark, setDark] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("theme") === "dark";
@@ -575,12 +577,23 @@ const Index = () => {
               <Gavel className="mr-1.5 h-3.5 w-3.5" />
               Licitaciones
             </Button>
+            <Button
+              variant={view === "reminders" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("reminders")}
+            >
+              <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+              Agenda
+            </Button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-10 space-y-6">
-        <UnansweredEmailsAlert />
+        <UnansweredEmailsAlert onSchedule={(email, subject) => {
+          setReminderPrefill({ email, subject });
+          setView("reminders");
+        }} />
         {view === "upload" && (
           <div className="mx-auto max-w-xl space-y-8">
             <div className="text-center">
@@ -672,6 +685,13 @@ const Index = () => {
           <CampaignPerformancePanel onBack={() => setView("upload")} />
         )}
 
+        {view === "reminders" && (
+          <ScheduledRemindersPanel
+            onBack={() => setView("upload")}
+            prefill={reminderPrefill}
+            onClearPrefill={() => setReminderPrefill(null)}
+          />
+        )}
       </main>
 
       <UploadFilterDialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen} onConfirm={processFileWithFilters} />
