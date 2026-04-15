@@ -593,8 +593,22 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       ) : (
         <div className="space-y-2">
           {dragSourceId && (
-            <div className="text-xs text-primary font-medium text-center py-2 px-4 rounded-lg bg-primary/5 border border-primary/20 animate-pulse">
-              ⇄ Suelta sobre otra base para deduplicar emails repetidos
+            <div className="space-y-2">
+              <div className="text-xs text-primary font-medium text-center py-2 px-4 rounded-lg bg-primary/5 border border-primary/20 animate-pulse">
+                ⇄ Suelta sobre otra base para deduplicar, o sobre "TODAS" para deduplicar contra todas
+              </div>
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOverAll(true); }}
+                onDragLeave={() => setDragOverAll(false)}
+                onDrop={() => handleDropAll()}
+                className={`flex items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm font-bold transition-all cursor-pointer
+                  ${dragOverAll
+                    ? "border-primary bg-primary/10 text-primary scale-[1.02] shadow-lg"
+                    : "border-muted-foreground/30 text-muted-foreground hover:border-primary/50"
+                  }`}
+              >
+                🔄 TODAS — Deduplicar contra todas las bases
+              </div>
             </div>
           )}
           {bases.map((base) => (
