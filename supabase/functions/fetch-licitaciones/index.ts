@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,29 @@ serve(async (req) => {
   }
 
   try {
+    // Auth check
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: userData, error: authError } = await supabase.auth.getUser();
+    if (authError || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const TICKET = Deno.env.get("MERCADO_PUBLICO_TICKET");
     if (!TICKET) {
       return new Response(
@@ -36,7 +60,6 @@ serve(async (req) => {
       );
     }
 
-    // Fetch active licitaciones
     const url = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?estado=activas&ticket=${TICKET}`;
     const response = await fetch(url);
     
@@ -52,7 +75,6 @@ serve(async (req) => {
     const data = await response.json();
     const listado = data?.Listado || [];
 
-    // Filter by keywords
     const matched: Array<{
       codigo: string;
       nombre: string;
@@ -81,7 +103,7 @@ serve(async (req) => {
             url: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?qs=/${lic.CodigoExterno || ""}`,
             keyword: kw,
           });
-          break; // Don't duplicate for multiple keyword matches
+          break;
         }
       }
     }
