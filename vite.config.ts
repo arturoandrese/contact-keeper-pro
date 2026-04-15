@@ -22,6 +22,13 @@ export default defineConfig(({ mode }) => ({
         workbox: {
           navigateFallbackDenylist: [/^\/~oauth/],
           globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2}"],
+          // Force new SW on every build
+          additionalManifestEntries: [
+            { url: "/version.txt", revision: Date.now().toString() },
+          ],
+          cleanupOutdatedCaches: true,
+          skipWaiting: false,
+          clientsClaim: true,
         },
         manifest: {
           name: "CCP — Clean · Cross · Prospect",
