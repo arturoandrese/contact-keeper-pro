@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,29 @@ serve(async (req) => {
   }
 
   try {
+    // Auth check
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: userData, error: authError } = await supabase.auth.getUser();
+    if (authError || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { accessToken, userEmail } = await req.json();
 
     if (!accessToken || !userEmail) {
@@ -62,7 +86,6 @@ serve(async (req) => {
       threadId: string;
     }> = [];
 
-    // Process in batches of 10
     for (let i = 0; i < Math.min(messageIds.length, 50); i++) {
       const msgUrl = `${GMAIL_API}/messages/${messageIds[i]}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`;
       const msgRes = await fetch(msgUrl, { headers });
@@ -74,7 +97,6 @@ serve(async (req) => {
       const msg = await msgRes.json();
       const threadId = msg.threadId;
 
-      // Check if user replied in this thread
       const threadUrl = `${GMAIL_API}/threads/${threadId}?format=metadata&metadataHeaders=From`;
       const threadRes = await fetch(threadUrl, { headers });
       if (!threadRes.ok) {
@@ -85,10 +107,8 @@ serve(async (req) => {
       const thread = await threadRes.json();
       const messages = thread.messages || [];
 
-      // Find the index of this message in the thread
       const msgIndex = messages.findIndex((m: any) => m.id === messageIds[i]);
 
-      // Check if there's a reply FROM the user AFTER this message
       let userReplied = false;
       for (let j = msgIndex + 1; j < messages.length; j++) {
         const fromHeader = (messages[j].payload?.headers || []).find(
