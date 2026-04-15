@@ -1,11 +1,12 @@
 import { useState, useCallback } from "react";
-import { ArrowLeft, Users, MailOpen, Send, Clock, MessageSquareReply, Download, Loader2, Filter } from "lucide-react";
+import { ArrowLeft, Users, MailOpen, Send, Clock, MessageSquareReply, Loader2, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import ExportDropdown from "@/components/ExportDropdown";
 import * as XLSX from "xlsx";
 
 interface SegmentsPanelProps {
@@ -278,13 +279,14 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
               {contacts.length} contactos en segmento
             </p>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={copyToClipboard}>
-                📋 Copiar para Sheets
-              </Button>
-              <Button size="sm" onClick={exportSegment}>
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                Excel
-              </Button>
+              <ExportDropdown
+                label="Exportar segmento"
+                onDownload={exportSegment}
+                getData={() => ({
+                  headers: ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL1"],
+                  rows: contacts.map(c => [c.nombre, c.apellido, c.empresa, c.web, c.mail]),
+                })}
+              />
             </div>
           </div>
 
