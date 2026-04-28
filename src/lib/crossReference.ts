@@ -392,6 +392,17 @@ export function crossReference(
     }
   }
 
+  // Merge global bounces (from bounced_emails table) into bouncedMails set,
+  // BUT skip any mail that also appears as delivered (it was sent successfully on another sheet)
+  if (options.globalBouncedMails) {
+    for (const m of options.globalBouncedMails) {
+      const mail = (m || "").toLowerCase().trim();
+      if (!mail) continue;
+      if (deliveredMails.has(mail)) continue; // already counted as delivered → don't blacklist
+      bouncedMails.add(mail);
+    }
+  }
+
   const filtered: CrossReferencedContact[] = [];
   const seenKeys = new Set<string>();
 
