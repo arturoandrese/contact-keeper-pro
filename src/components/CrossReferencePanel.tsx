@@ -134,7 +134,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     async (log: EmailLogEntry[], mode: "report" | "global" = "report") => {
       setProcessing(true);
       try {
-        const [dbContacts, baseResponse, savedPatternsRes, deliveredRows] = await Promise.all([
+        const [dbContacts, baseResponse, savedPatternsRes, deliveredRows, globalBouncedMails] = await Promise.all([
           fetchAllContacts(baseId),
           supabase
             .from("bases")
@@ -145,6 +145,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             .from("domain_patterns")
             .select("domain, pattern, example_email"),
           fetchAllDeliveredContacts(),
+          mode === "global" ? fetchAllBouncedMails() : Promise.resolve([] as string[]),
         ]);
 
         if (!dbContacts || dbContacts.length === 0) {
@@ -195,6 +196,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           savedPatterns,
           deliveredHistory,
           cooldownDays,
+          globalBouncedMails: mode === "global" ? globalBouncedMails : undefined,
         });
 
         setCrossStats(crStats);
