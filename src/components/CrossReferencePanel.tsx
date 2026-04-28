@@ -34,6 +34,7 @@ const chunkArray = <T,>(arr: T[], size: number): T[][] => {
 };
 
 const CONTACTS_PAGE_SIZE = 1000;
+const DELIVERED_PAGE_SIZE = 1000;
 
 interface DbContactRow {
   nombre: string;
@@ -45,6 +46,15 @@ interface DbContactRow {
   mail2: string;
   mail3: string;
   mail4: string;
+}
+
+interface DeliveredContactRow {
+  mail: string;
+  nombre: string;
+  apellido: string;
+  status: string;
+  last_contacted_at: string;
+  times_contacted: number;
 }
 
 async function fetchAllContacts(baseId: string): Promise<DbContactRow[]> {
@@ -69,19 +79,41 @@ async function fetchAllContacts(baseId: string): Promise<DbContactRow[]> {
   return all;
 }
 
+async function fetchAllDeliveredContacts(): Promise<DeliveredContactRow[]> {
+  const all: DeliveredContactRow[] = [];
+
+  for (let from = 0; ; from += DELIVERED_PAGE_SIZE) {
+    const to = from + DELIVERED_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("delivered_contacts")
+      .select("mail, nombre, apellido, status, last_contacted_at, times_contacted")
+      .range(from, to);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    all.push(...(data as DeliveredContactRow[]));
+
+    if (data.length < DELIVERED_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
 const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferencePanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<CrossReferencedContact[] | null>(null);
   const [stats, setStats] = useState({ original: 0, filtered: 0, patterns: 0, delivered: 0 });
   const [crossStats, setCrossStats] = useState<CrossReferenceStats | null>(null);
+  const [resultMode, setResultMode] = useState<"report" | "global">("report");
   const [cooldownDays, setCooldownDays] = useState(15);
 
   const runCrossReference = useCallback(
-    async (log: EmailLogEntry[]) => {
+    async (log: EmailLogEntry[], mode: "report" | "global" = "report") => {
       setProcessing(true);
       try {
-        const [dbContacts, baseResponse, savedPatternsRes, deliveredHistoryRes] = await Promise.all([
+        const [dbContacts, baseResponse, savedPatternsRes, deliveredRows] = await Promise.all([
           fetchAllContacts(baseId),
           supabase
             .from("bases")
@@ -91,10 +123,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           supabase
             .from("domain_patterns")
             .select("domain, pattern, example_email"),
-          supabase
-            .from("delivered_contacts")
-            .select("mail, nombre, apellido")
-            .limit(5000),
+          fetchAllDeliveredContacts(),
         ]);
 
         if (!dbContacts || dbContacts.length === 0) {
@@ -113,11 +142,20 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           example_email: p.example_email,
         }));
 
-        const deliveredHistory: DeliveredHistoryEntry[] = (deliveredHistoryRes.data || []).map((d: any) => ({
+        const deliveredHistory: DeliveredHistoryEntry[] = deliveredRows.map((d) => ({
           mail: d.mail || "",
           nombre: d.nombre || "",
           apellido: d.apellido || "",
         }));
+
+        const existingDelivered = mode === "global"
+          ? deliveredRows.map((d) => ({
+              mail: d.mail || "",
+              times_contacted: d.times_contacted || 0,
+              last_contacted_at: d.last_contacted_at || "",
+              status: d.status || "ENVIADO",
+            }))
+          : undefined;
 
         const contacts: CleanedContact[] = dbContacts.map((c) => ({
           NOMBRE: c.nombre,
@@ -131,8 +169,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           MAIL4: c.mail4,
         }));
 
-        const { filtered, patterns, delivered, stats: crStats } = crossReference(contacts, log, undefined, {
-          onlyBounced: true,
+        const { filtered, patterns, delivered, stats: crStats } = crossReference(contacts, log, existingDelivered, {
+          onlyBounced: mode !== "global",
           savedPatterns,
           deliveredHistory,
           cooldownDays,
@@ -245,8 +283,18 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           .eq("id", baseId);
 
         setResults(filtered);
-        setStats({ original: contacts.length, filtered: filtered.length, patterns: patterns.length, delivered: delivered.length });
-        toast.success(`Cruce completado: ${filtered.length} corregidos/generados, ${delivered.length} enviados registrados`);
+        setResultMode(mode);
+        setStats({
+          original: contacts.length,
+          filtered: filtered.length,
+          patterns: patterns.length,
+          delivered: mode === "global" ? crStats.excludedDelivered : delivered.length,
+        });
+        toast.success(
+          mode === "global"
+            ? `Cruce global completado: ${filtered.length} listos para enviar, ${crStats.excludedDelivered} ya enviados detectados`
+            : `Cruce completado: ${filtered.length} corregidos/generados, ${delivered.length} enviados registrados`
+        );
       } catch (err) {
         toast.error("Error procesando cruce");
         console.error(err);
@@ -374,7 +422,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           </div>
 
           <button
-            onClick={() => runCrossReference([])}
+            onClick={() => runCrossReference([], "global")}
             className="w-full rounded-2xl border-2 border-green-500/40 bg-green-500/5 p-8 text-center transition-all duration-300 hover:scale-[1.01] hover:border-green-500 hover:bg-green-500/10"
           >
             <div className="flex flex-col items-center gap-3">
@@ -475,10 +523,10 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           )}
 
           <div className="flex flex-wrap gap-4">
-            {[
-              { label: "Enviados registrados", value: stats.delivered, highlight: true },
-              { label: "Patrones aprendidos", value: stats.patterns },
-            ].map((stat) => (
+               {[
+               { label: resultMode === "global" ? "Ya enviados detectados" : "Enviados registrados", value: stats.delivered, highlight: true },
+               { label: "Patrones aprendidos", value: stats.patterns },
+             ].map((stat) => (
               <div key={stat.label} className={`rounded-xl border px-5 py-3 ${stat.highlight ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}>
                 <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
                 <p className={`font-display text-2xl font-bold ${stat.highlight ? "text-primary" : ""}`}>{stat.value}</p>
@@ -489,7 +537,9 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs text-muted-foreground">
-              Este cruce devuelve contactos rebotados y no enviados con un mail alternativo corporativo válido.
+              {resultMode === "global"
+                ? "Este cruce devuelve solo contactos no nuevos y no enviados recientemente, excluyendo historial y cooldown."
+                : "Este cruce devuelve contactos rebotados y no enviados con un mail alternativo corporativo válido."}
               {results.some(r => r.confirmedPattern) && (
                 <span className="ml-1">
                   Los emails con <Badge variant="outline" className="ml-1 h-4 px-1.5 text-[9px] border-green-500/50 text-green-600">✓ confirmado</Badge> usan un patrón verificado (abierto/clickeado) — sin alternativas para proteger tu reputación.
