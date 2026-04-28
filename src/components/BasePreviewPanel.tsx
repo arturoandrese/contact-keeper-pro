@@ -340,12 +340,10 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
               Ver reporte en vivo
             </Button>
           )}
-          {!isCrossed && (
-            <Button size="sm" variant="outline" onClick={onCrossReference}>
-              <GitCompare className="mr-1.5 h-3.5 w-3.5" />
-              Cruzar con reporte
-            </Button>
-          )}
+          <Button size="sm" variant={isCrossed ? "secondary" : "outline"} onClick={onCrossReference}>
+            <GitCompare className="mr-1.5 h-3.5 w-3.5" />
+            {isCrossed ? "Re-cruzar" : "Cruzar con reporte"}
+          </Button>
         </div>
       </div>
 
