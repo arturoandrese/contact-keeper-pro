@@ -34,6 +34,7 @@ const chunkArray = <T,>(arr: T[], size: number): T[][] => {
 };
 
 const CONTACTS_PAGE_SIZE = 1000;
+const DELIVERED_PAGE_SIZE = 1000;
 
 interface DbContactRow {
   nombre: string;
@@ -45,6 +46,15 @@ interface DbContactRow {
   mail2: string;
   mail3: string;
   mail4: string;
+}
+
+interface DeliveredContactRow {
+  mail: string;
+  nombre: string;
+  apellido: string;
+  status: string;
+  last_contacted_at: string;
+  times_contacted: number;
 }
 
 async function fetchAllContacts(baseId: string): Promise<DbContactRow[]> {
@@ -69,6 +79,27 @@ async function fetchAllContacts(baseId: string): Promise<DbContactRow[]> {
   return all;
 }
 
+async function fetchAllDeliveredContacts(): Promise<DeliveredContactRow[]> {
+  const all: DeliveredContactRow[] = [];
+
+  for (let from = 0; ; from += DELIVERED_PAGE_SIZE) {
+    const to = from + DELIVERED_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("delivered_contacts")
+      .select("mail, nombre, apellido, status, last_contacted_at, times_contacted")
+      .range(from, to);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    all.push(...(data as DeliveredContactRow[]));
+
+    if (data.length < DELIVERED_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
 const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferencePanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -78,10 +109,10 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
   const [cooldownDays, setCooldownDays] = useState(15);
 
   const runCrossReference = useCallback(
-    async (log: EmailLogEntry[]) => {
+    async (log: EmailLogEntry[], mode: "report" | "global" = "report") => {
       setProcessing(true);
       try {
-        const [dbContacts, baseResponse, savedPatternsRes, deliveredHistoryRes] = await Promise.all([
+        const [dbContacts, baseResponse, savedPatternsRes, deliveredRows] = await Promise.all([
           fetchAllContacts(baseId),
           supabase
             .from("bases")
@@ -91,10 +122,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           supabase
             .from("domain_patterns")
             .select("domain, pattern, example_email"),
-          supabase
-            .from("delivered_contacts")
-            .select("mail, nombre, apellido")
-            .limit(5000),
+          fetchAllDeliveredContacts(),
         ]);
 
         if (!dbContacts || dbContacts.length === 0) {
@@ -113,11 +141,20 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           example_email: p.example_email,
         }));
 
-        const deliveredHistory: DeliveredHistoryEntry[] = (deliveredHistoryRes.data || []).map((d: any) => ({
+        const deliveredHistory: DeliveredHistoryEntry[] = deliveredRows.map((d) => ({
           mail: d.mail || "",
           nombre: d.nombre || "",
           apellido: d.apellido || "",
         }));
+
+        const existingDelivered = mode === "global"
+          ? deliveredRows.map((d) => ({
+              mail: d.mail || "",
+              times_contacted: d.times_contacted || 0,
+              last_contacted_at: d.last_contacted_at || "",
+              status: d.status || "ENVIADO",
+            }))
+          : undefined;
 
         const contacts: CleanedContact[] = dbContacts.map((c) => ({
           NOMBRE: c.nombre,
@@ -131,8 +168,8 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           MAIL4: c.mail4,
         }));
 
-        const { filtered, patterns, delivered, stats: crStats } = crossReference(contacts, log, undefined, {
-          onlyBounced: true,
+        const { filtered, patterns, delivered, stats: crStats } = crossReference(contacts, log, existingDelivered, {
+          onlyBounced: mode !== "global",
           savedPatterns,
           deliveredHistory,
           cooldownDays,
@@ -374,7 +411,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           </div>
 
           <button
-            onClick={() => runCrossReference([])}
+            onClick={() => runCrossReference([], "global")}
             className="w-full rounded-2xl border-2 border-green-500/40 bg-green-500/5 p-8 text-center transition-all duration-300 hover:scale-[1.01] hover:border-green-500 hover:bg-green-500/10"
           >
             <div className="flex flex-col items-center gap-3">
