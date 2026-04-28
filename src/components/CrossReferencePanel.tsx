@@ -100,6 +100,27 @@ async function fetchAllDeliveredContacts(): Promise<DeliveredContactRow[]> {
   return all;
 }
 
+async function fetchAllBouncedMails(): Promise<string[]> {
+  const all: string[] = [];
+
+  for (let from = 0; ; from += DELIVERED_PAGE_SIZE) {
+    const to = from + DELIVERED_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("bounced_emails")
+      .select("mail")
+      .range(from, to);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    all.push(...data.map((r: any) => (r.mail || "").toLowerCase()).filter(Boolean));
+
+    if (data.length < DELIVERED_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
 const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferencePanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -113,7 +134,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
     async (log: EmailLogEntry[], mode: "report" | "global" = "report") => {
       setProcessing(true);
       try {
-        const [dbContacts, baseResponse, savedPatternsRes, deliveredRows] = await Promise.all([
+        const [dbContacts, baseResponse, savedPatternsRes, deliveredRows, globalBouncedMails] = await Promise.all([
           fetchAllContacts(baseId),
           supabase
             .from("bases")
@@ -124,6 +145,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             .from("domain_patterns")
             .select("domain, pattern, example_email"),
           fetchAllDeliveredContacts(),
+          mode === "global" ? fetchAllBouncedMails() : Promise.resolve([] as string[]),
         ]);
 
         if (!dbContacts || dbContacts.length === 0) {
@@ -174,6 +196,7 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
           savedPatterns,
           deliveredHistory,
           cooldownDays,
+          globalBouncedMails: mode === "global" ? globalBouncedMails : undefined,
         });
 
         setCrossStats(crStats);
