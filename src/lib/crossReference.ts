@@ -220,6 +220,7 @@ export interface CrossReferenceOptions {
   savedPatterns?: DomainPatternEntry[];
   deliveredHistory?: DeliveredHistoryEntry[];
   cooldownDays?: number;
+  globalBouncedMails?: string[];
 }
 
 export interface CrossReferenceStats {
