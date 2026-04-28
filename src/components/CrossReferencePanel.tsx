@@ -373,6 +373,23 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
             <span className="text-xs text-muted-foreground">Excluir contactados dentro de este periodo</span>
           </div>
 
+          <button
+            onClick={() => runCrossReference([])}
+            className="w-full rounded-2xl border-2 border-green-500/40 bg-green-500/5 p-8 text-center transition-all duration-300 hover:scale-[1.01] hover:border-green-500 hover:bg-green-500/10"
+          >
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-500/20">
+                <Users className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-lg font-semibold">Cruzar contra TODOS los envíos previos</p>
+                <p className="text-sm text-muted-foreground">
+                  Filtra automáticamente contra todas las campañas ya enviadas (sin elegir hoja)
+                </p>
+              </div>
+            </div>
+          </button>
+
           {sheetId && (
             <button
               onClick={processLiveReport}
@@ -383,9 +400,9 @@ const CrossReferencePanel = ({ baseId, baseName, sheetId, onBack }: CrossReferen
                   <BarChart3 className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-lg font-semibold">Cruzar con reporte en vivo</p>
+                  <p className="text-lg font-semibold">Cruzar con reporte en vivo (1 hoja)</p>
                   <p className="text-sm text-muted-foreground">
-                    Usa Google Sheets (YAMM) y trae solo rebotados a corregir
+                    Solo si quieres traer rebotados específicos de UNA campaña
                   </p>
                 </div>
               </div>
