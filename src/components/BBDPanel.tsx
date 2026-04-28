@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical } from "lucide-react";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical, ExternalLink } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -586,11 +586,22 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-display text-2xl font-bold">BBD — Bases de Datos</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Tus bases subidas. Pincha una para verla o cruzarla.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-display text-2xl font-bold">BBD — Bases de Datos</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Tus bases subidas. Pincha una para verla o cruzarla.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open("https://sheets.new", "_blank", "noopener,noreferrer")}
+          className="shrink-0"
+        >
+          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+          Nueva Google Sheet
+        </Button>
       </div>
 
       {bases.length === 0 ? (
