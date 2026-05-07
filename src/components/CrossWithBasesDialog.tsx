@@ -141,13 +141,13 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
           const mails = [c.mail1, c.mail2, c.mail3, c.mail4]
             .filter(Boolean)
             .map((m: string) => m.toLowerCase().trim());
-          if (mails.some((m) => sentNotOpened.has(m))) duplicateIds.push(c.id);
+          if (mails.some((m) => excludeMails.has(m))) duplicateIds.push(c.id);
         }
         if (data.length < pageSize) break;
       }
 
       if (duplicateIds.length === 0) {
-        toast.success(`Sin coincidencias (${sentNotOpened.size} mails revisados) 👍`, { id: toastId });
+        toast.success(`Sin coincidencias (${excludeMails.size} mails revisados) 👍`, { id: toastId });
         setRunning(false);
         return;
       }
@@ -164,7 +164,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
       await supabase.from("bases").update({ clean_count: newCount }).eq("id", sourceBase.id);
 
       toast.success(
-        `🗑️ ${duplicateIds.length} contactos enviados-sin-apertura eliminados de "${sourceBase.name}"`,
+        `🗑️ ${duplicateIds.length} contactos ya contactados eliminados de "${sourceBase.name}"`,
         { id: toastId }
       );
       onDone(newCount);
