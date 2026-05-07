@@ -48,9 +48,13 @@ const ENGAGED_STATUSES = new Set([
 const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone }: Props) => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [running, setRunning] = useState(false);
+  const [strict, setStrict] = useState(false);
 
   useEffect(() => {
-    if (open) setSelected(new Set());
+    if (open) {
+      setSelected(new Set());
+      setStrict(false);
+    }
   }, [open]);
 
   if (!sourceBase) return null;
@@ -75,8 +79,8 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
     const toastId = toast.loading(`Cruzando "${sourceBase.name}" contra ${selected.size} bases…`);
 
     try {
-      // 1. Build a set of "sent but not opened" emails from selected bases' sheets
-      const sentNotOpened = new Set<string>();
+      // 1. Build set of mails to exclude from selected bases' sheets
+      const excludeMails = new Set<string>();
       const engagedMails = new Set<string>();
 
       for (const baseId of selected) {
@@ -87,33 +91,37 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
           tabs.map((t) => fetchSheetReport(tb.sheet_id!, t.title).catch(() => ({ contacts: [] as any[] })))
         );
 
-        // First pass: collect engaged mails (so we don't accidentally exclude people who opened)
-        for (const sheet of allTabs) {
-          for (const c of sheet.contacts) {
-            const status = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
-            const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "")
-              .toString().toLowerCase().trim();
-            if (!mail || !mail.includes("@")) continue;
-            if (ENGAGED_STATUSES.has(status)) engagedMails.add(mail);
+        // First pass: collect engaged mails (only relevant in non-strict mode)
+        if (!strict) {
+          for (const sheet of allTabs) {
+            for (const c of sheet.contacts) {
+              const status = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
+              const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "")
+                .toString().toLowerCase().trim();
+              if (!mail || !mail.includes("@")) continue;
+              if (ENGAGED_STATUSES.has(status)) engagedMails.add(mail);
+            }
           }
         }
 
-        // Second pass: collect sent mails that are NOT in engaged set
+        // Second pass: collect sent mails (strict = all sent; non-strict = sent without engagement)
         for (const sheet of allTabs) {
           for (const c of sheet.contacts) {
             const status = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
             const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "")
               .toString().toLowerCase().trim();
             if (!mail || !mail.includes("@")) continue;
-            if (SENT_STATUSES.has(status) && !engagedMails.has(mail)) {
-              sentNotOpened.add(mail);
+            if (SENT_STATUSES.has(status) || (strict && ENGAGED_STATUSES.has(status))) {
+              if (strict || !engagedMails.has(mail)) {
+                excludeMails.add(mail);
+              }
             }
           }
         }
       }
 
-      if (sentNotOpened.size === 0) {
-        toast.success("No se encontraron envíos previos sin apertura 👍", { id: toastId });
+      if (excludeMails.size === 0) {
+        toast.success("No se encontraron envíos previos en esas bases 👍", { id: toastId });
         setRunning(false);
         return;
       }
@@ -133,13 +141,13 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
           const mails = [c.mail1, c.mail2, c.mail3, c.mail4]
             .filter(Boolean)
             .map((m: string) => m.toLowerCase().trim());
-          if (mails.some((m) => sentNotOpened.has(m))) duplicateIds.push(c.id);
+          if (mails.some((m) => excludeMails.has(m))) duplicateIds.push(c.id);
         }
         if (data.length < pageSize) break;
       }
 
       if (duplicateIds.length === 0) {
-        toast.success(`Sin coincidencias (${sentNotOpened.size} mails revisados) 👍`, { id: toastId });
+        toast.success(`Sin coincidencias (${excludeMails.size} mails revisados) 👍`, { id: toastId });
         setRunning(false);
         return;
       }
@@ -156,7 +164,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
       await supabase.from("bases").update({ clean_count: newCount }).eq("id", sourceBase.id);
 
       toast.success(
-        `🗑️ ${duplicateIds.length} contactos enviados-sin-apertura eliminados de "${sourceBase.name}"`,
+        `🗑️ ${duplicateIds.length} contactos ya contactados eliminados de "${sourceBase.name}"`,
         { id: toastId }
       );
       onDone(newCount);
@@ -177,13 +185,29 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
             Cruzar "{sourceBase.name}" contra otras bases
           </DialogTitle>
           <DialogDescription>
-            Selecciona bases ya enviadas. Se eliminarán de esta base los contactos que aparecen como
-            <strong> enviados pero sin apertura</strong> en cualquiera de ellas. Los que abrieron o
-            clickearon se conservan.
+            Selecciona bases ya enviadas. Se eliminarán de esta base los contactos que ya aparecen
+            en ellas según el modo elegido.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-80 space-y-1.5 overflow-y-auto py-2">
+        <label className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 cursor-pointer">
+          <Checkbox
+            checked={strict}
+            onCheckedChange={(v) => setStrict(!!v)}
+            disabled={running}
+            className="mt-0.5"
+          />
+          <div className="flex-1">
+            <p className="text-sm font-medium">Modo estricto: excluir TODOS los ya enviados</p>
+            <p className="text-xs text-muted-foreground">
+              {strict
+                ? "Se eliminará a cualquiera que ya recibió el mail, hayan abierto o no."
+                : "Por defecto solo elimina los enviados sin apertura (los que abrieron se conservan)."}
+            </p>
+          </div>
+        </label>
+
+        <div className="max-h-72 space-y-1.5 overflow-y-auto py-2">
           {targets.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
               No hay otras bases con Google Sheet asociado.
