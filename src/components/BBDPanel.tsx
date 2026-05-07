@@ -2,7 +2,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical, ExternalLink } from "lucide-react";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical, ExternalLink, Users } from "lucide-react";
+import CrossWithBasesDialog from "./CrossWithBasesDialog";
 import {
   Tooltip,
   TooltipContent,
@@ -58,6 +59,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [deduping, setDeduping] = useState(false);
+  const [crossDialogBase, setCrossDialogBase] = useState<Base | null>(null);
 
   const fetchBases = async () => {
     setLoading(true);
@@ -772,6 +774,16 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                     </DropdownMenu>
                   </>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={(e) => { e.stopPropagation(); setCrossDialogBase(base); }}
+                  title="Cruzar contra otras bases ya enviadas"
+                >
+                  <Users className="mr-1 h-3.5 w-3.5" />
+                  Cruzar con bases
+                </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDeleteClick(base.id, base.name, e)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -796,6 +808,18 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CrossWithBasesDialog
+        open={!!crossDialogBase}
+        onOpenChange={(v) => !v && setCrossDialogBase(null)}
+        sourceBase={crossDialogBase}
+        allBases={bases}
+        onDone={(newCount) => {
+          if (crossDialogBase) {
+            setBases((prev) => prev.map((b) => b.id === crossDialogBase.id ? { ...b, clean_count: newCount } : b));
+          }
+        }}
+      />
     </div>
   );
 };
