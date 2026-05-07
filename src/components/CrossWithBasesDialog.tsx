@@ -48,9 +48,13 @@ const ENGAGED_STATUSES = new Set([
 const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone }: Props) => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [running, setRunning] = useState(false);
+  const [strict, setStrict] = useState(false);
 
   useEffect(() => {
-    if (open) setSelected(new Set());
+    if (open) {
+      setSelected(new Set());
+      setStrict(false);
+    }
   }, [open]);
 
   if (!sourceBase) return null;
