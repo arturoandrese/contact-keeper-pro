@@ -185,13 +185,29 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
             Cruzar "{sourceBase.name}" contra otras bases
           </DialogTitle>
           <DialogDescription>
-            Selecciona bases ya enviadas. Se eliminarán de esta base los contactos que aparecen como
-            <strong> enviados pero sin apertura</strong> en cualquiera de ellas. Los que abrieron o
-            clickearon se conservan.
+            Selecciona bases ya enviadas. Se eliminarán de esta base los contactos que ya aparecen
+            en ellas según el modo elegido.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-80 space-y-1.5 overflow-y-auto py-2">
+        <label className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 cursor-pointer">
+          <Checkbox
+            checked={strict}
+            onCheckedChange={(v) => setStrict(!!v)}
+            disabled={running}
+            className="mt-0.5"
+          />
+          <div className="flex-1">
+            <p className="text-sm font-medium">Modo estricto: excluir TODOS los ya enviados</p>
+            <p className="text-xs text-muted-foreground">
+              {strict
+                ? "Se eliminará a cualquiera que ya recibió el mail, hayan abierto o no."
+                : "Por defecto solo elimina los enviados sin apertura (los que abrieron se conservan)."}
+            </p>
+          </div>
+        </label>
+
+        <div className="max-h-72 space-y-1.5 overflow-y-auto py-2">
           {targets.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
               No hay otras bases con Google Sheet asociado.
