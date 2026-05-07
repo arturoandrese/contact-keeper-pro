@@ -48,12 +48,14 @@ const ENGAGED_STATUSES = new Set([
 const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone }: Props) => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [running, setRunning] = useState(false);
-  const [strict, setStrict] = useState(false);
+  // "engaged" = solo excluye los que abrieron/respondieron (los no-abiertos se conservan para reintento)
+  // "all"     = excluye TODOS los enviados (hayan abierto o no)
+  const [mode, setMode] = useState<"engaged" | "all">("engaged");
 
   useEffect(() => {
     if (open) {
       setSelected(new Set());
-      setStrict(false);
+      setMode("engaged");
     }
   }, [open]);
 
@@ -79,9 +81,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
     const toastId = toast.loading(`Cruzando "${sourceBase.name}" contra ${selected.size} bases…`);
 
     try {
-      // 1. Build set of mails to exclude from selected bases' sheets
       const excludeMails = new Set<string>();
-      const engagedMails = new Set<string>();
 
       for (const baseId of selected) {
         const tb = allBases.find((b) => b.id === baseId);
@@ -91,37 +91,24 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
           tabs.map((t) => fetchSheetReport(tb.sheet_id!, t.title).catch(() => ({ contacts: [] as any[] })))
         );
 
-        // First pass: collect engaged mails (only relevant in non-strict mode)
-        if (!strict) {
-          for (const sheet of allTabs) {
-            for (const c of sheet.contacts) {
-              const status = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
-              const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "")
-                .toString().toLowerCase().trim();
-              if (!mail || !mail.includes("@")) continue;
-              if (ENGAGED_STATUSES.has(status)) engagedMails.add(mail);
-            }
-          }
-        }
-
-        // Second pass: collect sent mails (strict = all sent; non-strict = sent without engagement)
         for (const sheet of allTabs) {
           for (const c of sheet.contacts) {
             const status = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
             const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "")
               .toString().toLowerCase().trim();
             if (!mail || !mail.includes("@")) continue;
-            if (SENT_STATUSES.has(status) || (strict && ENGAGED_STATUSES.has(status))) {
-              if (strict || !engagedMails.has(mail)) {
-                excludeMails.add(mail);
-              }
+
+            if (mode === "engaged") {
+              if (ENGAGED_STATUSES.has(status)) excludeMails.add(mail);
+            } else {
+              if (SENT_STATUSES.has(status) || ENGAGED_STATUSES.has(status)) excludeMails.add(mail);
             }
           }
         }
       }
 
       if (excludeMails.size === 0) {
-        toast.success("No se encontraron envíos previos en esas bases 👍", { id: toastId });
+        toast.success("No se encontraron coincidencias en esas bases 👍", { id: toastId });
         setRunning(false);
         return;
       }
@@ -190,22 +177,39 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
           </DialogDescription>
         </DialogHeader>
 
-        <label className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 cursor-pointer">
-          <Checkbox
-            checked={strict}
-            onCheckedChange={(v) => setStrict(!!v)}
-            disabled={running}
-            className="mt-0.5"
-          />
-          <div className="flex-1">
-            <p className="text-sm font-medium">Modo estricto: excluir TODOS los ya enviados</p>
-            <p className="text-xs text-muted-foreground">
-              {strict
-                ? "Se eliminará a cualquiera que ya recibió el mail, hayan abierto o no."
-                : "Por defecto solo elimina los enviados sin apertura (los que abrieron se conservan)."}
-            </p>
-          </div>
-        </label>
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Qué excluir</p>
+          <label className="flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-2.5 cursor-pointer hover:bg-muted/40">
+            <input
+              type="radio"
+              checked={mode === "engaged"}
+              onChange={() => setMode("engaged")}
+              disabled={running}
+              className="mt-1 accent-primary"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Solo los que abrieron / respondieron</p>
+              <p className="text-xs text-muted-foreground">
+                Se conservan los enviados sin apertura para volver a contactarlos.
+              </p>
+            </div>
+          </label>
+          <label className="flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-2.5 cursor-pointer hover:bg-muted/40">
+            <input
+              type="radio"
+              checked={mode === "all"}
+              onChange={() => setMode("all")}
+              disabled={running}
+              className="mt-1 accent-primary"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Todos los ya enviados</p>
+              <p className="text-xs text-muted-foreground">
+                Excluye a cualquiera que ya recibió el mail, abriera o no.
+              </p>
+            </div>
+          </label>
+        </div>
 
         <div className="max-h-72 space-y-1.5 overflow-y-auto py-2">
           {targets.length === 0 ? (
