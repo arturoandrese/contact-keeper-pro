@@ -808,6 +808,18 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CrossWithBasesDialog
+        open={!!crossDialogBase}
+        onOpenChange={(v) => !v && setCrossDialogBase(null)}
+        sourceBase={crossDialogBase}
+        allBases={bases}
+        onDone={(newCount) => {
+          if (crossDialogBase) {
+            setBases((prev) => prev.map((b) => b.id === crossDialogBase.id ? { ...b, clean_count: newCount } : b));
+          }
+        }}
+      />
     </div>
   );
 };
