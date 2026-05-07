@@ -59,6 +59,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [deduping, setDeduping] = useState(false);
+  const [crossDialogBase, setCrossDialogBase] = useState<Base | null>(null);
 
   const fetchBases = async () => {
     setLoading(true);
