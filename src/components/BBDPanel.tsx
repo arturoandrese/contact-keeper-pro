@@ -774,6 +774,16 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                     </DropdownMenu>
                   </>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={(e) => { e.stopPropagation(); setCrossDialogBase(base); }}
+                  title="Cruzar contra otras bases ya enviadas"
+                >
+                  <Users className="mr-1 h-3.5 w-3.5" />
+                  Cruzar con bases
+                </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDeleteClick(base.id, base.name, e)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
