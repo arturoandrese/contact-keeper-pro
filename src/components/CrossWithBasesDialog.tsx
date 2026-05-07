@@ -48,12 +48,14 @@ const ENGAGED_STATUSES = new Set([
 const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone }: Props) => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [running, setRunning] = useState(false);
-  const [strict, setStrict] = useState(false);
+  // "engaged" = solo excluye los que abrieron/respondieron (los no-abiertos se conservan para reintento)
+  // "all"     = excluye TODOS los enviados (hayan abierto o no)
+  const [mode, setMode] = useState<"engaged" | "all">("engaged");
 
   useEffect(() => {
     if (open) {
       setSelected(new Set());
-      setStrict(false);
+      setMode("engaged");
     }
   }, [open]);
 
@@ -79,9 +81,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
     const toastId = toast.loading(`Cruzando "${sourceBase.name}" contra ${selected.size} bases…`);
 
     try {
-      // 1. Build set of mails to exclude from selected bases' sheets
       const excludeMails = new Set<string>();
-      const engagedMails = new Set<string>();
 
       for (const baseId of selected) {
         const tb = allBases.find((b) => b.id === baseId);
@@ -91,37 +91,24 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
           tabs.map((t) => fetchSheetReport(tb.sheet_id!, t.title).catch(() => ({ contacts: [] as any[] })))
         );
 
-        // First pass: collect engaged mails (only relevant in non-strict mode)
-        if (!strict) {
-          for (const sheet of allTabs) {
-            for (const c of sheet.contacts) {
-              const status = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
-              const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "")
-                .toString().toLowerCase().trim();
-              if (!mail || !mail.includes("@")) continue;
-              if (ENGAGED_STATUSES.has(status)) engagedMails.add(mail);
-            }
-          }
-        }
-
-        // Second pass: collect sent mails (strict = all sent; non-strict = sent without engagement)
         for (const sheet of allTabs) {
           for (const c of sheet.contacts) {
             const status = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
             const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "")
               .toString().toLowerCase().trim();
             if (!mail || !mail.includes("@")) continue;
-            if (SENT_STATUSES.has(status) || (strict && ENGAGED_STATUSES.has(status))) {
-              if (strict || !engagedMails.has(mail)) {
-                excludeMails.add(mail);
-              }
+
+            if (mode === "engaged") {
+              if (ENGAGED_STATUSES.has(status)) excludeMails.add(mail);
+            } else {
+              if (SENT_STATUSES.has(status) || ENGAGED_STATUSES.has(status)) excludeMails.add(mail);
             }
           }
         }
       }
 
       if (excludeMails.size === 0) {
-        toast.success("No se encontraron envíos previos en esas bases 👍", { id: toastId });
+        toast.success("No se encontraron coincidencias en esas bases 👍", { id: toastId });
         setRunning(false);
         return;
       }
