@@ -831,6 +831,12 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
           }
         }}
       />
+
+      <BlacklistDialog
+        open={blacklistOpen}
+        onOpenChange={setBlacklistOpen}
+        onDone={fetchBases}
+      />
     </div>
   );
 };
