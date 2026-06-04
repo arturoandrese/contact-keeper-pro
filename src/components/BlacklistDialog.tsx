@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Ban, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Ban, Loader2, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -21,9 +23,54 @@ interface Props {
 
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 
+interface BouncedRow {
+  mail: string;
+  domain: string | null;
+  bounced_at: string | null;
+}
+
 const BlacklistDialog = ({ open, onOpenChange, onDone }: Props) => {
   const [text, setText] = useState("");
   const [running, setRunning] = useState(false);
+  const [tab, setTab] = useState("add");
+  const [list, setList] = useState<BouncedRow[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const fetchList = async () => {
+    setLoadingList(true);
+    const { data, error } = await supabase
+      .from("bounced_emails")
+      .select("mail, domain, bounced_at")
+      .order("bounced_at", { ascending: false })
+      .limit(5000);
+    if (error) {
+      toast.error("Error cargando lista: " + error.message);
+    } else {
+      setList((data as BouncedRow[]) || []);
+    }
+    setLoadingList(false);
+  };
+
+  useEffect(() => {
+    if (open && tab === "view") fetchList();
+  }, [open, tab]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return list;
+    return list.filter((r) => r.mail.toLowerCase().includes(q));
+  }, [list, search]);
+
+  const removeOne = async (mail: string) => {
+    const { error } = await supabase.from("bounced_emails").delete().eq("mail", mail);
+    if (error) {
+      toast.error("Error: " + error.message);
+      return;
+    }
+    setList((prev) => prev.filter((r) => r.mail !== mail));
+    toast.success(`Removido de la blacklist: ${mail}`);
+  };
 
   const run = async () => {
     const matches = (text.match(EMAIL_RE) || []).map((m) => m.toLowerCase().trim());
@@ -37,24 +84,20 @@ const BlacklistDialog = ({ open, onOpenChange, onDone }: Props) => {
     const toastId = toast.loading(`Agregando ${emails.length} mails a la blacklist…`);
 
     try {
-      // 1. Insert into bounced_emails (idempotent — ignore duplicates)
       const rows = emails.map((mail) => ({
         mail,
         domain: mail.split("@")[1] || null,
       }));
-      // upsert based on mail uniqueness; if no unique index, just insert and swallow errors
-      await supabase.from("bounced_emails").upsert(rows as any, { onConflict: "mail", ignoreDuplicates: true } as any);
+      await supabase
+        .from("bounced_emails")
+        .upsert(rows as any, { onConflict: "mail", ignoreDuplicates: true } as any);
 
-      // 2. Sweep all contacts and remove blacklisted mails
       const blacklisted = new Set(emails);
       const pageSize = 1000;
-      let scanned = 0;
       let contactsDeleted = 0;
       let mailsCleared = 0;
-      const baseTouched = new Map<string, number>(); // base_id -> deletions count
+      const baseTouched = new Map<string, number>();
 
-      // Build a query that matches any contact where any of the 4 mail columns is in the list
-      // Supabase doesn't support OR with .in() across columns nicely → fetch in pages filtered by domain set
       const domains = Array.from(new Set(emails.map((m) => m.split("@")[1]).filter(Boolean)));
 
       for (let from = 0; ; from += pageSize) {
@@ -63,7 +106,6 @@ const BlacklistDialog = ({ open, onOpenChange, onDone }: Props) => {
           .select("id, base_id, mail1, mail2, mail3, mail4")
           .range(from, from + pageSize - 1);
 
-        // Pre-filter by domain to reduce volume when possible
         if (domains.length > 0 && domains.length <= 50) {
           const orParts = domains
             .flatMap((d) => [
@@ -79,7 +121,6 @@ const BlacklistDialog = ({ open, onOpenChange, onDone }: Props) => {
         const { data, error } = await q;
         if (error) throw error;
         if (!data || data.length === 0) break;
-        scanned += data.length;
 
         const toDelete: string[] = [];
         const toUpdate: Array<{ id: string; patch: Record<string, null> }> = [];
@@ -107,14 +148,12 @@ const BlacklistDialog = ({ open, onOpenChange, onDone }: Props) => {
           }
         }
 
-        // Delete in batches
         for (let i = 0; i < toDelete.length; i += 500) {
           const batch = toDelete.slice(i, i + 500);
           const { error: delErr } = await supabase.from("contacts").delete().in("id", batch);
           if (delErr) throw delErr;
           contactsDeleted += batch.length;
         }
-        // Updates one by one (different patches)
         for (const u of toUpdate) {
           await supabase.from("contacts").update(u.patch as any).eq("id", u.id);
         }
@@ -122,7 +161,6 @@ const BlacklistDialog = ({ open, onOpenChange, onDone }: Props) => {
         if (data.length < pageSize) break;
       }
 
-      // 3. Recompute clean_count for affected bases
       for (const [baseId, delta] of baseTouched.entries()) {
         const { data: b } = await supabase
           .from("bases")
@@ -142,8 +180,9 @@ const BlacklistDialog = ({ open, onOpenChange, onDone }: Props) => {
         { id: toastId }
       );
       setText("");
-      onOpenChange(false);
       onDone?.();
+      // Refresh list if user switches to view tab
+      if (tab === "view") fetchList();
     } catch (err: any) {
       toast.error("Error: " + (err?.message || "desconocido"), { id: toastId });
     } finally {
@@ -153,49 +192,130 @@ const BlacklistDialog = ({ open, onOpenChange, onDone }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Ban className="h-5 w-5" />
             Lista Negra
           </DialogTitle>
           <DialogDescription>
-            Pega uno o más mails (separados por coma, espacio o salto de línea). Se agregarán a la
-            blacklist y se eliminarán automáticamente de TODAS las bases.
+            Los mails en la lista negra se eliminan de TODAS las bases actuales y nunca se incluirán
+            en bases futuras (se filtran al subir / cruzar).
           </DialogDescription>
         </DialogHeader>
 
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="juan@empresa.cl, maria@otra.com&#10;pedro@dominio.cl"
-          rows={8}
-          disabled={running}
-          className="font-mono text-sm"
-        />
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="add">Agregar</TabsTrigger>
+            <TabsTrigger value="view">Ver lista ({list.length || "…"})</TabsTrigger>
+          </TabsList>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={running}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={run}
-            disabled={running || !text.trim()}
-            className="bg-black text-white hover:bg-black/80"
-          >
-            {running ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Procesando…
-              </>
-            ) : (
-              <>
-                <Ban className="mr-2 h-4 w-4" />
-                Agregar y limpiar bases
-              </>
+          <TabsContent value="add" className="space-y-3">
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="juan@empresa.cl, maria@otra.com&#10;pedro@dominio.cl"
+              rows={8}
+              disabled={running}
+              className="font-mono text-sm"
+            />
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={running}
+              >
+                Cerrar
+              </Button>
+              <Button
+                onClick={run}
+                disabled={running || !text.trim()}
+                className="bg-black text-white hover:bg-black/80"
+              >
+                {running ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Procesando…
+                  </>
+                ) : (
+                  <>
+                    <Ban className="mr-2 h-4 w-4" />
+                    Agregar y limpiar bases
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+
+          <TabsContent value="view" className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar mail o dominio…"
+                className="pl-8"
+              />
+            </div>
+
+            <div className="border rounded-md max-h-[400px] overflow-y-auto">
+              {loadingList ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                  Cargando…
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  {list.length === 0 ? "No hay mails en la blacklist" : "Sin resultados"}
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-2 font-medium">Mail</th>
+                      <th className="text-left p-2 font-medium w-32">Agregado</th>
+                      <th className="w-12"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.slice(0, 500).map((r) => (
+                      <tr key={r.mail} className="border-t hover:bg-muted/30">
+                        <td className="p-2 font-mono text-xs">{r.mail}</td>
+                        <td className="p-2 text-xs text-muted-foreground">
+                          {r.bounced_at
+                            ? new Date(r.bounced_at).toLocaleDateString("es-CL")
+                            : "—"}
+                        </td>
+                        <td className="p-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => removeOne(r.mail)}
+                            title="Quitar de blacklist"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            {filtered.length > 500 && (
+              <p className="text-xs text-muted-foreground text-center">
+                Mostrando 500 de {filtered.length}. Usa el buscador para filtrar.
+              </p>
             )}
-          </Button>
-        </DialogFooter>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cerrar
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
