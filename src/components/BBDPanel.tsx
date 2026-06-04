@@ -2,8 +2,9 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical, ExternalLink, Users } from "lucide-react";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical, ExternalLink, Users, Ban } from "lucide-react";
 import CrossWithBasesDialog from "./CrossWithBasesDialog";
+import BlacklistDialog from "./BlacklistDialog";
 import {
   Tooltip,
   TooltipContent,
@@ -60,6 +61,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [deduping, setDeduping] = useState(false);
   const [crossDialogBase, setCrossDialogBase] = useState<Base | null>(null);
+  const [blacklistOpen, setBlacklistOpen] = useState(false);
 
   const fetchBases = async () => {
     setLoading(true);
@@ -595,15 +597,24 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
             Tus bases subidas. Pincha una para verla o cruzarla.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open("https://sheets.new", "_blank", "noopener,noreferrer")}
-          className="shrink-0"
-        >
-          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-          Nueva Google Sheet
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            size="sm"
+            onClick={() => setBlacklistOpen(true)}
+            className="bg-black text-white hover:bg-black/80"
+          >
+            <Ban className="mr-1.5 h-3.5 w-3.5" />
+            Lista Negra
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open("https://sheets.new", "_blank", "noopener,noreferrer")}
+          >
+            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+            Nueva Google Sheet
+          </Button>
+        </div>
       </div>
 
       {bases.length === 0 ? (
@@ -819,6 +830,12 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
             setBases((prev) => prev.map((b) => b.id === crossDialogBase.id ? { ...b, clean_count: newCount } : b));
           }
         }}
+      />
+
+      <BlacklistDialog
+        open={blacklistOpen}
+        onOpenChange={setBlacklistOpen}
+        onDone={fetchBases}
       />
     </div>
   );
