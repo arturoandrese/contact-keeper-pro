@@ -2,8 +2,9 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical, ExternalLink, Users } from "lucide-react";
+import { Download, Trash2, CheckCircle2, Circle, Loader2, Pencil, Check, X, MailCheck, ChevronDown, GripVertical, ExternalLink, Users, Ban } from "lucide-react";
 import CrossWithBasesDialog from "./CrossWithBasesDialog";
+import BlacklistDialog from "./BlacklistDialog";
 import {
   Tooltip,
   TooltipContent,
