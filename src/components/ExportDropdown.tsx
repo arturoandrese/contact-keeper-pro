@@ -10,17 +10,17 @@ import { toast } from "sonner";
 
 interface ExportDropdownProps {
   label: string;
-  onDownload: () => void;
-  getData: () => { headers: string[]; rows: string[][] };
+  onDownload: () => void | Promise<void>;
+  getData: () => { headers: string[]; rows: string[][] } | Promise<{ headers: string[]; rows: string[][] }>;
   disabled?: boolean;
   variant?: "default" | "outline" | "ghost";
   size?: "sm" | "default";
 }
 
 const ExportDropdown = ({ label, onDownload, getData, disabled, variant = "outline", size = "sm" }: ExportDropdownProps) => {
-  const handleCopy = () => {
+  const handleCopy = async () => {
     try {
-      const { headers, rows } = getData();
+      const { headers, rows } = await getData();
       const tsv = [headers.join("\t"), ...rows.map(r => r.join("\t"))].join("\n");
       navigator.clipboard.writeText(tsv).then(() => {
         toast.success("📋 Copiado. Pega en Google Sheets (Ctrl+V)");
