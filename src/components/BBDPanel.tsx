@@ -597,15 +597,24 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
             Tus bases subidas. Pincha una para verla o cruzarla.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open("https://sheets.new", "_blank", "noopener,noreferrer")}
-          className="shrink-0"
-        >
-          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-          Nueva Google Sheet
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            size="sm"
+            onClick={() => setBlacklistOpen(true)}
+            className="bg-black text-white hover:bg-black/80"
+          >
+            <Ban className="mr-1.5 h-3.5 w-3.5" />
+            Lista Negra
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open("https://sheets.new", "_blank", "noopener,noreferrer")}
+          >
+            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+            Nueva Google Sheet
+          </Button>
+        </div>
       </div>
 
       {bases.length === 0 ? (
