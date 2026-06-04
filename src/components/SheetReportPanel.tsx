@@ -110,6 +110,45 @@ const toCleanedContacts = (rows: ExistingContactRow[]): CleanedContact[] =>
     MAIL4: c.mail4 || "",
   }));
 
+const buildBouncedExportRows = async (
+  baseId: string,
+  contacts: Array<Record<string, string>>,
+): Promise<Array<Record<string, string>>> => {
+  const existingContacts = await fetchAllContacts(baseId);
+  if (existingContacts.length === 0) return [];
+
+  const [savedPatternsRes, deliveredHistoryRes] = await Promise.all([
+    supabase.from("domain_patterns").select("domain, pattern, example_email"),
+    supabase.from("delivered_contacts").select("mail, nombre, apellido").limit(5000),
+  ]);
+
+  const savedPatterns = (savedPatternsRes.data || []).map((p: any) => ({
+    domain: p.domain, pattern: p.pattern, example_email: p.example_email,
+  }));
+  const deliveredHistory: DeliveredHistoryEntry[] = (deliveredHistoryRes.data || []).map((d: any) => ({
+    mail: d.mail || "", nombre: d.nombre || "", apellido: d.apellido || "",
+  }));
+
+  const { filtered } = crossReference(
+    toCleanedContacts(existingContacts),
+    toEmailLog(contacts),
+    undefined,
+    { onlyBounced: true, savedPatterns, deliveredHistory },
+  );
+
+  return filtered.map((row) => ({
+    EMAIL: row.MAIL_ORIGINAL || "",
+    ESTADO: "EMAIL BOUNCED",
+    NOMBRE: row.NOMBRE || "",
+    APELLIDO: row.APELLIDO || "",
+    EMPRESA: row.EMPRESA_SHORT || row.EMPRESA || "",
+    WEB: row.WEB || "",
+    MAIL1: row.MAIL1 || "",
+    MAIL2: row.MAIL2 || "",
+    MAIL3: row.MAIL3 || "",
+  }));
+};
+
 async function fetchAllContacts(baseId: string): Promise<ExistingContactRow[]> {
   const all: ExistingContactRow[] = [];
 
@@ -399,19 +438,23 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
   const statusFilterLabel = selectedStatus ? selectedStatus.replace(/_/g, " ") : "TODOS";
 
-  const handleDownloadCurrentView = () => {
+  const handleDownloadCurrentView = async () => {
     if (!data) return;
 
-    const rows = filteredContacts.map((contact) => ({
-      EMAIL: getSheetContactEmail(contact) || "",
-      ESTADO: (contact._status || "UNKNOWN").toString().replace(/_/g, " "),
-      NOMBRE: getSheetContactName(contact),
-      APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
-      EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
-      WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
-      MAIL1: (contact["MAIL1"] || "").toString().trim(),
-      MAIL2: (contact["MAIL2"] || "").toString().trim(),
-    }));
+    const isBouncedView = selectedStatus === "BOUNCED";
+    const rows = isBouncedView
+      ? await buildBouncedExportRows(baseId, filteredContacts)
+      : filteredContacts.map((contact) => ({
+          EMAIL: getSheetContactEmail(contact) || "",
+          ESTADO: (contact._status || "UNKNOWN").toString().replace(/_/g, " "),
+          NOMBRE: getSheetContactName(contact),
+          APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
+          EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
+          WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
+          MAIL1: (contact["MAIL1"] || "").toString().trim(),
+          MAIL2: (contact["MAIL2"] || "").toString().trim(),
+          MAIL3: "",
+        }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -419,6 +462,30 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
     const suffix = selectedStatus ? normalizeStatusKey(selectedStatus).toLowerCase() : "todos";
     XLSX.writeFile(wb, `reporte_${selectedTab || "sheet"}_${suffix}.xlsx`);
+  };
+
+  const getCurrentViewExportData = async () => {
+    if (!data) return { headers: [], rows: [] };
+
+    const isBouncedView = selectedStatus === "BOUNCED";
+    const rows = isBouncedView
+      ? await buildBouncedExportRows(baseId, filteredContacts)
+      : filteredContacts.map((contact) => ({
+          EMAIL: getSheetContactEmail(contact) || "",
+          ESTADO: (contact._status || "UNKNOWN").replace(/_/g, " "),
+          NOMBRE: getSheetContactName(contact),
+          APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
+          EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
+          WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
+          MAIL1: (contact["MAIL1"] || "").toString().trim(),
+          MAIL2: (contact["MAIL2"] || "").toString().trim(),
+          MAIL3: "",
+        }));
+
+    return {
+      headers: ["EMAIL", "ESTADO", "NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3"],
+      rows: rows.map((row) => [row.EMAIL, row.ESTADO, row.NOMBRE, row.APELLIDO, row.EMPRESA, row.WEB, row.MAIL1, row.MAIL2, row.MAIL3 || ""]),
+    };
   };
 
   return (
@@ -463,19 +530,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
                 disabled={filteredContacts.length === 0}
                 variant="outline"
                 onDownload={handleDownloadCurrentView}
-                getData={() => ({
-                  headers: ["EMAIL", "ESTADO", "NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL1", "MAIL2"],
-                  rows: filteredContacts.map(c => [
-                    getSheetContactEmail(c),
-                    (c._status || "UNKNOWN").replace(/_/g, " "),
-                    getSheetContactName(c),
-                    (c["Last Name"] || c["APELLIDO"] || c["apellido"] || "").toString().trim(),
-                    (c["EMPRESA"] || c["Company"] || c["empresa"] || "").toString().trim(),
-                    (c["WEB"] || c["Website"] || c["web"] || "").toString().trim(),
-                    (c["MAIL1"] || "").toString().trim(),
-                    (c["MAIL2"] || "").toString().trim(),
-                  ]),
-                })}
+                getData={getCurrentViewExportData}
               />
               <Button size="sm" variant="default" onClick={handleUpdateBase} disabled={updating}>
                 {updating ? (
