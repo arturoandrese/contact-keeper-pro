@@ -116,7 +116,7 @@ const BlacklistDialog = ({ open, onOpenChange, onDone }: Props) => {
         }
         // Updates one by one (different patches)
         for (const u of toUpdate) {
-          await supabase.from("contacts").update(u.patch).eq("id", u.id);
+          await supabase.from("contacts").update(u.patch as any).eq("id", u.id);
         }
 
         if (data.length < pageSize) break;
