@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
+import Papa from "papaparse";
 import { parseAndClean, type CleanedContact, type DomainPatternEntry, FREE_EMAIL_DOMAINS, removeAccents } from "@/lib/contactCleaner";
 import { supabase } from "@/integrations/supabase/client";
 import FileUploader from "@/components/FileUploader";
@@ -64,12 +65,103 @@ const Index = () => {
 
   const processFileWithFilters = async (filters: UploadFilters) => {
     setFilterDialogOpen(false);
-    const content = pendingContent;
+    let content = pendingContent;
     if (!content) return;
     setPendingContent(null);
 
     const lines = content.split("\n").filter((l) => l.trim()).length - 1;
     setRawCount(Math.max(lines, 0));
+
+    // Enrich missing web from company name (using delivered_contacts cache + AI)
+    try {
+      const parsed = Papa.parse<Record<string, string>>(content, { header: true, skipEmptyLines: true });
+      const rows = parsed.data;
+      const headers = parsed.meta.fields || [];
+      const norm = (s: string) => removeAccents((s || "").toLowerCase()).replace(/[\s._\-()]/g, "");
+      const webKey = headers.find(h => /^(web|website|sitio|url|sitioweb|webempresa|companywebsite)$/i.test(norm(h)));
+      const companyKey = headers.find(h => /^(empresa|company|companyname|organizacion)$/i.test(norm(h)));
+      const emailKey = headers.find(h => /^(mail|email|mail1|email1|correo|correo1)$/i.test(norm(h)));
+
+      if (companyKey && !emailKey) {
+        const needsEnrich: string[] = [];
+        for (const r of rows) {
+          const w = webKey ? (r[webKey] || "").trim() : "";
+          const c = (r[companyKey] || "").trim();
+          if (c && !w) needsEnrich.push(c);
+        }
+        const unique = Array.from(new Set(needsEnrich));
+
+        if (unique.length > 0) {
+          const cache = new Map<string, string>();
+
+          // 1) Try to resolve from delivered_contacts (company → domain we already use)
+          try {
+            const { data: delivered } = await supabase
+              .from("delivered_contacts")
+              .select("empresa, mail")
+              .not("empresa", "is", null)
+              .limit(5000);
+            if (delivered) {
+              const byCompany = new Map<string, string>();
+              for (const d of delivered) {
+                if (!d.empresa || !d.mail) continue;
+                const dom = d.mail.split("@")[1]?.toLowerCase();
+                if (!dom || FREE_EMAIL_DOMAINS.has(dom)) continue;
+                const key = norm(d.empresa);
+                if (!byCompany.has(key)) byCompany.set(key, dom);
+              }
+              for (const c of unique) {
+                const hit = byCompany.get(norm(c));
+                if (hit) cache.set(c, hit);
+              }
+            }
+          } catch {}
+
+          const remaining = unique.filter(c => !cache.has(c));
+          let aiResolved = 0;
+
+          if (remaining.length > 0) {
+            toast.info(`🔎 Buscando dominios web de ${remaining.length} empresas con IA...`);
+            try {
+              const { data, error } = await supabase.functions.invoke("enrich-company-domains", {
+                body: { companies: remaining },
+              });
+              if (error) throw error;
+              const mapping = (data?.mapping || {}) as Record<string, string>;
+              for (const [c, dom] of Object.entries(mapping)) {
+                if (dom) { cache.set(c, dom); aiResolved++; }
+              }
+            } catch (err) {
+              console.warn("enrich-company-domains failed", err);
+              toast.error("No se pudieron enriquecer dominios con IA");
+            }
+          }
+
+          if (cache.size > 0) {
+            // Ensure Web column exists
+            let targetWebKey = webKey;
+            if (!targetWebKey) {
+              targetWebKey = "Web";
+              headers.push(targetWebKey);
+            }
+            let filled = 0;
+            for (const r of rows) {
+              const w = (r[targetWebKey] || "").trim();
+              const c = (r[companyKey] || "").trim();
+              if (c && !w && cache.has(c)) {
+                r[targetWebKey] = cache.get(c)!;
+                filled++;
+              }
+            }
+            content = Papa.unparse(rows, { columns: headers });
+            toast.success(`✅ ${filled} dominios completados (${cache.size - aiResolved} desde histórico, ${aiResolved} vía IA)`);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Enriquecimiento de dominios falló:", err);
+    }
+
 
     // Load saved domain patterns to prioritize known working emails
     let savedPatterns: DomainPatternEntry[] = [];
