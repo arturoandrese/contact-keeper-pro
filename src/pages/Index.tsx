@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
+import Papa from "papaparse";
 import { parseAndClean, type CleanedContact, type DomainPatternEntry, FREE_EMAIL_DOMAINS, removeAccents } from "@/lib/contactCleaner";
 import { supabase } from "@/integrations/supabase/client";
 import FileUploader from "@/components/FileUploader";
