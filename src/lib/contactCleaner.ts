@@ -172,24 +172,25 @@ function generateEmailByPattern(
   apellido2: string,
   domain: string
 ): string {
-  const initial = nombre.charAt(0);
+  const ni = nombre.charAt(0);
+  const ai = apellido.charAt(0);
   switch (pattern) {
-    case "first.last":
-      return `${nombre}.${apellido}@${domain}`;
-    case "initial_last":
-      return `${initial}${apellido}@${domain}`;
+    case "first.last": return `${nombre}.${apellido}@${domain}`;
+    case "last.first": return `${apellido}.${nombre}@${domain}`;
+    case "initial.last": return `${ni}.${apellido}@${domain}`;
+    case "initial_last": return `${ni}${apellido}@${domain}`;
     case "initial_last_initial2":
       return apellido2
-        ? `${initial}${apellido}${apellido2.charAt(0)}@${domain}`
-        : `${initial}${apellido}@${domain}`;
-    case "first_last":
-      return `${nombre}${apellido}@${domain}`;
-    case "first":
-      return `${nombre}@${domain}`;
-    case "last.first":
-      return `${apellido}.${nombre}@${domain}`;
-    default:
-      return `${initial}${apellido}@${domain}`;
+        ? `${ni}${apellido}${apellido2.charAt(0)}@${domain}`
+        : `${ni}${apellido}@${domain}`;
+    case "first_last": return `${nombre}${apellido}@${domain}`;
+    case "first_last_underscore": return `${nombre}_${apellido}@${domain}`;
+    case "first_initial":
+    case "first_last_initial":
+      return `${nombre}${ai}@${domain}`;
+    case "first": return `${nombre}@${domain}`;
+    case "last": return `${apellido}@${domain}`;
+    default: return `${ni}${apellido}@${domain}`;
   }
 }
 
