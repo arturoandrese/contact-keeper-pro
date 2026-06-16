@@ -425,7 +425,12 @@ const Index = () => {
             .select("mail")
             .in("mail", chunk)
             .gte("last_contacted_at", cutoffISO);
-          if (data) data.forEach(r => recentlyContactedSet.add((r.mail || "").toLowerCase()));
+          if (data) data.forEach(r => {
+            const m = (r.mail || "").toLowerCase();
+            // IMPORTANT: if a "recent send" actually bounced, do NOT treat it as
+            // "already contacted" — we want to retry that contact with a new pattern.
+            if (m && !allBouncedMails.has(m)) recentlyContactedSet.add(m);
+          });
         }
 
         if (recentlyContactedSet.size > 0) {
@@ -441,6 +446,7 @@ const Index = () => {
           }
           const removed = before - cleaned.length;
           if (removed > 0) {
+            funnel.push(`📬 -${removed} contactados ≤${filters.sentDays}d`);
             toast.info(`📬 ${removed} contactos excluidos (contactados en últimos ${filters.sentDays} días)`);
           }
         }
