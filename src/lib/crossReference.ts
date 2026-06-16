@@ -246,13 +246,20 @@ function generateEmailFromPattern(pattern: string, nombre: string, apellido: str
   if (!nombre || !apellido || !domain) return null;
   const n = nombre.toLowerCase();
   const a = apellido.toLowerCase();
+  if (!n || !a) return null;
+  const ni = n[0];
+  const ai = a[0];
   switch (pattern) {
     case "first.last": return `${n}.${a}@${domain}`;
-    case "initial_last": return `${n[0]}${a}@${domain}`;
-    case "initial.last": return `${n[0]}.${a}@${domain}`;
     case "last.first": return `${a}.${n}@${domain}`;
+    case "initial.last": return `${ni}.${a}@${domain}`;
+    case "first_last": return `${n}${a}@${domain}`;
+    case "first_last_underscore": return `${n}_${a}@${domain}`;
+    case "first_initial": return `${n}${ai}@${domain}`;
+    case "initial_last": return `${ni}${a}@${domain}`;
+    case "first_last_initial": return `${n}${ai}@${domain}`;
     case "first": return `${n}@${domain}`;
-    case "first_last_initial": return `${n}${a[0]}@${domain}`;
+    case "last": return `${a}@${domain}`;
     default: return null;
   }
 }
