@@ -167,10 +167,10 @@ export interface DomainPatternEntry {
 
 const PATTERN_PRIORITY = [
   "initial_last",
+  "initial_last_initial2",
   "first.last",
   "first_last",
   "first",
-  "initial_last_initial2",
   "last.first",
   "first_last_underscore",
   "first_initial",
@@ -267,13 +267,16 @@ function extractRowIdentity(row: Record<string, string>): ParsedRowIdentity {
   const rawLast = removeAccents(
     getFieldValue(row, ["last_name", "lastname", "apellido", "APELLIDO", "surname"])
   );
+  const rawSecondLast = removeAccents(
+    getFieldValue(row, ["apellido2", "APELLIDO2", "segundo_apellido", "second_last_name", "secondlastname", "mother_last_name"])
+  );
 
   const firstParts = rawFirst.split(/\s+/).filter(Boolean);
   const lastParts = rawLast.split(/\s+/).filter(Boolean);
 
   const nombre = (firstParts[0] || "").toLowerCase();
   const apellido = (lastParts[0] || "").toLowerCase();
-  const apellido2 = lastParts.length > 1 ? lastParts[1].toLowerCase() : "";
+  const apellido2 = ((rawSecondLast.split(/\s+/).filter(Boolean)[0] || lastParts[1] || "")).toLowerCase();
 
   const web = extractDomain(
     getFieldValue(row, ["company_website", "website", "web", "sitio_web", "web_empresa", "sitio web", "url"])
@@ -329,27 +332,6 @@ export function parseAndClean(
   }
 
   const parsedRows = parsed.data.map(extractRowIdentity);
-  const domainBlockedPatterns = new Map<string, Set<string>>();
-  const addDomainBlockedPattern = (domain: string, pattern: string) => {
-    if (!domain || !pattern) return;
-    const current = domainBlockedPatterns.get(domain) || new Set<string>();
-    current.add(pattern);
-    domainBlockedPatterns.set(domain, current);
-  };
-
-  // Learn bounced patterns once per domain from the full uploaded base, not only
-  // from the current row. If a Falabella initial+last bounced, initial+last is
-  // blocked for every Falabella contact in this upload.
-  for (const { domain, nombre, apellido, apellido2 } of parsedRows) {
-    if (!domain || !nombre || !apellido) continue;
-    const bouncedLocals = bouncedByDomain?.get(domain);
-    if (!bouncedLocals) continue;
-    for (const bouncedLocal of bouncedLocals) {
-      for (const pattern of detectBlockedPatternsForPerson(bouncedLocal, nombre, apellido, apellido2)) {
-        addDomainBlockedPattern(domain, pattern);
-      }
-    }
-  }
 
   const results: CleanedContact[] = [];
 
@@ -383,7 +365,7 @@ export function parseAndClean(
       const bouncedLocals = bouncedByDomain?.get(domain) || new Set<string>();
 
       // Derive blocked patterns from bounces using THIS contact's name
-      const blockedPatterns = new Set<string>(domainBlockedPatterns.get(domain) || []);
+      const blockedPatterns = new Set<string>();
       for (const bouncedLocal of bouncedLocals) {
         for (const pattern of detectBlockedPatternsForPerson(bouncedLocal, nombre, apellido, apellido2)) {
           blockedPatterns.add(pattern);
