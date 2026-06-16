@@ -96,10 +96,21 @@ function detectPattern(email: string, nombre: string, apellido: string): string 
   if (!local) return null;
   const n = nombre.toLowerCase();
   const a = apellido.toLowerCase();
-  
+  if (!n || !a) return null;
+  const ni = n[0];
+  const ai = a[0];
+
+  // Order matters: more specific first
   if (local === `${n}.${a}`) return "first.last";
-  if (local === `${n[0]}${a}`) return "initial_last";
-  if (local.startsWith(`${n[0]}${a}`) && local.length === n[0].length + a.length + 1) return "initial_last_initial2";
+  if (local === `${a}.${n}`) return "last.first";
+  if (local === `${ni}.${a}`) return "initial.last";
+  if (local === `${n}_${a}`) return "first_last_underscore";
+  if (local === `${n}${a}`) return "first_last";
+  if (local === `${n}${ai}`) return "first_initial";
+  if (local === `${ni}${a}`) return "initial_last";
+  if (local.startsWith(`${ni}${a}`) && local.length === ni.length + a.length + 1) return "initial_last_initial2";
+  if (local === n) return "first";
+  if (local === a) return "last";
   return null;
 }
 
