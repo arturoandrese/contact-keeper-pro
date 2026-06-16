@@ -150,8 +150,8 @@ const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName 
                 disabled={contacts.length === 0}
                 onDownload={handleDownload}
                 getData={() => ({
-                  headers: ["Email", "Nombre", "Estado", "Pestaña"],
-                  rows: contacts.map(c => [c.email, c.nombre, c.status, c.tab]),
+                  headers: EXPORT_HEADERS,
+                  rows: buildExport().map(r => EXPORT_HEADERS.map(h => (r as any)[h] || "")),
                 })}
               />
             </div>
