@@ -165,6 +165,17 @@ export interface DomainPatternEntry {
   confirmed?: boolean;
 }
 
+const PATTERN_PRIORITY = [
+  "initial_last",
+  "first.last",
+  "first_last",
+  "first",
+  "initial_last_initial2",
+  "last.first",
+  "first_last_underscore",
+  "first_initial",
+] as const;
+
 function generateEmailByPattern(
   pattern: string,
   nombre: string,
@@ -192,6 +203,38 @@ function generateEmailByPattern(
     case "last": return `${apellido}@${domain}`;
     default: return `${ni}${apellido}@${domain}`;
   }
+}
+
+/**
+ * Detecta qué patrón generó un local part, dado el nombre/apellido del contacto.
+ * Devuelve null si ninguno coincide.
+ */
+export function detectPatternFromLocal(
+  local: string,
+  nombre: string,
+  apellido: string,
+  apellido2: string
+): string | null {
+  if (!local || !nombre || !apellido) return null;
+  const l = local.toLowerCase();
+  const n = nombre.toLowerCase();
+  const a = apellido.toLowerCase();
+  const a2 = (apellido2 || "").toLowerCase();
+  const ni = n.charAt(0);
+  const ai = a.charAt(0);
+  const a2i = a2.charAt(0);
+
+  if (l === `${n}.${a}`) return "first.last";
+  if (l === `${a}.${n}`) return "last.first";
+  if (l === `${ni}.${a}`) return "initial.last";
+  if (l === `${ni}${a}`) return "initial_last";
+  if (a2 && l === `${ni}${a}${a2i}`) return "initial_last_initial2";
+  if (l === `${n}${a}`) return "first_last";
+  if (l === `${n}_${a}`) return "first_last_underscore";
+  if (l === `${n}${ai}`) return "first_initial";
+  if (l === n) return "first";
+  if (l === a) return "last";
+  return null;
 }
 
 export function parseAndClean(
