@@ -494,6 +494,7 @@ const Index = () => {
           }
           const removed = before - cleaned.length;
           if (removed > 0) {
+            funnel.push(`💬 -${removed} respondidos ≤${filters.repliedDays}d`);
             toast.info(`💬 ${removed} contactos excluidos (respondieron en últimos ${filters.repliedDays} días)`);
           }
         }
