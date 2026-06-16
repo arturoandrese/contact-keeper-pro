@@ -94,46 +94,13 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
         if (data) savedPatterns = data as DomainPatternEntry[];
       } catch {}
 
-      // Pre-fetch bounced patterns per domain present in this file
+      // Load EVERY bounce in the system, grouped by domain (derived from the mail itself).
       let bouncedByDomain: Map<string, Set<string>> | undefined;
       try {
-        const parsedRows = Papa.parse<Record<string, string>>(csvText, { header: true, skipEmptyLines: true }).data;
-        const domains = new Set<string>();
-        for (const r of parsedRows) {
-          for (const [k, v] of Object.entries(r)) {
-            if (!v) continue;
-            const nk = (k || "").toLowerCase().replace(/[\s._\-()]/g, "");
-            if (/^(web|website|sitio|url|sitioweb|webempresa|companywebsite)$/.test(nk)) {
-              let d = String(v).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].split("?")[0];
-              if (d) domains.add(d);
-            } else if (/^(mail|email|mail1|email1|correo|correo1)$/.test(nk)) {
-              const dom = String(v).trim().toLowerCase().split("@")[1];
-              if (dom) domains.add(dom);
-            }
-          }
-        }
-        if (domains.size > 0) {
-          const domArr = Array.from(domains);
-          bouncedByDomain = new Map();
-          for (let i = 0; i < domArr.length; i += 100) {
-            const chunk = domArr.slice(i, i + 100);
-            const { data } = await supabase
-              .from("bounced_emails")
-              .select("mail, domain")
-              .in("domain", chunk);
-            if (data) {
-              for (const r of data as any[]) {
-                const dom = (r.domain || "").toLowerCase();
-                const local = ((r.mail || "").toLowerCase().split("@")[0] || "");
-                if (!dom || !local) continue;
-                if (!bouncedByDomain.has(dom)) bouncedByDomain.set(dom, new Set());
-                bouncedByDomain.get(dom)!.add(local);
-              }
-            }
-          }
-        }
+        const { loadAllBouncedByDomain } = await import("@/lib/bouncedIndex");
+        bouncedByDomain = await loadAllBouncedByDomain();
       } catch (err) {
-        console.warn("No se pudo cargar bounced_emails por dominio:", err);
+        console.warn("No se pudo cargar bounced_emails:", err);
       }
 
       const cleaned = parseAndClean(csvText, savedPatterns, bouncedByDomain);
