@@ -536,9 +536,13 @@ export function crossReference(
     const getKnownPattern = (d: string): { pattern: string; confirmed: boolean } | null => {
       if (!d) return null;
       const campaignPattern = domainPatternMap.get(d);
-      if (campaignPattern) return { pattern: campaignPattern.pattern, confirmed: campaignPattern.confirmed };
+      if (campaignPattern && !isPatternBlocked(d, campaignPattern.pattern)) {
+        return { pattern: campaignPattern.pattern, confirmed: campaignPattern.confirmed };
+      }
       const basePattern = baseDomainPatternMap.get(d);
-      if (basePattern) return { pattern: basePattern, confirmed: false };
+      if (basePattern && !isPatternBlocked(d, basePattern)) {
+        return { pattern: basePattern, confirmed: false };
+      }
       return null;
     };
 
