@@ -34,7 +34,7 @@ const UploadFilterDialog = ({ open, onOpenChange, onConfirm }: UploadFilterDialo
   const [filterReplied, setFilterReplied] = useState(true);
   const [repliedDays, setRepliedDays] = useState(15);
   const [learnFromDelivered, setLearnFromDelivered] = useState(true);
-  const [filterDuplicates, setFilterDuplicates] = useState(true);
+  const [filterDuplicates, setFilterDuplicates] = useState(false);
 
   const handleConfirm = () => {
     onConfirm({ filterSent, sentDays, filterReplied, repliedDays, learnFromDelivered, filterDuplicates });
@@ -74,7 +74,7 @@ const UploadFilterDialog = ({ open, onOpenChange, onConfirm }: UploadFilterDialo
           </div>
 
           {/* Filter duplicates across bases */}
-          <div className="flex items-start gap-3 rounded-lg border border-border p-3">
+          <div className="flex items-start gap-3 rounded-lg border border-border p-3 opacity-80">
             <Checkbox
               id="filter-duplicates"
               checked={filterDuplicates}
@@ -85,9 +85,11 @@ const UploadFilterDialog = ({ open, onOpenChange, onConfirm }: UploadFilterDialo
               <Label htmlFor="filter-duplicates" className="flex items-center gap-2 cursor-pointer">
                 <Copy className="h-4 w-4 text-muted-foreground" />
                 Excluir duplicados entre bases
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">(off por defecto)</span>
               </Label>
               <p className="text-xs text-muted-foreground">
-                Detecta contactos que ya existen en otras bases guardadas
+                Solo activa esto si NO quieres reintentar contactos que ya estaban en otra base.
+                Por defecto se conservan: lo único que filtra duplicados reales es "rebotados" y "ya contactados".
               </p>
             </div>
           </div>
