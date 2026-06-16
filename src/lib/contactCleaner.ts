@@ -176,6 +176,14 @@ const PATTERN_PRIORITY = [
   "first_initial",
 ] as const;
 
+const RISKY_ALTERNATIVES_AFTER_OWN_BOUNCE = new Set([
+  "first.last",
+  "first_last",
+  "first_last_underscore",
+  "last.first",
+  "first",
+]);
+
 function generateEmailByPattern(
   pattern: string,
   nombre: string,
@@ -368,9 +376,16 @@ export function parseAndClean(
       // A bounced email must never be returned, but we still generate other
       // non-bounced alternatives for the same person/company.
       const blockedPatterns = new Set<string>();
+      let personHasOwnBounce = false;
       for (const bouncedLocal of bouncedLocals) {
         const patternsForPerson = detectBlockedPatternsForPerson(bouncedLocal, nombre, apellido, apellido2);
+        if (patternsForPerson.length > 0) personHasOwnBounce = true;
         for (const pattern of patternsForPerson) {
+          blockedPatterns.add(pattern);
+        }
+      }
+      if (personHasOwnBounce) {
+        for (const pattern of RISKY_ALTERNATIVES_AFTER_OWN_BOUNCE) {
           blockedPatterns.add(pattern);
         }
       }
