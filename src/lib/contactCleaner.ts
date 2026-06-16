@@ -248,6 +248,65 @@ function inferPatternsFromBouncedLocal(local: string): string[] {
   return [];
 }
 
+interface ParsedRowIdentity {
+  row: Record<string, string>;
+  email1: string;
+  nombre: string;
+  apellido: string;
+  apellido2: string;
+  web: string;
+  domain: string;
+}
+
+function extractRowIdentity(row: Record<string, string>): ParsedRowIdentity {
+  const email1 = extractPrimaryCorporateEmail(row);
+
+  const rawFirst = removeAccents(
+    getFieldValue(row, ["first_name", "firstname", "nombre", "NOMBRE", "name"])
+  );
+  const rawLast = removeAccents(
+    getFieldValue(row, ["last_name", "lastname", "apellido", "APELLIDO", "surname"])
+  );
+
+  const firstParts = rawFirst.split(/\s+/).filter(Boolean);
+  const lastParts = rawLast.split(/\s+/).filter(Boolean);
+
+  const nombre = (firstParts[0] || "").toLowerCase();
+  const apellido = (lastParts[0] || "").toLowerCase();
+  const apellido2 = lastParts.length > 1 ? lastParts[1].toLowerCase() : "";
+
+  const web = extractDomain(
+    getFieldValue(row, ["company_website", "website", "web", "sitio_web", "web_empresa", "sitio web", "url"])
+  );
+  const domain = web || (email1 ? email1.split("@")[1] : "") || "";
+
+  return { row, email1, nombre, apellido, apellido2, web, domain };
+}
+
+function detectBlockedPatternsForPerson(
+  local: string,
+  nombre: string,
+  apellido: string,
+  apellido2: string
+): string[] {
+  const patterns = new Set<string>();
+  const direct = detectPatternFromLocal(local, nombre, apellido, apellido2);
+  if (direct) patterns.add(direct);
+
+  // Some sources split compound first names as NOMBRE + APELLIDO and put the real
+  // surname in APELLIDO2; still treat bounced initials+surname as the same pattern.
+  if (apellido2) {
+    const usingSecondSurname = detectPatternFromLocal(local, nombre, apellido2, "");
+    if (usingSecondSurname) patterns.add(usingSecondSurname);
+  }
+
+  for (const inferred of inferPatternsFromBouncedLocal(local)) {
+    patterns.add(inferred);
+  }
+
+  return Array.from(patterns);
+}
+
 export function parseAndClean(
   csvText: string,
   savedPatterns?: DomainPatternEntry[],
@@ -269,29 +328,32 @@ export function parseAndClean(
     }
   }
 
+  const parsedRows = parsed.data.map(extractRowIdentity);
+  const domainBlockedPatterns = new Map<string, Set<string>>();
+  const addDomainBlockedPattern = (domain: string, pattern: string) => {
+    if (!domain || !pattern) return;
+    const current = domainBlockedPatterns.get(domain) || new Set<string>();
+    current.add(pattern);
+    domainBlockedPatterns.set(domain, current);
+  };
+
+  // Learn bounced patterns once per domain from the full uploaded base, not only
+  // from the current row. If a Falabella initial+last bounced, initial+last is
+  // blocked for every Falabella contact in this upload.
+  for (const { domain, nombre, apellido, apellido2 } of parsedRows) {
+    if (!domain || !nombre || !apellido) continue;
+    const bouncedLocals = bouncedByDomain?.get(domain);
+    if (!bouncedLocals) continue;
+    for (const bouncedLocal of bouncedLocals) {
+      for (const pattern of detectBlockedPatternsForPerson(bouncedLocal, nombre, apellido, apellido2)) {
+        addDomainBlockedPattern(domain, pattern);
+      }
+    }
+  }
+
   const results: CleanedContact[] = [];
 
-  for (const row of parsed.data) {
-    const email1 = extractPrimaryCorporateEmail(row);
-
-    const rawFirst = removeAccents(
-      getFieldValue(row, ["first_name", "firstname", "nombre", "NOMBRE", "name"])
-    );
-    const rawLast = removeAccents(
-      getFieldValue(row, ["last_name", "lastname", "apellido", "APELLIDO", "surname"])
-    );
-
-    const firstParts = rawFirst.split(/\s+/).filter(Boolean);
-    const lastParts = rawLast.split(/\s+/).filter(Boolean);
-
-    const nombre = (firstParts[0] || "").toLowerCase();
-    const apellido = (lastParts[0] || "").toLowerCase();
-    const apellido2 = lastParts.length > 1 ? lastParts[1].toLowerCase() : "";
-
-    const web = extractDomain(
-      getFieldValue(row, ["company_website", "website", "web", "sitio_web", "web_empresa", "sitio web", "url"]) 
-    );
-
+  for (const { row, email1, nombre, apellido, apellido2, web, domain } of parsedRows) {
     if (!email1 && !(web && nombre && apellido)) continue;
 
     let empresa = "";
@@ -309,7 +371,6 @@ export function parseAndClean(
       empresa = empresa.toUpperCase();
     }
 
-    const domain = web || (email1 ? email1.split("@")[1] : "") || "";
     const hasNameForPattern = Boolean(nombre && apellido);
 
     let mail1 = email1;
@@ -322,12 +383,10 @@ export function parseAndClean(
       const bouncedLocals = bouncedByDomain?.get(domain) || new Set<string>();
 
       // Derive blocked patterns from bounces using THIS contact's name
-      const blockedPatterns = new Set<string>();
+      const blockedPatterns = new Set<string>(domainBlockedPatterns.get(domain) || []);
       for (const bouncedLocal of bouncedLocals) {
-        const det = detectPatternFromLocal(bouncedLocal, nombre, apellido, apellido2);
-        if (det) blockedPatterns.add(det);
-        for (const inferred of inferPatternsFromBouncedLocal(bouncedLocal)) {
-          blockedPatterns.add(inferred);
+        for (const pattern of detectBlockedPatternsForPerson(bouncedLocal, nombre, apellido, apellido2)) {
+          blockedPatterns.add(pattern);
         }
       }
 
@@ -361,7 +420,9 @@ export function parseAndClean(
       // Append provided email1 as fallback if not bounced and not duplicate
       if (email1) {
         const local1 = email1.split("@")[0];
-        if (!bouncedLocals.has(local1) && !seenEmails.has(email1.toLowerCase())) {
+        const providedPattern = detectPatternFromLocal(local1, nombre, apellido, apellido2);
+        const providedPatternBlocked = providedPattern ? blockedPatterns.has(providedPattern) : false;
+        if (!bouncedLocals.has(local1) && !providedPatternBlocked && !seenEmails.has(email1.toLowerCase())) {
           candidates.push({ pattern: "provided", email: email1 });
           seenEmails.add(email1.toLowerCase());
         }
