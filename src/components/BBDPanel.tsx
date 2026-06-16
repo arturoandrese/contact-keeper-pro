@@ -33,6 +33,7 @@ import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
 import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
 import { extractCompanyFromDomain } from "@/lib/companyName";
+import { copyTextToClipboard } from "@/lib/copyToClipboard";
 
 interface Base {
   id: string;
