@@ -264,7 +264,55 @@ const Index = () => {
       }
     }
 
-    const cleaned = parseAndClean(content, savedPatterns);
+    // Pre-fetch bounced emails for domains present in this upload so we can block
+    // any pattern that already produced a bounce for that domain.
+    let bouncedByDomain: Map<string, Set<string>> | undefined;
+    try {
+      const parsedRows = Papa.parse<Record<string, string>>(content, { header: true, skipEmptyLines: true }).data;
+      const domains = new Set<string>();
+      for (const r of parsedRows) {
+        for (const [k, v] of Object.entries(r)) {
+          if (!v) continue;
+          const nk = removeAccents((k || "").toLowerCase()).replace(/[\s._\-()]/g, "");
+          if (/^(web|website|sitio|url|sitioweb|webempresa|companywebsite)$/.test(nk)) {
+            let d = String(v).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].split("?")[0];
+            if (d && !FREE_EMAIL_DOMAINS.has(d)) domains.add(d);
+          } else if (/^(mail|email|mail1|email1|correo|correo1)$/.test(nk)) {
+            const m = String(v).trim().toLowerCase();
+            const dom = m.split("@")[1];
+            if (dom && !FREE_EMAIL_DOMAINS.has(dom)) domains.add(dom);
+          }
+        }
+      }
+      if (domains.size > 0) {
+        const domArr = Array.from(domains);
+        bouncedByDomain = new Map();
+        for (let i = 0; i < domArr.length; i += 100) {
+          const chunk = domArr.slice(i, i + 100);
+          const { data } = await supabase
+            .from("bounced_emails")
+            .select("mail, domain")
+            .in("domain", chunk);
+          if (data) {
+            for (const r of data as any[]) {
+              const dom = (r.domain || "").toLowerCase();
+              const local = ((r.mail || "").toLowerCase().split("@")[0] || "");
+              if (!dom || !local) continue;
+              if (!bouncedByDomain.has(dom)) bouncedByDomain.set(dom, new Set());
+              bouncedByDomain.get(dom)!.add(local);
+            }
+          }
+        }
+        const totalBounced = Array.from(bouncedByDomain.values()).reduce((s, set) => s + set.size, 0);
+        if (totalBounced > 0) {
+          toast.info(`🚫 ${totalBounced} patrones rebotados detectados — evitando reuso`);
+        }
+      }
+    } catch (err) {
+      console.warn("No se pudo cargar bounced_emails por dominio:", err);
+    }
+
+    const cleaned = parseAndClean(content, savedPatterns, bouncedByDomain);
     if (cleaned.length === 0) {
       setContacts([]);
       setSaveOpen(false);
