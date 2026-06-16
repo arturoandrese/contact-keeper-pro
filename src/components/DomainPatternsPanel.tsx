@@ -18,9 +18,17 @@ interface DomainPatternsPanelProps {
 }
 
 const patternLabels: Record<string, string> = {
+  "first": "nombre",
+  "last": "apellido",
   "first.last": "nombre.apellido",
+  "last.first": "apellido.nombre",
+  "initial.last": "i.apellido",
   "initial_last": "inicialapellido",
   "initial_last_initial2": "inicialapellido+inicial2",
+  "first_last": "nombreapellido",
+  "first_last_underscore": "nombre_apellido",
+  "first_initial": "nombreinicial",
+  "first_last_initial": "nombreinicial",
 };
 
 const DomainPatternsPanel = ({ onBack }: DomainPatternsPanelProps) => {

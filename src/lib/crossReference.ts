@@ -96,10 +96,21 @@ function detectPattern(email: string, nombre: string, apellido: string): string 
   if (!local) return null;
   const n = nombre.toLowerCase();
   const a = apellido.toLowerCase();
-  
+  if (!n || !a) return null;
+  const ni = n[0];
+  const ai = a[0];
+
+  // Order matters: more specific first
   if (local === `${n}.${a}`) return "first.last";
-  if (local === `${n[0]}${a}`) return "initial_last";
-  if (local.startsWith(`${n[0]}${a}`) && local.length === n[0].length + a.length + 1) return "initial_last_initial2";
+  if (local === `${a}.${n}`) return "last.first";
+  if (local === `${ni}.${a}`) return "initial.last";
+  if (local === `${n}_${a}`) return "first_last_underscore";
+  if (local === `${n}${a}`) return "first_last";
+  if (local === `${n}${ai}`) return "first_initial";
+  if (local === `${ni}${a}`) return "initial_last";
+  if (local.startsWith(`${ni}${a}`) && local.length === ni.length + a.length + 1) return "initial_last_initial2";
+  if (local === n) return "first";
+  if (local === a) return "last";
   return null;
 }
 
@@ -235,13 +246,20 @@ function generateEmailFromPattern(pattern: string, nombre: string, apellido: str
   if (!nombre || !apellido || !domain) return null;
   const n = nombre.toLowerCase();
   const a = apellido.toLowerCase();
+  if (!n || !a) return null;
+  const ni = n[0];
+  const ai = a[0];
   switch (pattern) {
     case "first.last": return `${n}.${a}@${domain}`;
-    case "initial_last": return `${n[0]}${a}@${domain}`;
-    case "initial.last": return `${n[0]}.${a}@${domain}`;
     case "last.first": return `${a}.${n}@${domain}`;
+    case "initial.last": return `${ni}.${a}@${domain}`;
+    case "first_last": return `${n}${a}@${domain}`;
+    case "first_last_underscore": return `${n}_${a}@${domain}`;
+    case "first_initial": return `${n}${ai}@${domain}`;
+    case "initial_last": return `${ni}${a}@${domain}`;
+    case "first_last_initial": return `${n}${ai}@${domain}`;
     case "first": return `${n}@${domain}`;
-    case "first_last_initial": return `${n}${a[0]}@${domain}`;
+    case "last": return `${a}@${domain}`;
     default: return null;
   }
 }
