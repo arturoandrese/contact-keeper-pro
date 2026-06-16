@@ -364,27 +364,17 @@ export function parseAndClean(
     if (domain && hasNameForPattern) {
       const bouncedLocals = bouncedByDomain?.get(domain) || new Set<string>();
 
-      // Derive blocked patterns from bounces using THIS contact's name
+      // Derive blocked patterns from exact historical bounces for THIS contact.
+      // A bounced email must never be returned, but we still generate other
+      // non-bounced alternatives for the same person/company.
       const blockedPatterns = new Set<string>();
-      let personHasOwnBounce = false;
       for (const bouncedLocal of bouncedLocals) {
         const patternsForPerson = detectBlockedPatternsForPerson(bouncedLocal, nombre, apellido, apellido2);
-        if (patternsForPerson.length > 0) {
-          personHasOwnBounce = true;
-        }
         for (const pattern of patternsForPerson) {
           blockedPatterns.add(pattern);
         }
       }
 
-      // If ANY bounce in this domain matches this person's name, the person is
-      // unreachable — drop all guesses (don't suggest alternative patterns for them).
-      if (personHasOwnBounce) {
-        mail1 = "";
-        mail2 = "";
-        mail3 = "";
-        mail4 = "";
-      } else {
         const knownEntry = patternMap.get(domain);
         const knownPattern = knownEntry?.pattern;
 
@@ -432,7 +422,6 @@ export function parseAndClean(
           mail3 = candidates[2]?.email || "";
           mail4 = candidates[3]?.email || "";
         }
-      }
     }
 
     if (mail2 && mail2.toLowerCase() === mail1.toLowerCase()) mail2 = "";
