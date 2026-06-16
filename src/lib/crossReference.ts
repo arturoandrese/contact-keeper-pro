@@ -628,6 +628,7 @@ export function crossReference(
           for (const pat of allPatterns) {
             if (altMails.length >= 2) break;
             if (pat === usedPattern) continue;
+            if (isPatternBlocked(targetDomain, pat)) continue;
             const gen = generateEmailFromPattern(pat, contact.NOMBRE, contact.APELLIDO, targetDomain);
             if (gen && isValidEmail(gen) && !usedMails.has(gen.toLowerCase()) && !bouncedMails.has(gen) && !deliveredMails.has(gen) && !isFreeMail(gen)) {
               altMails.push(gen);
