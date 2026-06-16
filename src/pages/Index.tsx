@@ -324,8 +324,12 @@ const Index = () => {
         let promoted = 0;
         for (const c of cleaned) {
           const mails = [c.MAIL1, c.MAIL2, c.MAIL3, c.MAIL4].filter(Boolean);
-          if (!verifiedSet.has((c.MAIL1 || "").toLowerCase())) {
-            const verifiedMail = mails.find(m => verifiedSet.has(m.toLowerCase()));
+          const currentMail1 = (c.MAIL1 || "").toLowerCase();
+          if (!verifiedSet.has(currentMail1) || allBouncedMails.has(currentMail1)) {
+            const verifiedMail = mails.find(m => {
+              const normalized = m.toLowerCase();
+              return verifiedSet.has(normalized) && !allBouncedMails.has(normalized);
+            });
             if (verifiedMail) {
               const remaining = mails.filter(m => m.toLowerCase() !== verifiedMail.toLowerCase());
               c.MAIL1 = verifiedMail;
