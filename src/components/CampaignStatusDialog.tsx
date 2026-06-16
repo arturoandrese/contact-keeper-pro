@@ -39,8 +39,23 @@ interface CampaignStatusDialogProps {
 interface ContactRow {
   email: string;
   nombre: string;
+  apellido: string;
+  apellido2: string;
+  empresa: string;
+  web: string;
+  mail1: string;
+  mail2: string;
+  mail3: string;
+  mail4: string;
   status: string;
   tab: string;
+}
+
+function pick(c: Record<string, string>, keys: string[]): string {
+  for (const k of keys) {
+    if (c[k] != null && String(c[k]).trim()) return String(c[k]).trim();
+  }
+  return "";
 }
 
 const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName }: CampaignStatusDialogProps) => {
@@ -64,8 +79,20 @@ const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName 
             const email = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "").trim().toLowerCase();
             if (!email || !email.includes("@") || seen.has(email)) continue;
             seen.add(email);
-            const nombre = c["Nombre"] || c["NOMBRE"] || c["First Name"] || c["nombre"] || "";
-            rows.push({ email, nombre, status: c._status, tab: tabs[idx].title });
+            const nombre = pick(c, ["NOMBRE", "Nombre", "nombre", "First Name", "first_name"]);
+            const apellido = pick(c, ["APELLIDO", "Apellido", "apellido", "Last Name", "last_name"]);
+            const apellido2 = pick(c, ["APELLIDO2", "Apellido2", "apellido2", "Second Last Name"]);
+            const empresa = pick(c, ["EMPRESA", "Empresa", "empresa", "Company", "company", "company_name"]);
+            const web = pick(c, ["WEB", "Web", "web", "Website", "website", "company_website"]);
+            const mail1 = pick(c, ["MAIL1", "Mail1", "mail1"]) || email;
+            const mail2 = pick(c, ["MAIL2", "Mail2", "mail2"]);
+            const mail3 = pick(c, ["MAIL3", "Mail3", "mail3"]);
+            const mail4 = pick(c, ["MAIL4", "Mail4", "mail4"]);
+            rows.push({
+              email, nombre, apellido, apellido2, empresa, web,
+              mail1, mail2, mail3, mail4,
+              status: c._status, tab: tabs[idx].title,
+            });
           }
         });
 
@@ -79,14 +106,25 @@ const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName 
     load();
   }, [open, sheetId, category]);
 
+  const buildExport = () => contacts.map(c => ({
+    NOMBRE: c.nombre,
+    APELLIDO: c.apellido,
+    APELLIDO2: c.apellido2,
+    EMPRESA: c.empresa,
+    WEB: c.web,
+    MAIL1: c.mail1,
+    MAIL2: c.mail2,
+    MAIL3: c.mail3,
+    MAIL4: c.mail4,
+    ESTADO: c.status,
+    PESTAÑA: c.tab,
+  }));
+
+  const EXPORT_HEADERS = ["NOMBRE","APELLIDO","APELLIDO2","EMPRESA","WEB","MAIL1","MAIL2","MAIL3","MAIL4","ESTADO","PESTAÑA"];
+
   const handleDownload = () => {
     if (contacts.length === 0) return;
-    const ws = XLSX.utils.json_to_sheet(contacts.map(c => ({
-      Email: c.email,
-      Nombre: c.nombre,
-      Estado: c.status,
-      Pestaña: c.tab,
-    })));
+    const ws = XLSX.utils.json_to_sheet(buildExport());
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, STATUS_LABELS[category]);
     XLSX.writeFile(wb, `${baseName}_${category}.xlsx`);
