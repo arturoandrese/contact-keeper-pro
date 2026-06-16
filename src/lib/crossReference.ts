@@ -114,6 +114,17 @@ function detectPattern(email: string, nombre: string, apellido: string): string 
   return null;
 }
 
+function inferPatternsFromBouncedEmail(email: string): string[] {
+  const local = (email || "").toLowerCase().split("@")[0]?.trim();
+  if (!local) return [];
+  if (/^[a-z]+\.[a-z]+$/.test(local)) {
+    const [left] = local.split(".");
+    return left.length === 1 ? ["initial.last"] : ["first.last", "last.first"];
+  }
+  if (/^[a-z]+_[a-z]+$/.test(local)) return ["first_last_underscore"];
+  return [];
+}
+
 function buildBaseDomainPatternMap(contacts: CleanedContact[]): Map<string, string> {
   const patternCounts = new Map<string, Map<string, number>>();
 
@@ -395,6 +406,11 @@ export function crossReference(
         const domain = bouncedMail.split("@")[1];
         const pat = detectPattern(bouncedMail, entry.NOMBRE, entry.APELLIDO);
         if (domain && pat) bumpStat(domain, pat, "fail");
+        if (domain) {
+          for (const inferred of inferPatternsFromBouncedEmail(bouncedMail)) {
+            bumpStat(domain, inferred, "fail");
+          }
+        }
       }
     }
 
@@ -445,6 +461,12 @@ export function crossReference(
       if (!mail) continue;
       if (deliveredMails.has(mail)) continue; // already counted as delivered → don't blacklist
       bouncedMails.add(mail);
+      const domain = mail.split("@")[1];
+      if (domain && !isFreeMail(mail)) {
+        for (const inferred of inferPatternsFromBouncedEmail(mail)) {
+          bumpStat(domain, inferred, "fail");
+        }
+      }
     }
   }
 
