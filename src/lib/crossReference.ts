@@ -289,6 +289,25 @@ export function crossReference(
   const baseDomainPatternMap = buildBaseDomainPatternMap(contacts);
   const STATUS_PRIORITY: Record<string, number> = { CLICKEADO: 3, ABIERTO: 2, ENVIADO: 1 };
 
+  // Track success/failure counts per (domain, pattern) to skip bounce-prone patterns
+  const domainPatternStats = new Map<string, Map<string, { success: number; fail: number }>>();
+  const bumpStat = (domain: string, pattern: string, kind: "success" | "fail") => {
+    if (!domain || !pattern) return;
+    let byPattern = domainPatternStats.get(domain);
+    if (!byPattern) {
+      byPattern = new Map();
+      domainPatternStats.set(domain, byPattern);
+    }
+    const cur = byPattern.get(pattern) || { success: 0, fail: 0 };
+    cur[kind]++;
+    byPattern.set(pattern, cur);
+  };
+  const isPatternBlocked = (domain: string, pattern: string): boolean => {
+    const stats = domainPatternStats.get(domain)?.get(pattern);
+    if (!stats) return false;
+    return stats.fail > 0 && stats.fail >= stats.success;
+  };
+
   // Seed domainPatternMap with saved patterns from DB
   if (options.savedPatterns) {
     for (const sp of options.savedPatterns) {
@@ -337,6 +356,7 @@ export function crossReference(
         const domain = successMail.split("@")[1];
         const pat = detectPattern(successMail, entry.NOMBRE, entry.APELLIDO);
         if (domain && pat) {
+          bumpStat(domain, pat, "success");
           const classified = classifyStatus(status) || "ENVIADO";
           const isConfirmed = classified === "ABIERTO" || classified === "CLICKEADO";
           patterns.push({ domain, pattern: pat, example_email: successMail, confirmed: isConfirmed });
@@ -369,6 +389,13 @@ export function crossReference(
 
     if (isBounced(status)) {
       if (mail1) bouncedMails.add(mail1);
+      // Learn which pattern bounced so we can avoid it for new contacts in this domain
+      const bouncedMail = mail1 || mail2;
+      if (bouncedMail && !isFreeMail(bouncedMail)) {
+        const domain = bouncedMail.split("@")[1];
+        const pat = detectPattern(bouncedMail, entry.NOMBRE, entry.APELLIDO);
+        if (domain && pat) bumpStat(domain, pat, "fail");
+      }
     }
 
     if (isNotSentStatus(status)) {
@@ -509,9 +536,13 @@ export function crossReference(
     const getKnownPattern = (d: string): { pattern: string; confirmed: boolean } | null => {
       if (!d) return null;
       const campaignPattern = domainPatternMap.get(d);
-      if (campaignPattern) return { pattern: campaignPattern.pattern, confirmed: campaignPattern.confirmed };
+      if (campaignPattern && !isPatternBlocked(d, campaignPattern.pattern)) {
+        return { pattern: campaignPattern.pattern, confirmed: campaignPattern.confirmed };
+      }
       const basePattern = baseDomainPatternMap.get(d);
-      if (basePattern) return { pattern: basePattern, confirmed: false };
+      if (basePattern && !isPatternBlocked(d, basePattern)) {
+        return { pattern: basePattern, confirmed: false };
+      }
       return null;
     };
 
@@ -597,6 +628,7 @@ export function crossReference(
           for (const pat of allPatterns) {
             if (altMails.length >= 2) break;
             if (pat === usedPattern) continue;
+            if (isPatternBlocked(targetDomain, pat)) continue;
             const gen = generateEmailFromPattern(pat, contact.NOMBRE, contact.APELLIDO, targetDomain);
             if (gen && isValidEmail(gen) && !usedMails.has(gen.toLowerCase()) && !bouncedMails.has(gen) && !deliveredMails.has(gen) && !isFreeMail(gen)) {
               altMails.push(gen);
