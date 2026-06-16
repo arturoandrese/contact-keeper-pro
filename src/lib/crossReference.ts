@@ -289,6 +289,25 @@ export function crossReference(
   const baseDomainPatternMap = buildBaseDomainPatternMap(contacts);
   const STATUS_PRIORITY: Record<string, number> = { CLICKEADO: 3, ABIERTO: 2, ENVIADO: 1 };
 
+  // Track success/failure counts per (domain, pattern) to skip bounce-prone patterns
+  const domainPatternStats = new Map<string, Map<string, { success: number; fail: number }>>();
+  const bumpStat = (domain: string, pattern: string, kind: "success" | "fail") => {
+    if (!domain || !pattern) return;
+    let byPattern = domainPatternStats.get(domain);
+    if (!byPattern) {
+      byPattern = new Map();
+      domainPatternStats.set(domain, byPattern);
+    }
+    const cur = byPattern.get(pattern) || { success: 0, fail: 0 };
+    cur[kind]++;
+    byPattern.set(pattern, cur);
+  };
+  const isPatternBlocked = (domain: string, pattern: string): boolean => {
+    const stats = domainPatternStats.get(domain)?.get(pattern);
+    if (!stats) return false;
+    return stats.fail > 0 && stats.fail >= stats.success;
+  };
+
   // Seed domainPatternMap with saved patterns from DB
   if (options.savedPatterns) {
     for (const sp of options.savedPatterns) {
