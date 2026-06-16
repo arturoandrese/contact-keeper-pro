@@ -97,7 +97,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
       // Pre-fetch bounced patterns per domain present in this file
       let bouncedByDomain: Map<string, Set<string>> | undefined;
       try {
-        const parsedRows = (await import("papaparse")).default.parse<Record<string, string>>(csvText, { header: true, skipEmptyLines: true }).data;
+        const parsedRows = Papa.parse<Record<string, string>>(csvText, { header: true, skipEmptyLines: true }).data;
         const domains = new Set<string>();
         for (const r of parsedRows) {
           for (const [k, v] of Object.entries(r)) {
