@@ -33,6 +33,7 @@ import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
 import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
 import { extractCompanyFromDomain } from "@/lib/companyName";
+import { copyTextToClipboard } from "@/lib/copyToClipboard";
 
 interface Base {
   id: string;
@@ -249,7 +250,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       const headers = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL_CORREGIDO"];
       if (mode === "copy") {
         const tsv = [headers.join("\t"), ...rows.map(r => r.join("\t"))].join("\n");
-        await navigator.clipboard.writeText(tsv);
+        await copyTextToClipboard(tsv);
         toast.success(`📋 ${rows.length} contactos copiados — pega en Google Sheets`);
       } else {
         const data = rows.map(r => Object.fromEntries(headers.map((h, i) => [h, r[i]])));
@@ -309,7 +310,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       if (mode === "copy") {
         const headers = ["NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL", "ESTADO", "PESTAÑA"];
         const tsv = [headers.join("\t"), ...rows.map(r => Object.values(r).join("\t"))].join("\n");
-        await navigator.clipboard.writeText(tsv);
+        await copyTextToClipboard(tsv);
         toast.success(`📋 ${rows.length} mails buenos copiados`);
       } else {
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -361,7 +362,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       if (mode === "copy") {
         const headers = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4"];
         const tsv = [headers.join("\t"), ...rows.map(r => Object.values(r).join("\t"))].join("\n");
-        await navigator.clipboard.writeText(tsv);
+        await copyTextToClipboard(tsv);
         toast.success(`📋 ${rows.length} contactos copiados`);
       } else {
         const ws = XLSX.utils.json_to_sheet(rows);
