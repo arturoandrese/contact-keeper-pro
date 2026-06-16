@@ -237,6 +237,17 @@ export function detectPatternFromLocal(
   return null;
 }
 
+function inferPatternsFromBouncedLocal(local: string): string[] {
+  const l = (local || "").toLowerCase().trim();
+  if (!l) return [];
+  if (/^[a-z]+\.[a-z]+$/.test(l)) {
+    const [left] = l.split(".");
+    return left.length === 1 ? ["initial.last"] : ["first.last", "last.first"];
+  }
+  if (/^[a-z]+_[a-z]+$/.test(l)) return ["first_last_underscore"];
+  return [];
+}
+
 export function parseAndClean(
   csvText: string,
   savedPatterns?: DomainPatternEntry[],
@@ -315,6 +326,9 @@ export function parseAndClean(
       for (const bouncedLocal of bouncedLocals) {
         const det = detectPatternFromLocal(bouncedLocal, nombre, apellido, apellido2);
         if (det) blockedPatterns.add(det);
+        for (const inferred of inferPatternsFromBouncedLocal(bouncedLocal)) {
+          blockedPatterns.add(inferred);
+        }
       }
 
       const knownEntry = patternMap.get(domain);
