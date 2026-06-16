@@ -356,6 +356,7 @@ export function crossReference(
         const domain = successMail.split("@")[1];
         const pat = detectPattern(successMail, entry.NOMBRE, entry.APELLIDO);
         if (domain && pat) {
+          bumpStat(domain, pat, "success");
           const classified = classifyStatus(status) || "ENVIADO";
           const isConfirmed = classified === "ABIERTO" || classified === "CLICKEADO";
           patterns.push({ domain, pattern: pat, example_email: successMail, confirmed: isConfirmed });
@@ -388,6 +389,13 @@ export function crossReference(
 
     if (isBounced(status)) {
       if (mail1) bouncedMails.add(mail1);
+      // Learn which pattern bounced so we can avoid it for new contacts in this domain
+      const bouncedMail = mail1 || mail2;
+      if (bouncedMail && !isFreeMail(bouncedMail)) {
+        const domain = bouncedMail.split("@")[1];
+        const pat = detectPattern(bouncedMail, entry.NOMBRE, entry.APELLIDO);
+        if (domain && pat) bumpStat(domain, pat, "fail");
+      }
     }
 
     if (isNotSentStatus(status)) {
