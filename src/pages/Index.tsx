@@ -279,11 +279,23 @@ const Index = () => {
     }
 
     const cleaned = parseAndClean(content, savedPatterns, bouncedByDomain);
+    const initialCount = cleaned.length;
+    const funnel: string[] = [`📥 ${initialCount} generados`];
     if (cleaned.length === 0) {
       setContacts([]);
       setSaveOpen(false);
       toast.error("No se detectaron correos corporativos válidos (MAIL1/email1)");
       return;
+    }
+
+    // Flatten all bounced mails so "recent send" filter can ignore bounces.
+    // If a contact's only recent "delivery" was actually a bounce, we WANT to
+    // retry that contact with a new pattern — so it must not be filtered out.
+    const allBouncedMails = new Set<string>();
+    if (bouncedByDomain) {
+      for (const [dom, locals] of bouncedByDomain) {
+        for (const l of locals) allBouncedMails.add(`${l}@${dom}`);
+      }
     }
 
     // Cross-reference with delivered_contacts to prioritize verified emails
