@@ -279,11 +279,23 @@ const Index = () => {
     }
 
     const cleaned = parseAndClean(content, savedPatterns, bouncedByDomain);
+    const initialCount = cleaned.length;
+    const funnel: string[] = [`📥 ${initialCount} generados`];
     if (cleaned.length === 0) {
       setContacts([]);
       setSaveOpen(false);
       toast.error("No se detectaron correos corporativos válidos (MAIL1/email1)");
       return;
+    }
+
+    // Flatten all bounced mails so "recent send" filter can ignore bounces.
+    // If a contact's only recent "delivery" was actually a bounce, we WANT to
+    // retry that contact with a new pattern — so it must not be filtered out.
+    const allBouncedMails = new Set<string>();
+    if (bouncedByDomain) {
+      for (const [dom, locals] of bouncedByDomain) {
+        for (const l of locals) allBouncedMails.add(`${l}@${dom}`);
+      }
     }
 
     // Cross-reference with delivered_contacts to prioritize verified emails
@@ -413,7 +425,12 @@ const Index = () => {
             .select("mail")
             .in("mail", chunk)
             .gte("last_contacted_at", cutoffISO);
-          if (data) data.forEach(r => recentlyContactedSet.add((r.mail || "").toLowerCase()));
+          if (data) data.forEach(r => {
+            const m = (r.mail || "").toLowerCase();
+            // IMPORTANT: if a "recent send" actually bounced, do NOT treat it as
+            // "already contacted" — we want to retry that contact with a new pattern.
+            if (m && !allBouncedMails.has(m)) recentlyContactedSet.add(m);
+          });
         }
 
         if (recentlyContactedSet.size > 0) {
@@ -429,6 +446,7 @@ const Index = () => {
           }
           const removed = before - cleaned.length;
           if (removed > 0) {
+            funnel.push(`📬 -${removed} contactados ≤${filters.sentDays}d`);
             toast.info(`📬 ${removed} contactos excluidos (contactados en últimos ${filters.sentDays} días)`);
           }
         }
@@ -476,6 +494,7 @@ const Index = () => {
           }
           const removed = before - cleaned.length;
           if (removed > 0) {
+            funnel.push(`💬 -${removed} respondidos ≤${filters.repliedDays}d`);
             toast.info(`💬 ${removed} contactos excluidos (respondieron en últimos ${filters.repliedDays} días)`);
           }
         }
@@ -517,12 +536,19 @@ const Index = () => {
           }
           const removed = before - cleaned.length;
           if (removed > 0) {
+            funnel.push(`🔄 -${removed} duplicados en bases`);
             toast.info(`🔄 ${removed} contactos excluidos (ya existen en otras bases)`);
           }
         }
       } catch (err) {
         console.warn("No se pudo filtrar duplicados entre bases:", err);
       }
+    }
+
+    funnel.push(`✅ ${cleaned.length} finales`);
+    console.log("Embudo de limpieza:", funnel.join(" → "));
+    if (initialCount > cleaned.length) {
+      toast.success(`Embudo: ${funnel.join(" → ")}`, { duration: 8000 });
     }
 
     setContacts(cleaned);
