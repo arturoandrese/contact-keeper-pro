@@ -239,7 +239,8 @@ export function detectPatternFromLocal(
 
 export function parseAndClean(
   csvText: string,
-  savedPatterns?: DomainPatternEntry[]
+  savedPatterns?: DomainPatternEntry[],
+  bouncedByDomain?: Map<string, Set<string>>
 ): CleanedContact[] {
   const parsed = Papa.parse<Record<string, string>>(csvText, {
     header: true,
@@ -251,7 +252,6 @@ export function parseAndClean(
   if (savedPatterns) {
     for (const p of savedPatterns) {
       const existing = patternMap.get(p.domain);
-      // Confirmed patterns always win; otherwise keep first
       if (!existing || (p.confirmed && !existing.confirmed)) {
         patternMap.set(p.domain, { pattern: p.pattern, confirmed: p.confirmed === true });
       }
@@ -281,7 +281,6 @@ export function parseAndClean(
       getFieldValue(row, ["company_website", "website", "web", "sitio_web", "web_empresa", "sitio web", "url"]) 
     );
 
-    // Skip rows that have neither email nor web+name to generate from
     if (!email1 && !(web && nombre && apellido)) continue;
 
     let empresa = "";
@@ -306,44 +305,62 @@ export function parseAndClean(
     let mail2 = "";
     let mail3 = "";
     let mail4 = "";
-
     let isConfirmedPattern = false;
 
     if (domain && hasNameForPattern) {
+      const bouncedLocals = bouncedByDomain?.get(domain) || new Set<string>();
+
+      // Derive blocked patterns from bounces using THIS contact's name
+      const blockedPatterns = new Set<string>();
+      for (const bouncedLocal of bouncedLocals) {
+        const det = detectPatternFromLocal(bouncedLocal, nombre, apellido, apellido2);
+        if (det) blockedPatterns.add(det);
+      }
+
       const knownEntry = patternMap.get(domain);
       const knownPattern = knownEntry?.pattern;
-      const initial = nombre.charAt(0);
 
-      if (knownPattern) {
-        // Use the learned pattern as MAIL1
-        mail1 = generateEmailByPattern(knownPattern, nombre, apellido, apellido2, domain);
-        isConfirmedPattern = knownEntry.confirmed;
+      // Build ordered list of patterns to try
+      const orderedPatterns: string[] = [];
+      if (knownPattern && !blockedPatterns.has(knownPattern)) {
+        orderedPatterns.push(knownPattern);
+      }
+      for (const p of PATTERN_PRIORITY) {
+        if (!orderedPatterns.includes(p)) orderedPatterns.push(p);
+      }
 
-        if (!knownEntry.confirmed) {
-          // Fill alternatives with other patterns only if NOT confirmed
-          const alternatives = new Set<string>();
-          alternatives.add(`${initial}${apellido}@${domain}`);
-          alternatives.add(`${nombre}.${apellido}@${domain}`);
-          if (apellido2) alternatives.add(`${initial}${apellido}${apellido2.charAt(0)}@${domain}`);
-          if (email1) alternatives.add(email1);
-          alternatives.delete(mail1.toLowerCase());
-          alternatives.delete(mail1);
-          const altArr = Array.from(alternatives).filter(a => a && a !== mail1.toLowerCase());
-          mail2 = altArr[0] || "";
-          mail3 = altArr[1] || "";
-          mail4 = altArr[2] || "";
+      const candidates: { pattern: string; email: string }[] = [];
+      const seenEmails = new Set<string>();
+      for (const p of orderedPatterns) {
+        if (blockedPatterns.has(p)) continue;
+        const email = generateEmailByPattern(p, nombre, apellido, apellido2, domain);
+        const local = email.split("@")[0];
+        if (bouncedLocals.has(local)) {
+          blockedPatterns.add(p);
+          continue;
         }
-        // If confirmed: mail2, mail3, mail4 stay empty
-      } else {
-        // No known pattern: default behavior
-        mail1 = `${initial}${apellido}@${domain}`;
-        mail2 = `${nombre}.${apellido}@${domain}`;
-        mail3 = email1 || "";
-        if (apellido2) {
-          mail4 = `${initial}${apellido}${apellido2.charAt(0)}@${domain}`;
-        } else {
-          mail4 = "";
+        if (seenEmails.has(email.toLowerCase())) continue;
+        seenEmails.add(email.toLowerCase());
+        candidates.push({ pattern: p, email });
+      }
+
+      // Append provided email1 as fallback if not bounced and not duplicate
+      if (email1) {
+        const local1 = email1.split("@")[0];
+        if (!bouncedLocals.has(local1) && !seenEmails.has(email1.toLowerCase())) {
+          candidates.push({ pattern: "provided", email: email1 });
+          seenEmails.add(email1.toLowerCase());
         }
+      }
+
+      mail1 = candidates[0]?.email || "";
+      isConfirmedPattern =
+        knownEntry?.confirmed === true && candidates[0]?.pattern === knownPattern;
+
+      if (!isConfirmedPattern) {
+        mail2 = candidates[1]?.email || "";
+        mail3 = candidates[2]?.email || "";
+        mail4 = candidates[3]?.email || "";
       }
     }
 
@@ -351,6 +368,7 @@ export function parseAndClean(
     if (mail3 && mail3.toLowerCase() === mail1.toLowerCase()) mail3 = "";
     if (mail4 && mail4.toLowerCase() === mail1.toLowerCase()) mail4 = "";
     if (mail4 && mail2 && mail4.toLowerCase() === mail2.toLowerCase()) mail4 = "";
+
 
     let contact: CleanedContact = {
       NOMBRE: capitalize(nombre),
