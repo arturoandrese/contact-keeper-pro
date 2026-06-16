@@ -366,58 +366,72 @@ export function parseAndClean(
 
       // Derive blocked patterns from bounces using THIS contact's name
       const blockedPatterns = new Set<string>();
+      let personHasOwnBounce = false;
       for (const bouncedLocal of bouncedLocals) {
-        for (const pattern of detectBlockedPatternsForPerson(bouncedLocal, nombre, apellido, apellido2)) {
+        const patternsForPerson = detectBlockedPatternsForPerson(bouncedLocal, nombre, apellido, apellido2);
+        if (patternsForPerson.length > 0) {
+          personHasOwnBounce = true;
+        }
+        for (const pattern of patternsForPerson) {
           blockedPatterns.add(pattern);
         }
       }
 
-      const knownEntry = patternMap.get(domain);
-      const knownPattern = knownEntry?.pattern;
+      // If ANY bounce in this domain matches this person's name, the person is
+      // unreachable — drop all guesses (don't suggest alternative patterns for them).
+      if (personHasOwnBounce) {
+        mail1 = "";
+        mail2 = "";
+        mail3 = "";
+        mail4 = "";
+      } else {
+        const knownEntry = patternMap.get(domain);
+        const knownPattern = knownEntry?.pattern;
 
-      // Build ordered list of patterns to try
-      const orderedPatterns: string[] = [];
-      if (knownPattern && !blockedPatterns.has(knownPattern)) {
-        orderedPatterns.push(knownPattern);
-      }
-      for (const p of PATTERN_PRIORITY) {
-        if (!orderedPatterns.includes(p)) orderedPatterns.push(p);
-      }
-
-      const candidates: { pattern: string; email: string }[] = [];
-      const seenEmails = new Set<string>();
-      for (const p of orderedPatterns) {
-        if (blockedPatterns.has(p)) continue;
-        const email = generateEmailByPattern(p, nombre, apellido, apellido2, domain);
-        const local = email.split("@")[0];
-        if (bouncedLocals.has(local)) {
-          blockedPatterns.add(p);
-          continue;
+        // Build ordered list of patterns to try
+        const orderedPatterns: string[] = [];
+        if (knownPattern && !blockedPatterns.has(knownPattern)) {
+          orderedPatterns.push(knownPattern);
         }
-        if (seenEmails.has(email.toLowerCase())) continue;
-        seenEmails.add(email.toLowerCase());
-        candidates.push({ pattern: p, email });
-      }
-
-      // Append provided email1 as fallback if not bounced and not duplicate
-      if (email1) {
-        const local1 = email1.split("@")[0];
-        const providedPattern = detectPatternFromLocal(local1, nombre, apellido, apellido2);
-        const providedPatternBlocked = providedPattern ? blockedPatterns.has(providedPattern) : false;
-        if (!bouncedLocals.has(local1) && !providedPatternBlocked && !seenEmails.has(email1.toLowerCase())) {
-          candidates.push({ pattern: "provided", email: email1 });
-          seenEmails.add(email1.toLowerCase());
+        for (const p of PATTERN_PRIORITY) {
+          if (!orderedPatterns.includes(p)) orderedPatterns.push(p);
         }
-      }
 
-      mail1 = candidates[0]?.email || "";
-      isConfirmedPattern =
-        knownEntry?.confirmed === true && candidates[0]?.pattern === knownPattern;
+        const candidates: { pattern: string; email: string }[] = [];
+        const seenEmails = new Set<string>();
+        for (const p of orderedPatterns) {
+          if (blockedPatterns.has(p)) continue;
+          const email = generateEmailByPattern(p, nombre, apellido, apellido2, domain);
+          const local = email.split("@")[0];
+          if (bouncedLocals.has(local)) {
+            blockedPatterns.add(p);
+            continue;
+          }
+          if (seenEmails.has(email.toLowerCase())) continue;
+          seenEmails.add(email.toLowerCase());
+          candidates.push({ pattern: p, email });
+        }
 
-      if (!isConfirmedPattern) {
-        mail2 = candidates[1]?.email || "";
-        mail3 = candidates[2]?.email || "";
-        mail4 = candidates[3]?.email || "";
+        // Append provided email1 as fallback if not bounced and not duplicate
+        if (email1) {
+          const local1 = email1.split("@")[0];
+          const providedPattern = detectPatternFromLocal(local1, nombre, apellido, apellido2);
+          const providedPatternBlocked = providedPattern ? blockedPatterns.has(providedPattern) : false;
+          if (!bouncedLocals.has(local1) && !providedPatternBlocked && !seenEmails.has(email1.toLowerCase())) {
+            candidates.push({ pattern: "provided", email: email1 });
+            seenEmails.add(email1.toLowerCase());
+          }
+        }
+
+        mail1 = candidates[0]?.email || "";
+        isConfirmedPattern =
+          knownEntry?.confirmed === true && candidates[0]?.pattern === knownPattern;
+
+        if (!isConfirmedPattern) {
+          mail2 = candidates[1]?.email || "";
+          mail3 = candidates[2]?.email || "";
+          mail4 = candidates[3]?.email || "";
+        }
       }
     }
 
