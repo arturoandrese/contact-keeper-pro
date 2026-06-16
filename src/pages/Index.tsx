@@ -536,12 +536,19 @@ const Index = () => {
           }
           const removed = before - cleaned.length;
           if (removed > 0) {
+            funnel.push(`🔄 -${removed} duplicados en bases`);
             toast.info(`🔄 ${removed} contactos excluidos (ya existen en otras bases)`);
           }
         }
       } catch (err) {
         console.warn("No se pudo filtrar duplicados entre bases:", err);
       }
+    }
+
+    funnel.push(`✅ ${cleaned.length} finales`);
+    console.log("Embudo de limpieza:", funnel.join(" → "));
+    if (initialCount > cleaned.length) {
+      toast.success(`Embudo: ${funnel.join(" → ")}`, { duration: 8000 });
     }
 
     setContacts(cleaned);
