@@ -534,18 +534,53 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         </div>
         <div className="flex items-center gap-2">
           {!loadingTabs && tabs.length > 1 && (
-            <Select value={selectedTab} onValueChange={setSelectedTab}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Pestaña..." />
-              </SelectTrigger>
-              <SelectContent>
-                {tabs.map((tab) => (
-                  <SelectItem key={tab.index} value={tab.title}>
-                    {tab.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-[220px] justify-between">
+                  <span className="truncate">{combinedTabLabel}</span>
+                  <ChevronDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[260px] p-2" align="end">
+                <div className="flex items-center justify-between px-2 pb-2 text-xs text-muted-foreground">
+                  <span>Hojas ({selectedTabs.length}/{tabs.length})</span>
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={() =>
+                      setSelectedTabs(
+                        selectedTabs.length === tabs.length ? [tabs[tabs.length - 1].title] : tabs.map((t) => t.title)
+                      )
+                    }
+                  >
+                    {selectedTabs.length === tabs.length ? "Limpiar" : "Todas"}
+                  </button>
+                </div>
+                <div className="max-h-72 overflow-y-auto">
+                  {tabs.map((tab) => {
+                    const checked = selectedTabs.includes(tab.title);
+                    return (
+                      <label
+                        key={tab.index}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            setSelectedTabs((prev) => {
+                              if (v) return [...prev, tab.title];
+                              const next = prev.filter((t) => t !== tab.title);
+                              return next.length === 0 ? prev : next;
+                            });
+                          }}
+                        />
+                        <span className="truncate">{tab.title}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           {data && (
             <>
