@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download, ClipboardCopy, GitCompare } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, RefreshCw, ArrowLeft, MailCheck, MailX, Clock, Users, AlertCircle, Download, ClipboardCopy, GitCompare, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
 import { crossReference, type EmailLogEntry, type CrossReferencedContact, type DeliveredHistoryEntry } from "@/lib/crossReference";
@@ -176,11 +177,18 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [updating, setUpdating] = useState(false);
   const [tabs, setTabs] = useState<SheetTab[]>([]);
-  const [selectedTab, setSelectedTab] = useState<string>("");
+  const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
   const [loadingTabs, setLoadingTabs] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [crossedResults, setCrossedResults] = useState<CrossReferencedContact[] | null>(null);
   const [crossedStats, setCrossedStats] = useState<{ bounced: number; noAlt: number; recovered: number } | null>(null);
+
+  const selectedTab = selectedTabs.length === 1 ? selectedTabs[0] : "";
+  const combinedTabLabel = selectedTabs.length === 0
+    ? "Selecciona..."
+    : selectedTabs.length === 1
+      ? selectedTabs[0]
+      : `${selectedTabs.length} hojas combinadas`;
 
   // Fetch available tabs on mount
   useEffect(() => {
@@ -191,7 +199,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         setTabs(sheetTabs);
         // Default to last tab (usually the active campaign)
         if (sheetTabs.length > 0) {
-          setSelectedTab(sheetTabs[sheetTabs.length - 1].title);
+          setSelectedTabs([sheetTabs[sheetTabs.length - 1].title]);
         }
       } catch (err: any) {
         toast.error("Error cargando pestañas: " + (err.message || ""));
@@ -203,29 +211,45 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   }, [sheetId]);
 
   const fetchReport = useCallback(async () => {
-    if (!selectedTab) return;
+    if (selectedTabs.length === 0) return;
     setLoading(true);
     try {
-      const result = await fetchSheetReport(sheetId, selectedTab);
-      setData(result);
+      const results = await Promise.all(selectedTabs.map((t) => fetchSheetReport(sheetId, t)));
+      // Merge contacts and stats across tabs, dedup by email
+      const seen = new Set<string>();
+      const mergedContacts: any[] = [];
+      const mergedStats: Record<string, number> = {};
+      let total = 0;
+      for (const r of results) {
+        for (const c of r.contacts) {
+          const email = (getSheetContactEmail(c) || JSON.stringify(c)).toLowerCase();
+          if (seen.has(email)) continue;
+          seen.add(email);
+          mergedContacts.push(c);
+          const key = (c._status || "UNKNOWN").toString();
+          mergedStats[key] = (mergedStats[key] || 0) + 1;
+          total += 1;
+        }
+      }
+      setData({ contacts: mergedContacts, stats: mergedStats, total } as SheetData);
       setLastFetched(new Date());
     } catch (err: any) {
       toast.error(err.message || "Error obteniendo reporte");
       console.error(err);
     }
     setLoading(false);
-  }, [sheetId, selectedTab]);
+  }, [sheetId, selectedTabs]);
 
   useEffect(() => {
-    if (selectedTab) fetchReport();
-  }, [selectedTab, fetchReport]);
+    if (selectedTabs.length > 0) fetchReport();
+  }, [selectedTabs, fetchReport]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
-    if (!selectedTab) return;
+    if (selectedTabs.length === 0) return;
     const interval = setInterval(fetchReport, 30000);
     return () => clearInterval(interval);
-  }, [fetchReport, selectedTab]);
+  }, [fetchReport, selectedTabs]);
 
   const handleUpdateBase = async () => {
     if (!data || data.contacts.length === 0) return;
@@ -385,8 +409,8 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         .update({ crossed: true, crossed_at: new Date().toISOString() } as any)
         .eq("id", baseId);
 
-      // Mark the Google Sheet tab with CCP prefix and color
-      try {
+      // Mark the Google Sheet tab with CCP prefix and color (only for single-tab view)
+      if (selectedTab) try {
         const selectedTabObj = tabs.find((t) => t.title === selectedTab);
         const gmailTokens = localStorage.getItem("gmail_tokens");
         const accessToken = gmailTokens ? JSON.parse(gmailTokens).access_token : localStorage.getItem("gmail_token");
@@ -409,7 +433,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
             const updatedTabs = await fetchSheetTabs(sheetId);
             setTabs(updatedTabs);
             const newTab = updatedTabs.find((t) => t.title === `CCP_${selectedTab}`);
-            if (newTab) setSelectedTab(newTab.title);
+            if (newTab) setSelectedTabs([newTab.title]);
           }
         }
       } catch (markErr) {
@@ -510,18 +534,53 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         </div>
         <div className="flex items-center gap-2">
           {!loadingTabs && tabs.length > 1 && (
-            <Select value={selectedTab} onValueChange={setSelectedTab}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Pestaña..." />
-              </SelectTrigger>
-              <SelectContent>
-                {tabs.map((tab) => (
-                  <SelectItem key={tab.index} value={tab.title}>
-                    {tab.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-[220px] justify-between">
+                  <span className="truncate">{combinedTabLabel}</span>
+                  <ChevronDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[260px] p-2" align="end">
+                <div className="flex items-center justify-between px-2 pb-2 text-xs text-muted-foreground">
+                  <span>Hojas ({selectedTabs.length}/{tabs.length})</span>
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={() =>
+                      setSelectedTabs(
+                        selectedTabs.length === tabs.length ? [tabs[tabs.length - 1].title] : tabs.map((t) => t.title)
+                      )
+                    }
+                  >
+                    {selectedTabs.length === tabs.length ? "Limpiar" : "Todas"}
+                  </button>
+                </div>
+                <div className="max-h-72 overflow-y-auto">
+                  {tabs.map((tab) => {
+                    const checked = selectedTabs.includes(tab.title);
+                    return (
+                      <label
+                        key={tab.index}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            setSelectedTabs((prev) => {
+                              if (v) return [...prev, tab.title];
+                              const next = prev.filter((t) => t !== tab.title);
+                              return next.length === 0 ? prev : next;
+                            });
+                          }}
+                        />
+                        <span className="truncate">{tab.title}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           {data && (
             <>
