@@ -199,7 +199,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         setTabs(sheetTabs);
         // Default to last tab (usually the active campaign)
         if (sheetTabs.length > 0) {
-          setSelectedTab(sheetTabs[sheetTabs.length - 1].title);
+          setSelectedTabs([sheetTabs[sheetTabs.length - 1].title]);
         }
       } catch (err: any) {
         toast.error("Error cargando pestañas: " + (err.message || ""));
