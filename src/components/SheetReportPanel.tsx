@@ -409,8 +409,8 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
         .update({ crossed: true, crossed_at: new Date().toISOString() } as any)
         .eq("id", baseId);
 
-      // Mark the Google Sheet tab with CCP prefix and color
-      try {
+      // Mark the Google Sheet tab with CCP prefix and color (only for single-tab view)
+      if (selectedTab) try {
         const selectedTabObj = tabs.find((t) => t.title === selectedTab);
         const gmailTokens = localStorage.getItem("gmail_tokens");
         const accessToken = gmailTokens ? JSON.parse(gmailTokens).access_token : localStorage.getItem("gmail_token");
@@ -433,7 +433,7 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
             const updatedTabs = await fetchSheetTabs(sheetId);
             setTabs(updatedTabs);
             const newTab = updatedTabs.find((t) => t.title === `CCP_${selectedTab}`);
-            if (newTab) setSelectedTab(newTab.title);
+            if (newTab) setSelectedTabs([newTab.title]);
           }
         }
       } catch (markErr) {
