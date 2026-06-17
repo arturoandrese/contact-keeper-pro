@@ -82,12 +82,18 @@ const Index = () => {
       const companyKey = headers.find(h => /^(empresa|company|companyname|organizacion)$/i.test(norm(h)));
       const emailKey = headers.find(h => /^(mail|email|mail1|email1|correo|correo1)$/i.test(norm(h)));
 
+      const isSocialOrEmpty = (w: string) => {
+        const v = (w || "").trim().toLowerCase();
+        if (!v) return true;
+        return /linkedin\.com|facebook\.com|twitter\.com|instagram\.com|tiktok\.com/.test(v);
+      };
+
       if (companyKey && !emailKey) {
         const needsEnrich: string[] = [];
         for (const r of rows) {
           const w = webKey ? (r[webKey] || "").trim() : "";
           const c = (r[companyKey] || "").trim();
-          if (c && !w) needsEnrich.push(c);
+          if (c && isSocialOrEmpty(w)) needsEnrich.push(c);
         }
         const unique = Array.from(new Set(needsEnrich));
 
@@ -148,7 +154,8 @@ const Index = () => {
             for (const r of rows) {
               const w = (r[targetWebKey] || "").trim();
               const c = (r[companyKey] || "").trim();
-              if (c && !w && cache.has(c)) {
+              // Sobrescribimos cuando el Web actual es social/vacío y tenemos dominio real
+              if (c && isSocialOrEmpty(w) && cache.has(c)) {
                 r[targetWebKey] = cache.get(c)!;
                 filled++;
               }
@@ -158,6 +165,7 @@ const Index = () => {
           }
         }
       }
+
     } catch (err) {
       console.warn("Enriquecimiento de dominios falló:", err);
     }
