@@ -177,11 +177,18 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [updating, setUpdating] = useState(false);
   const [tabs, setTabs] = useState<SheetTab[]>([]);
-  const [selectedTab, setSelectedTab] = useState<string>("");
+  const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
   const [loadingTabs, setLoadingTabs] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [crossedResults, setCrossedResults] = useState<CrossReferencedContact[] | null>(null);
   const [crossedStats, setCrossedStats] = useState<{ bounced: number; noAlt: number; recovered: number } | null>(null);
+
+  const selectedTab = selectedTabs.length === 1 ? selectedTabs[0] : "";
+  const combinedTabLabel = selectedTabs.length === 0
+    ? "Selecciona..."
+    : selectedTabs.length === 1
+      ? selectedTabs[0]
+      : `${selectedTabs.length} hojas combinadas`;
 
   // Fetch available tabs on mount
   useEffect(() => {
