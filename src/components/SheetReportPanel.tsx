@@ -211,29 +211,45 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   }, [sheetId]);
 
   const fetchReport = useCallback(async () => {
-    if (!selectedTab) return;
+    if (selectedTabs.length === 0) return;
     setLoading(true);
     try {
-      const result = await fetchSheetReport(sheetId, selectedTab);
-      setData(result);
+      const results = await Promise.all(selectedTabs.map((t) => fetchSheetReport(sheetId, t)));
+      // Merge contacts and stats across tabs, dedup by email
+      const seen = new Set<string>();
+      const mergedContacts: any[] = [];
+      const mergedStats: Record<string, number> = {};
+      let total = 0;
+      for (const r of results) {
+        for (const c of r.contacts) {
+          const email = (getSheetContactEmail(c) || JSON.stringify(c)).toLowerCase();
+          if (seen.has(email)) continue;
+          seen.add(email);
+          mergedContacts.push(c);
+          const key = (c._status || "UNKNOWN").toString();
+          mergedStats[key] = (mergedStats[key] || 0) + 1;
+          total += 1;
+        }
+      }
+      setData({ contacts: mergedContacts, stats: mergedStats, total } as SheetData);
       setLastFetched(new Date());
     } catch (err: any) {
       toast.error(err.message || "Error obteniendo reporte");
       console.error(err);
     }
     setLoading(false);
-  }, [sheetId, selectedTab]);
+  }, [sheetId, selectedTabs]);
 
   useEffect(() => {
-    if (selectedTab) fetchReport();
-  }, [selectedTab, fetchReport]);
+    if (selectedTabs.length > 0) fetchReport();
+  }, [selectedTabs, fetchReport]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
-    if (!selectedTab) return;
+    if (selectedTabs.length === 0) return;
     const interval = setInterval(fetchReport, 30000);
     return () => clearInterval(interval);
-  }, [fetchReport, selectedTab]);
+  }, [fetchReport, selectedTabs]);
 
   const handleUpdateBase = async () => {
     if (!data || data.contacts.length === 0) return;
