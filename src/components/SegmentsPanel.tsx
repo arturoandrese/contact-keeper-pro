@@ -279,7 +279,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
 
       {/* Results */}
       {contacts.length > 0 && !loading && (
-        <div className="space-y-4">
+        <div ref={resultsRef} className="space-y-4 scroll-mt-4 rounded-xl border-2 border-primary/40 bg-primary/5 p-4">
           <div className="flex items-center justify-between">
             <p className="font-display text-lg font-semibold">
               {contacts.length} contactos en segmento
