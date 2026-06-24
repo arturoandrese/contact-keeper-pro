@@ -193,6 +193,12 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
       .then(() => toast.success("📋 Copiado para Sheets"))
       .catch(() => toast.error("No se pudo copiar"));
   }, [contacts]);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (contacts.length > 0 && !loading) {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [contacts, loading]);
 
   return (
     <div className="space-y-6">
