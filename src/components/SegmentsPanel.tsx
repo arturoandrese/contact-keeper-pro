@@ -66,22 +66,26 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
     setContacts([]);
 
     try {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - daysFilter);
+      const cutoffISO = cutoff.toISOString();
+      const cutoffDateISO = cutoffISO.slice(0, 10);
+
       if (type === "opened_no_reply") {
-        // Fetch delivered with status ABIERTO or CLICKEADO
         const { data: delivered } = await supabase
           .from("delivered_contacts")
           .select("mail, nombre, apellido, empresa, web, status, times_contacted, last_contacted_at")
           .in("status", ["ABIERTO", "CLICKEADO"])
+          .gte("times_contacted", minContacted)
+          .lte("last_contacted_at", cutoffISO)
           .limit(5000);
 
-        // Fetch replied emails
         const { data: replied } = await supabase
           .from("replied_contacts")
           .select("email")
           .limit(10000);
 
         const repliedSet = new Set((replied || []).map(r => (r.email || "").toLowerCase()));
-
         const filtered = (delivered || []).filter(d => !repliedSet.has((d.mail || "").toLowerCase()));
         setContacts(filtered.map(d => ({
           nombre: d.nombre || "",
@@ -98,6 +102,8 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           .from("delivered_contacts")
           .select("mail, nombre, apellido, empresa, web, status, times_contacted, last_contacted_at")
           .eq("status", "ENVIADO")
+          .gte("times_contacted", minContacted)
+          .lte("last_contacted_at", cutoffISO)
           .limit(5000);
 
         setContacts((delivered || []).map(d => ({
@@ -115,9 +121,9 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           .from("delivered_contacts")
           .select("mail, nombre, apellido, empresa, web, status, times_contacted, last_contacted_at")
           .gte("times_contacted", minContacted)
+          .lte("last_contacted_at", cutoffISO)
           .limit(5000);
 
-        // Exclude replied
         const { data: replied } = await supabase
           .from("replied_contacts")
           .select("email")
@@ -137,14 +143,10 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
         })));
 
       } else if (type === "replied_long_ago") {
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - daysFilter);
-        const cutoffISO = cutoff.toISOString().slice(0, 10);
-
         const { data: replied } = await supabase
           .from("replied_contacts")
           .select("email, nombre, apellido, empresa, cargo, fecha_respuesta")
-          .lte("fecha_respuesta", cutoffISO)
+          .lte("fecha_respuesta", cutoffDateISO)
           .limit(5000);
 
         setContacts((replied || []).map(r => ({
@@ -157,6 +159,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           last_contacted_at: r.fecha_respuesta || "",
         })));
       }
+
 
       toast.success("Segmento generado — desplázate abajo para descargarlo");
     } catch (err) {
