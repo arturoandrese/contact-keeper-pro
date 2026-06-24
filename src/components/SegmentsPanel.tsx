@@ -158,7 +158,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
         })));
       }
 
-      toast.success("Segmento generado");
+      toast.success("Segmento generado — desplázate abajo para descargarlo");
     } catch (err) {
       console.error(err);
       toast.error("Error generando segmento");
