@@ -241,6 +241,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="1">1+ (todos)</SelectItem>
               <SelectItem value="2">2+</SelectItem>
               <SelectItem value="3">3+</SelectItem>
               <SelectItem value="5">5+</SelectItem>
