@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { ArrowLeft, Users, MailOpen, Send, Clock, MessageSquareReply, Loader2, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -158,7 +158,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
         })));
       }
 
-      toast.success("Segmento generado");
+      toast.success("Segmento generado — desplázate abajo para descargarlo");
     } catch (err) {
       console.error(err);
       toast.error("Error generando segmento");
@@ -193,6 +193,12 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
       .then(() => toast.success("📋 Copiado para Sheets"))
       .catch(() => toast.error("No se pudo copiar"));
   }, [contacts]);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (contacts.length > 0 && !loading) {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [contacts, loading]);
 
   return (
     <div className="space-y-6">
@@ -273,7 +279,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
 
       {/* Results */}
       {contacts.length > 0 && !loading && (
-        <div className="space-y-4">
+        <div ref={resultsRef} className="space-y-4 scroll-mt-4 rounded-xl border-2 border-primary/40 bg-primary/5 p-4">
           <div className="flex items-center justify-between">
             <p className="font-display text-lg font-semibold">
               {contacts.length} contactos en segmento
