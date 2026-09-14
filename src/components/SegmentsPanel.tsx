@@ -57,6 +57,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
   const [loading, setLoading] = useState(false);
   const [activeSegment, setActiveSegment] = useState<SegmentType | null>(null);
   const [contacts, setContacts] = useState<SegmentContact[]>([]);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [daysFilter, setDaysFilter] = useState(30);
   const [minContacted, setMinContacted] = useState(2);
 
@@ -64,8 +65,10 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
     setLoading(true);
     setActiveSegment(type);
     setContacts([]);
+    setHasGenerated(false);
 
     try {
+      let generatedContacts: SegmentContact[] = [];
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - daysFilter);
       const cutoffISO = cutoff.toISOString();
@@ -78,16 +81,18 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           .in("status", ["ABIERTO", "CLICKEADO"])
           .gte("times_contacted", minContacted)
           .lte("last_contacted_at", cutoffISO)
-          .limit(5000);
+          .limit(5000)
+          .throwOnError();
 
         const { data: replied } = await supabase
           .from("replied_contacts")
           .select("email")
-          .limit(10000);
+          .limit(10000)
+          .throwOnError();
 
         const repliedSet = new Set((replied || []).map(r => (r.email || "").toLowerCase()));
         const filtered = (delivered || []).filter(d => !repliedSet.has((d.mail || "").toLowerCase()));
-        setContacts(filtered.map(d => ({
+        generatedContacts = filtered.map(d => ({
           nombre: d.nombre || "",
           apellido: d.apellido || "",
           empresa: d.empresa || "",
@@ -95,7 +100,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           mail: d.mail || "",
           status: d.status || "",
           times_contacted: d.times_contacted || 1,
-        })));
+        }));
 
       } else if (type === "delivered_no_open") {
         const { data: delivered } = await supabase
@@ -104,9 +109,10 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           .eq("status", "ENVIADO")
           .gte("times_contacted", minContacted)
           .lte("last_contacted_at", cutoffISO)
-          .limit(5000);
+          .limit(5000)
+          .throwOnError();
 
-        setContacts((delivered || []).map(d => ({
+        generatedContacts = (delivered || []).map(d => ({
           nombre: d.nombre || "",
           apellido: d.apellido || "",
           empresa: d.empresa || "",
@@ -114,7 +120,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           mail: d.mail || "",
           status: d.status || "",
           times_contacted: d.times_contacted || 1,
-        })));
+        }));
 
       } else if (type === "most_contacted") {
         const { data: delivered } = await supabase
@@ -122,17 +128,19 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           .select("mail, nombre, apellido, empresa, web, status, times_contacted, last_contacted_at")
           .gte("times_contacted", minContacted)
           .lte("last_contacted_at", cutoffISO)
-          .limit(5000);
+          .limit(5000)
+          .throwOnError();
 
         const { data: replied } = await supabase
           .from("replied_contacts")
           .select("email")
-          .limit(10000);
+          .limit(10000)
+          .throwOnError();
 
         const repliedSet = new Set((replied || []).map(r => (r.email || "").toLowerCase()));
         const filtered = (delivered || []).filter(d => !repliedSet.has((d.mail || "").toLowerCase()));
 
-        setContacts(filtered.map(d => ({
+        generatedContacts = filtered.map(d => ({
           nombre: d.nombre || "",
           apellido: d.apellido || "",
           empresa: d.empresa || "",
@@ -140,16 +148,17 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           mail: d.mail || "",
           status: d.status || "",
           times_contacted: d.times_contacted || 1,
-        })));
+        }));
 
       } else if (type === "replied_long_ago") {
         const { data: replied } = await supabase
           .from("replied_contacts")
           .select("email, nombre, apellido, empresa, cargo, fecha_respuesta")
           .lte("fecha_respuesta", cutoffDateISO)
-          .limit(5000);
+          .limit(5000)
+          .throwOnError();
 
-        setContacts((replied || []).map(r => ({
+        generatedContacts = (replied || []).map(r => ({
           nombre: r.nombre || "",
           apellido: r.apellido || "",
           empresa: r.empresa || "",
@@ -157,14 +166,20 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
           mail: r.email || "",
           status: "RESPONDIDO",
           last_contacted_at: r.fecha_respuesta || "",
-        })));
+        }));
       }
 
-
-      toast.success("Segmento generado — desplázate abajo para descargarlo");
+      setContacts(generatedContacts);
+      setHasGenerated(true);
+      if (generatedContacts.length > 0) {
+        toast.success(`Segmento generado: ${generatedContacts.length} contactos`);
+      } else {
+        toast.info("No hay contactos que cumplan ambos filtros");
+      }
     } catch (err) {
       console.error(err);
-      toast.error("Error generando segmento");
+      setHasGenerated(true);
+      toast.error("No se pudo consultar el historial para generar el segmento");
     }
     setLoading(false);
   }, [daysFilter, minContacted]);
@@ -198,10 +213,10 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
   }, [contacts]);
   const resultsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (contacts.length > 0 && !loading) {
+    if (hasGenerated && !loading) {
       resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [contacts, loading]);
+  }, [hasGenerated, loading]);
 
   return (
     <div className="space-y-6">
@@ -282,13 +297,15 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
       </div>
 
       {/* Results */}
-      {contacts.length > 0 && !loading && (
+      {hasGenerated && !loading && (
         <div ref={resultsRef} className="space-y-4 scroll-mt-4 rounded-xl border-2 border-primary/40 bg-primary/5 p-4">
           <div className="flex items-center justify-between">
             <p className="font-display text-lg font-semibold">
-              {contacts.length} contactos en segmento
+              {contacts.length > 0
+                ? `${contacts.length} contactos en segmento`
+                : "No hay contactos con estos filtros"}
             </p>
-            <div className="flex gap-2">
+            {contacts.length > 0 && <div className="flex gap-2">
               <ExportDropdown
                 label="Exportar segmento"
                 onDownload={exportSegment}
@@ -297,10 +314,14 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
                   rows: contacts.map(c => [c.nombre, c.apellido, c.empresa, c.web, c.mail]),
                 })}
               />
-            </div>
+            </div>}
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          {contacts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Prueba bajar los días o elegir “1+ (todos)” en veces contactado.
+            </p>
+          ) : <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -333,7 +354,7 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
                 Mostrando 100 de {contacts.length} contactos
               </div>
             )}
-          </div>
+          </div>}
         </div>
       )}
     </div>
