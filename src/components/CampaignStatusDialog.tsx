@@ -130,9 +130,18 @@ const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName 
             const empresa = pick(c, ["EMPRESA", "Empresa", "empresa", "Company", "company", "company_name"]);
             const web = pick(c, ["WEB", "Web", "web", "Website", "website", "company_website"]);
             const mail1 = pick(c, ["MAIL1", "Mail1", "mail1"]) || email;
-            const mail2 = pick(c, ["MAIL2", "Mail2", "mail2"]);
-            const mail3 = pick(c, ["MAIL3", "Mail3", "mail3"]);
-            const mail4 = pick(c, ["MAIL4", "Mail4", "mail4"]);
+            let mail2 = pick(c, ["MAIL2", "Mail2", "mail2"]);
+            let mail3 = pick(c, ["MAIL3", "Mail3", "mail3"]);
+            let mail4 = pick(c, ["MAIL4", "Mail4", "mail4"]);
+
+            if (category === "bounced") {
+              // El correo que rebotó no se reutiliza: proponemos los patrones
+              // más habituales (nombre.apellido y inicial+apellido).
+              const alts = alternativeMails(nombre, apellido, email, web, [email, mail1]);
+              mail2 = alts[0] || "";
+              mail3 = alts[1] || "";
+              mail4 = alts[2] || "";
+            }
             rows.push({
               email, nombre, apellido, apellido2, empresa, web,
               mail1, mail2, mail3, mail4,
