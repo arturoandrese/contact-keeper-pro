@@ -299,6 +299,28 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
     setSavingSheet(false);
   };
 
+  const handleDeleteContact = async (contact: Contact) => {
+    if (!contact.id) {
+      toast.error("No se puede eliminar este contacto, recarga la base");
+      return;
+    }
+    const label = [contact.nombre, contact.apellido].filter(Boolean).join(" ") || contact.mail1 || "contacto";
+    if (!window.confirm(`¿Eliminar a ${label} de esta base?`)) return;
+
+    setDeletingId(contact.id);
+    const { error } = await supabase.from("contacts").delete().eq("id", contact.id);
+    if (error) {
+      toast.error("Error eliminando el contacto");
+      setDeletingId(null);
+      return;
+    }
+    const remaining = contacts.filter((c) => c.id !== contact.id);
+    setContacts(remaining);
+    await supabase.from("bases").update({ clean_count: remaining.length }).eq("id", baseId);
+    setDeletingId(null);
+    toast.success(`${label} eliminado de la base`);
+  };
+
   if (showReport && sheetId) {
     return (
       <SheetReportPanel
