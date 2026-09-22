@@ -76,24 +76,30 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       toast.error("Error cargando bases: " + error.message);
     } else {
       const loadedBases = (data as Base[]) || [];
-      const reconciledBases = await Promise.all(
-        loadedBases.map(async (base) => {
-          const { count, error: countError } = await supabase
-            .from("contacts")
-            .select("id", { count: "exact", head: true })
-            .eq("base_id", base.id);
+      const counts = new Map<string, number>();
+      const pageSize = 1000;
+      let countLoadFailed = false;
 
-          if (countError || count === null || count === base.clean_count) return base;
+      for (let from = 0; ; from += pageSize) {
+        const { data: contactRows, error: contactsError } = await supabase
+          .from("contacts")
+          .select("base_id")
+          .range(from, from + pageSize - 1);
 
-          const { error: updateError } = await supabase
-            .from("bases")
-            .update({ clean_count: count })
-            .eq("id", base.id);
+        if (contactsError) {
+          console.error("Error contando contactos por base:", contactsError);
+          countLoadFailed = true;
+          break;
+        }
+        if (!contactRows || contactRows.length === 0) break;
+        for (const row of contactRows) counts.set(row.base_id, (counts.get(row.base_id) || 0) + 1);
+        if (contactRows.length < pageSize) break;
+      }
 
-          if (updateError) console.error("Error corrigiendo conteo de base:", updateError);
-          return { ...base, clean_count: count };
-        })
-      );
+      const reconciledBases = loadedBases.map((base) => ({
+        ...base,
+        clean_count: countLoadFailed ? base.clean_count : (counts.get(base.id) || 0),
+      }));
       setBases(reconciledBases);
     }
     setLoading(false);
