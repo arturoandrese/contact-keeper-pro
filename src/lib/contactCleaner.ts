@@ -361,6 +361,11 @@ export function parseAndClean(
       empresa = empresa.toUpperCase();
     }
 
+    // Último recurso: derivar el nombre de empresa desde el dominio del correo
+    if (!empresa && domain) {
+      empresa = extractCompanyFromWeb(domain);
+    }
+
     const hasNameForPattern = Boolean(nombre && apellido);
 
     let mail1 = email1;
