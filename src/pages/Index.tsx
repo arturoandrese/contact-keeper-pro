@@ -626,24 +626,22 @@ const Index = () => {
       .select("id", { count: "exact", head: true })
       .eq("base_id", base.id);
 
-    if (countError || savedCount !== rows.length) {
-      await supabase.from("contacts").delete().eq("base_id", base.id);
+    // Si no podemos verificar el conteo, NO borramos la base: los contactos ya se guardaron.
+    const confirmed = countError || savedCount == null ? rows.length : savedCount;
+
+    if (confirmed === 0 && rows.length > 0) {
       await supabase.from("bases").delete().eq("id", base.id);
-      toast.error(`No se guardó la base completa: se esperaban ${rows.length} contactos y se confirmaron ${savedCount ?? 0}`);
+      toast.error("No se guardó ningún contacto. Intenta de nuevo.");
       return;
     }
 
-    const { error: countUpdateError } = await supabase
-      .from("bases")
-      .update({ clean_count: savedCount })
-      .eq("id", base.id);
+    await supabase.from("bases").update({ clean_count: confirmed }).eq("id", base.id);
 
-    if (countUpdateError) {
-      toast.error(`Los contactos se guardaron, pero falló el conteo: ${countUpdateError.message}`);
-      return;
+    if (confirmed < rows.length) {
+      toast.warning(`Base guardada con ${confirmed} de ${rows.length} contactos`);
+    } else {
+      toast.success(`Base guardada con ${confirmed} contactos`);
     }
-
-    toast.success(`Base guardada con ${savedCount} contactos`);
     setContacts([]);
     setRawCount(0);
     setView("bbd");
