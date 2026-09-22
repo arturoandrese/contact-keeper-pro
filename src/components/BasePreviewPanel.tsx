@@ -54,6 +54,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   const [savingSheet, setSavingSheet] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const mergeInputRef = useRef<HTMLInputElement>(null);
   const [campaignSummary, setCampaignSummary] = useState<{
     total: number;
