@@ -19,6 +19,7 @@ import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
 import ScheduledRemindersPanel from "@/components/ScheduledRemindersPanel";
 import { APP_VERSION } from "@/generated/appVersion";
 import { sanitizeDatabaseText } from "@/lib/databaseText";
+import { extractCompanyFromDomain } from "@/lib/companyName";
 
 import CampaignPerformancePanel from "@/components/CampaignPerformancePanel";
 import { Button } from "@/components/ui/button";
