@@ -1,23 +1,19 @@
-Plan de corrección
+# Corregir bases vacías y selección total
 
-1. Quitar el filtro que está eliminando personas solo porque ya existen en otra base
-- El problema principal está en `src/pages/Index.tsx`: el bloque `filterDuplicates` consulta la tabla `contacts` y elimina cualquier contacto cuyo `MAIL1` ya exista en cualquier base guardada.
-- Eso está mal para tu caso: una persona puede estar cargada en otra base pero no enviada, o estar en una base como `16-06-26_09-46_claud_02` y aun así debe volver a salir si no fue enviada/respondida.
-- Voy a cambiar ese filtro para que no reduzca la base por existencia en `contacts`. Los filtros válidos seguirán siendo: rebotados, enviados recientes y respondidos recientes.
+1. **Evitar bases con un conteo falso**
+   - Guardar los contactos y comprobar cuántos quedaron realmente asociados a la base.
+   - Si falla cualquier lote, eliminar la base incompleta y mostrar el error real en vez de dejarla indicando 709 contactos.
+   - Actualizar el conteo con la cantidad real guardada antes de mostrar el éxito.
 
-2. Mantener a la persona y cambiarle el correo si el patrón rebotó
-- Si un mail o patrón del dominio ya rebotó, la persona no se elimina.
-- Se reordenan `MAIL1-4` para dejar como `MAIL1` una alternativa que no esté en `bounced_emails`.
-- Si existe patrón histórico de empresa, se usa, pero nunca si ese patrón está marcado como rebotado para ese dominio.
+2. **Mostrar siempre la cantidad real**
+   - Al cargar la lista de bases, contrastar el número guardado con los contactos existentes.
+   - Corregir automáticamente diferencias como la de `22-09-26_09-20_GPT` para que una base vacía no siga mostrando 709.
 
-3. Usar historial de empresa sin bloquear por “base ya cargada”
-- Para empresas conocidas, se seguirá aprendiendo desde `domain_patterns`, `delivered_contacts` y `bounced_emails`.
-- Si una empresa ya existe en bases anteriores, eso solo servirá para aprender patrón, no para sacar personas de la salida.
+3. **Agregar “Seleccionar todas”**
+   - Incorporar un control visible en “Cruzar con bases” para seleccionar o desmarcar de una vez todas las bases disponibles.
 
-4. Ajustar el diálogo de filtros para evitar esta confusión
-- Cambiaré el filtro “Excluir duplicados entre bases” para que no venga activado por defecto o lo retiraré del flujo principal de limpieza.
-- Así la base adjunta debería volver cercana a sus 1092 filas válidas, descontando solo rebotados sin alternativa, enviados recientes y respondidos reales.
+4. **Validar el flujo**
+   - Comprobar que abrir una base muestra sus contactos reales y que la selección total funciona en ambos sentidos.
 
-5. Validación con tu Excel
-- Probaré localmente el archivo adjunto `prueba-4.xlsx/prueba.xlsx`.
-- Verificaré específicamente que Tatiana Riesle salga en el resultado y que no salga con el mail rebotado, sino con una alternativa no rebotada.
+## Nota sobre la base actual
+La base `22-09-26_09-20_GPT` tiene 709 en su contador, pero la base de datos confirma que contiene 0 contactos. El archivo original debe volver a cargarse porque esos 709 registros no quedaron guardados.
