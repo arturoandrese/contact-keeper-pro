@@ -13,8 +13,11 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { parseAndClean, type DomainPatternEntry } from "@/lib/contactCleaner";
 import { sanitizeDatabaseText } from "@/lib/databaseText";
+import { extractCompanyFromDomain } from "@/lib/companyName";
+import { Trash2 } from "lucide-react";
 
 interface Contact {
+  id?: string;
   nombre: string;
   apellido: string;
   apellido2: string;
