@@ -140,13 +140,18 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
         mail4: sanitizeDatabaseText(c.MAIL4),
       }));
 
+      const insertedIds: string[] = [];
       for (let i = 0; i < rows.length; i += 500) {
-        const { error } = await supabase.from("contacts").insert(rows.slice(i, i + 500));
+        const { data: inserted, error } = await supabase
+          .from("contacts")
+          .insert(rows.slice(i, i + 500))
+          .select("id");
         if (error) {
           toast.error("Error insertando contactos");
           setMerging(false);
           return;
         }
+        for (const r of inserted || []) insertedIds.push((r as any).id);
       }
 
       // Update clean_count
@@ -154,11 +159,12 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
       await supabase.from("bases").update({ clean_count: newTotal }).eq("id", baseId);
 
       // Add to local state
-      const mapped: Contact[] = newContacts.map(c => ({
+      const mapped: Contact[] = newContacts.map((c, idx) => ({
+        id: insertedIds[idx],
         nombre: c.NOMBRE,
         apellido: c.APELLIDO,
         apellido2: c.APELLIDO2,
-        empresa: c.EMPRESA,
+        empresa: rows[idx].empresa,
         web: c.WEB,
         mail1: c.MAIL1,
         mail2: c.MAIL2,
