@@ -602,6 +602,9 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                       {col}
                     </th>
                   ))}
+                  <th className="px-3 py-3 text-center font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[60px]">
+                    Acción
+                  </th>
                 </tr>
               </thead>
               <tbody>
