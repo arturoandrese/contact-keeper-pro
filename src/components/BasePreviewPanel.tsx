@@ -12,6 +12,7 @@ import { fetchSheetTabs, fetchSheetReport, type SheetData } from "@/lib/googleSh
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { parseAndClean, type DomainPatternEntry } from "@/lib/contactCleaner";
+import { sanitizeDatabaseText } from "@/lib/databaseText";
 
 interface Contact {
   nombre: string;
@@ -123,15 +124,15 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
       // Insert into DB
       const rows = newContacts.map(c => ({
         base_id: baseId,
-        nombre: c.NOMBRE,
-        apellido: c.APELLIDO,
-        apellido2: c.APELLIDO2,
-        empresa: c.EMPRESA,
-        web: c.WEB,
-        mail1: c.MAIL1,
-        mail2: c.MAIL2,
-        mail3: c.MAIL3,
-        mail4: c.MAIL4,
+        nombre: sanitizeDatabaseText(c.NOMBRE),
+        apellido: sanitizeDatabaseText(c.APELLIDO),
+        apellido2: sanitizeDatabaseText(c.APELLIDO2),
+        empresa: sanitizeDatabaseText(c.EMPRESA),
+        web: sanitizeDatabaseText(c.WEB),
+        mail1: sanitizeDatabaseText(c.MAIL1),
+        mail2: sanitizeDatabaseText(c.MAIL2),
+        mail3: sanitizeDatabaseText(c.MAIL3),
+        mail4: sanitizeDatabaseText(c.MAIL4),
       }));
 
       for (let i = 0; i < rows.length; i += 500) {
