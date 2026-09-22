@@ -58,6 +58,50 @@ function pick(c: Record<string, string>, keys: string[]): string {
   return "";
 }
 
+function norm(v: string): string {
+  return removeAccents((v || "").toLowerCase().trim()).replace(/[^a-z]/g, "");
+}
+
+function domainOf(email: string, web: string): string {
+  const fromMail = (email || "").split("@")[1];
+  if (fromMail) return fromMail.toLowerCase().trim();
+  return (web || "")
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0];
+}
+
+/**
+ * Para rebotados: genera alternativas con los patrones más frecuentes
+ * (nombre.apellido y inicial+apellido), excluyendo el correo que rebotó.
+ */
+function alternativeMails(
+  nombre: string,
+  apellido: string,
+  email: string,
+  web: string,
+  bounced: string[]
+): string[] {
+  const n = norm(nombre);
+  const a = norm(apellido);
+  const domain = domainOf(email, web);
+  if (!n || !a || !domain) return [];
+  const blocked = new Set(bounced.filter(Boolean).map(m => m.toLowerCase().trim()));
+  const candidates = [
+    `${n}.${a}@${domain}`,
+    `${n.charAt(0)}${a}@${domain}`,
+    `${n.charAt(0)}.${a}@${domain}`,
+    `${n}${a}@${domain}`,
+  ];
+  const out: string[] = [];
+  for (const c of candidates) {
+    if (blocked.has(c) || out.includes(c)) continue;
+    out.push(c);
+  }
+  return out;
+}
+
 const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName }: CampaignStatusDialogProps) => {
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(false);
