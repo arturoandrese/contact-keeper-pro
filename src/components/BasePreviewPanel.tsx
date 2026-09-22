@@ -13,8 +13,11 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { parseAndClean, type DomainPatternEntry } from "@/lib/contactCleaner";
 import { sanitizeDatabaseText } from "@/lib/databaseText";
+import { extractCompanyFromDomain } from "@/lib/companyName";
+import { Trash2 } from "lucide-react";
 
 interface Contact {
+  id?: string;
   nombre: string;
   apellido: string;
   apellido2: string;
@@ -51,6 +54,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   const [savingSheet, setSavingSheet] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const mergeInputRef = useRef<HTMLInputElement>(null);
   const [campaignSummary, setCampaignSummary] = useState<{
     total: number;
@@ -127,7 +131,9 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
         nombre: sanitizeDatabaseText(c.NOMBRE),
         apellido: sanitizeDatabaseText(c.APELLIDO),
         apellido2: sanitizeDatabaseText(c.APELLIDO2),
-        empresa: sanitizeDatabaseText(c.EMPRESA),
+        empresa:
+          sanitizeDatabaseText(c.EMPRESA) ||
+          extractCompanyFromDomain((c.MAIL1 || c.MAIL2 || "").split("@")[1] || ""),
         web: sanitizeDatabaseText(c.WEB),
         mail1: sanitizeDatabaseText(c.MAIL1),
         mail2: sanitizeDatabaseText(c.MAIL2),
@@ -135,13 +141,18 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
         mail4: sanitizeDatabaseText(c.MAIL4),
       }));
 
+      const insertedIds: string[] = [];
       for (let i = 0; i < rows.length; i += 500) {
-        const { error } = await supabase.from("contacts").insert(rows.slice(i, i + 500));
+        const { data: inserted, error } = await supabase
+          .from("contacts")
+          .insert(rows.slice(i, i + 500))
+          .select("id");
         if (error) {
           toast.error("Error insertando contactos");
           setMerging(false);
           return;
         }
+        for (const r of inserted || []) insertedIds.push((r as any).id);
       }
 
       // Update clean_count
@@ -149,11 +160,12 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
       await supabase.from("bases").update({ clean_count: newTotal }).eq("id", baseId);
 
       // Add to local state
-      const mapped: Contact[] = newContacts.map(c => ({
+      const mapped: Contact[] = newContacts.map((c, idx) => ({
+        id: insertedIds[idx],
         nombre: c.NOMBRE,
         apellido: c.APELLIDO,
         apellido2: c.APELLIDO2,
-        empresa: c.EMPRESA,
+        empresa: rows[idx].empresa,
         web: c.WEB,
         mail1: c.MAIL1,
         mail2: c.MAIL2,
@@ -217,7 +229,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await supabase
           .from("contacts")
-          .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
+          .select("id, nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
           .eq("base_id", baseId)
           .range(from, from + PAGE_SIZE - 1);
 
@@ -286,6 +298,28 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
       toast.success("Google Sheet vinculado correctamente");
     }
     setSavingSheet(false);
+  };
+
+  const handleDeleteContact = async (contact: Contact) => {
+    if (!contact.id) {
+      toast.error("No se puede eliminar este contacto, recarga la base");
+      return;
+    }
+    const label = [contact.nombre, contact.apellido].filter(Boolean).join(" ") || contact.mail1 || "contacto";
+    if (!window.confirm(`¿Eliminar a ${label} de esta base?`)) return;
+
+    setDeletingId(contact.id);
+    const { error } = await supabase.from("contacts").delete().eq("id", contact.id);
+    if (error) {
+      toast.error("Error eliminando el contacto");
+      setDeletingId(null);
+      return;
+    }
+    const remaining = contacts.filter((c) => c.id !== contact.id);
+    setContacts(remaining);
+    await supabase.from("bases").update({ clean_count: remaining.length }).eq("id", baseId);
+    setDeletingId(null);
+    toast.success(`${label} eliminado de la base`);
   };
 
   if (showReport && sheetId) {
@@ -568,6 +602,9 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                       {col}
                     </th>
                   ))}
+                  <th className="px-3 py-3 text-center font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[60px]">
+                    Acción
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -583,6 +620,22 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.mail2 || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.mail3 || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.mail4 || "—"}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        title="Eliminar contacto"
+                        disabled={deletingId === c.id}
+                        onClick={() => handleDeleteContact(c)}
+                      >
+                        {deletingId === c.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
