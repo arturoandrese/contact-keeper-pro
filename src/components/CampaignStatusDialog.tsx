@@ -160,19 +160,22 @@ const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName 
     load();
   }, [open, sheetId, category]);
 
-  const buildExport = () => contacts.map(c => ({
-    NOMBRE: c.nombre,
-    APELLIDO: c.apellido,
-    APELLIDO2: c.apellido2,
-    EMPRESA: c.empresa,
-    WEB: c.web,
-    MAIL1: c.mail1,
-    MAIL2: c.mail2,
-    MAIL3: c.mail3,
-    MAIL4: c.mail4,
-    ESTADO: c.status,
-    PESTAÑA: c.tab,
-  }));
+  const buildExport = () => contacts.map(c => {
+    const isBounced = category === "bounced";
+    return {
+      NOMBRE: c.nombre,
+      APELLIDO: c.apellido,
+      APELLIDO2: c.apellido2,
+      EMPRESA: c.empresa,
+      WEB: c.web,
+      MAIL1: isBounced ? "" : c.mail1,
+      MAIL2: c.mail2,
+      MAIL3: c.mail3,
+      MAIL4: c.mail4,
+      ESTADO: c.status,
+      PESTAÑA: c.tab,
+    };
+  });
 
   const EXPORT_HEADERS = ["NOMBRE","APELLIDO","APELLIDO2","EMPRESA","WEB","MAIL1","MAIL2","MAIL3","MAIL4","ESTADO","PESTAÑA"];
 
