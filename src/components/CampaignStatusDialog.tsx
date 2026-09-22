@@ -5,6 +5,7 @@ import { fetchSheetTabs, fetchSheetReport } from "@/lib/googleSheets";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import ExportDropdown from "./ExportDropdown";
+import { removeAccents } from "@/lib/contactCleaner";
 
 type StatusCategory = "sent" | "opened" | "clicked" | "bounced" | "responded" | "notSent" | "delivered";
 
