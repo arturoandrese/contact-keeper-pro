@@ -18,6 +18,7 @@ import LicitacionesPanel from "@/components/LicitacionesPanel";
 import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
 import ScheduledRemindersPanel from "@/components/ScheduledRemindersPanel";
 import { APP_VERSION } from "@/generated/appVersion";
+import { sanitizeDatabaseText } from "@/lib/databaseText";
 
 import CampaignPerformancePanel from "@/components/CampaignPerformancePanel";
 import { Button } from "@/components/ui/button";
@@ -599,15 +600,15 @@ const Index = () => {
 
     const rows = contacts.map((c) => ({
       base_id: base.id,
-      nombre: c.NOMBRE,
-      apellido: c.APELLIDO,
-      apellido2: c.APELLIDO2,
-      empresa: c.EMPRESA,
-      web: c.WEB,
-      mail1: c.MAIL1,
-      mail2: c.MAIL2,
-      mail3: c.MAIL3,
-      mail4: c.MAIL4,
+      nombre: sanitizeDatabaseText(c.NOMBRE),
+      apellido: sanitizeDatabaseText(c.APELLIDO),
+      apellido2: sanitizeDatabaseText(c.APELLIDO2),
+      empresa: sanitizeDatabaseText(c.EMPRESA),
+      web: sanitizeDatabaseText(c.WEB),
+      mail1: sanitizeDatabaseText(c.MAIL1),
+      mail2: sanitizeDatabaseText(c.MAIL2),
+      mail3: sanitizeDatabaseText(c.MAIL3),
+      mail4: sanitizeDatabaseText(c.MAIL4),
     }));
 
     for (let i = 0; i < rows.length; i += 500) {
