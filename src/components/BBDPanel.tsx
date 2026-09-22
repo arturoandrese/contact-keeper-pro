@@ -75,7 +75,26 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
       console.error("Error fetching bases:", error);
       toast.error("Error cargando bases: " + error.message);
     } else {
-      setBases((data as Base[]) || []);
+      const loadedBases = (data as Base[]) || [];
+      const reconciledBases = await Promise.all(
+        loadedBases.map(async (base) => {
+          const { count, error: countError } = await supabase
+            .from("contacts")
+            .select("id", { count: "exact", head: true })
+            .eq("base_id", base.id);
+
+          if (countError || count === null || count === base.clean_count) return base;
+
+          const { error: updateError } = await supabase
+            .from("bases")
+            .update({ clean_count: count })
+            .eq("id", base.id);
+
+          if (updateError) console.error("Error corrigiendo conteo de base:", updateError);
+          return { ...base, clean_count: count };
+        })
+      );
+      setBases(reconciledBases);
     }
     setLoading(false);
   };

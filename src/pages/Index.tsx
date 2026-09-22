@@ -614,12 +614,36 @@ const Index = () => {
       const batch = rows.slice(i, i + 500);
       const { error } = await supabase.from("contacts").insert(batch);
       if (error) {
-        toast.error("Error guardando contactos");
+        await supabase.from("contacts").delete().eq("base_id", base.id);
+        await supabase.from("bases").delete().eq("id", base.id);
+        toast.error(`No se guardó la base: ${error.message}`);
         return;
       }
     }
 
-    toast.success("Base guardada exitosamente");
+    const { count: savedCount, error: countError } = await supabase
+      .from("contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("base_id", base.id);
+
+    if (countError || savedCount !== rows.length) {
+      await supabase.from("contacts").delete().eq("base_id", base.id);
+      await supabase.from("bases").delete().eq("id", base.id);
+      toast.error(`No se guardó la base completa: se esperaban ${rows.length} contactos y se confirmaron ${savedCount ?? 0}`);
+      return;
+    }
+
+    const { error: countUpdateError } = await supabase
+      .from("bases")
+      .update({ clean_count: savedCount })
+      .eq("id", base.id);
+
+    if (countUpdateError) {
+      toast.error(`Los contactos se guardaron, pero falló el conteo: ${countUpdateError.message}`);
+      return;
+    }
+
+    toast.success(`Base guardada con ${savedCount} contactos`);
     setContacts([]);
     setRawCount(0);
     setView("bbd");

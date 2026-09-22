@@ -62,6 +62,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
   if (!sourceBase) return null;
 
   const targets = allBases.filter((b) => b.id !== sourceBase.id && !!b.sheet_id);
+  const allSelected = targets.length > 0 && targets.every((b) => selected.has(b.id));
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -70,6 +71,10 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
       else next.add(id);
       return next;
     });
+  };
+
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(targets.map((b) => b.id)));
   };
 
   const run = async () => {
@@ -210,6 +215,19 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
             </div>
           </label>
         </div>
+
+        {targets.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={toggleAll}
+            disabled={running}
+          >
+            {allSelected ? "Desmarcar todas" : `Seleccionar todas (${targets.length})`}
+          </Button>
+        )}
 
         <div className="max-h-72 space-y-1.5 overflow-y-auto py-2">
           {targets.length === 0 ? (
