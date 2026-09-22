@@ -228,7 +228,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await supabase
           .from("contacts")
-          .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
+          .select("id, nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
           .eq("base_id", baseId)
           .range(from, from + PAGE_SIZE - 1);
 
