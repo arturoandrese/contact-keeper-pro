@@ -603,7 +603,9 @@ const Index = () => {
       nombre: sanitizeDatabaseText(c.NOMBRE),
       apellido: sanitizeDatabaseText(c.APELLIDO),
       apellido2: sanitizeDatabaseText(c.APELLIDO2),
-      empresa: sanitizeDatabaseText(c.EMPRESA),
+      empresa:
+        sanitizeDatabaseText(c.EMPRESA) ||
+        extractCompanyFromDomain((c.MAIL1 || c.MAIL2 || "").split("@")[1] || ""),
       web: sanitizeDatabaseText(c.WEB),
       mail1: sanitizeDatabaseText(c.MAIL1),
       mail2: sanitizeDatabaseText(c.MAIL2),
