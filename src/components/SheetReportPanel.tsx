@@ -111,44 +111,98 @@ const toCleanedContacts = (rows: ExistingContactRow[]): CleanedContact[] =>
     MAIL4: c.mail4 || "",
   }));
 
+const normPart = (v: string): string =>
+  removeAccents((v || "").toLowerCase().trim()).replace(/[^a-z]/g, "");
+
+const domainOf = (email: string, web: string): string => {
+  const fromMail = (email || "").split("@")[1];
+  if (fromMail) return fromMail.toLowerCase().trim();
+  return (web || "")
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0]
+    .trim();
+};
+
+/**
+ * Rebotados: MAIL1 = nombre.apellido@dominio. Si ese correo ya rebotó
+ * (o es el que falló), MAIL1 pasa a ser inicial.apellido@dominio, etc.
+ * El correo rebotado nunca vuelve a aparecer en ningún campo MAIL.
+ */
+const alternativeMails = (
+  nombre: string,
+  apellido: string,
+  email: string,
+  web: string,
+  blockedMails: string[],
+  bouncedByDomain: Map<string, Set<string>>,
+): string[] => {
+  const n = normPart(nombre);
+  const a = normPart(apellido);
+  const domain = domainOf(email, web);
+  if (!n || !a || !domain) return [];
+
+  const blocked = new Set(blockedMails.filter(Boolean).map((m) => m.toLowerCase().trim()));
+  const bouncedLocals = bouncedByDomain.get(domain) || new Set<string>();
+
+  const candidates = [
+    `${n}.${a}@${domain}`,
+    `${n.charAt(0)}.${a}@${domain}`,
+    `${n.charAt(0)}${a}@${domain}`,
+    `${n}${a}@${domain}`,
+    `${n}.${a.charAt(0)}@${domain}`,
+  ];
+
+  const out: string[] = [];
+  for (const candidate of candidates) {
+    const local = candidate.split("@")[0];
+    if (blocked.has(candidate) || bouncedLocals.has(local) || out.includes(candidate)) continue;
+    out.push(candidate);
+  }
+  return out;
+};
+
 const buildBouncedExportRows = async (
-  baseId: string,
+  _baseId: string,
   contacts: Array<Record<string, string>>,
 ): Promise<Array<Record<string, string>>> => {
-  const existingContacts = await fetchAllContacts(baseId);
-  if (existingContacts.length === 0) return [];
+  let bouncedByDomain = new Map<string, Set<string>>();
+  try {
+    bouncedByDomain = await loadAllBouncedByDomain();
+  } catch {
+    bouncedByDomain = new Map();
+  }
 
-  const [savedPatternsRes, deliveredHistoryRes] = await Promise.all([
-    supabase.from("domain_patterns").select("domain, pattern, example_email"),
-    supabase.from("delivered_contacts").select("mail, nombre, apellido").limit(5000),
-  ]);
+  return contacts.map((contact) => {
+    const email = getSheetContactEmail(contact);
+    const nombre = getSheetContactName(contact);
+    const apellido = (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim();
+    const apellido2 = (contact["APELLIDO2"] || contact["apellido2"] || contact["Second Last Name"] || "").toString().trim();
+    const empresa = (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim();
+    const web = (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim();
+    const existingMails = [
+      email,
+      (contact["MAIL1"] || "").toString().trim().toLowerCase(),
+    ];
 
-  const savedPatterns = (savedPatternsRes.data || []).map((p: any) => ({
-    domain: p.domain, pattern: p.pattern, example_email: p.example_email,
-  }));
-  const deliveredHistory: DeliveredHistoryEntry[] = (deliveredHistoryRes.data || []).map((d: any) => ({
-    mail: d.mail || "", nombre: d.nombre || "", apellido: d.apellido || "",
-  }));
+    const alts = alternativeMails(nombre, apellido, email, web, existingMails, bouncedByDomain);
 
-  const { filtered } = crossReference(
-    toCleanedContacts(existingContacts),
-    toEmailLog(contacts),
-    undefined,
-    { onlyBounced: true, savedPatterns, deliveredHistory },
-  );
-
-  return filtered.map((row) => ({
-    EMAIL: row.MAIL_ORIGINAL || "",
-    ESTADO: "EMAIL BOUNCED",
-    NOMBRE: row.NOMBRE || "",
-    APELLIDO: row.APELLIDO || "",
-    EMPRESA: row.EMPRESA_SHORT || row.EMPRESA || "",
-    WEB: row.WEB || "",
-    MAIL1: row.MAIL1 || "",
-    MAIL2: row.MAIL2 || "",
-    MAIL3: row.MAIL3 || "",
-  }));
+    return {
+      NOMBRE: nombre,
+      APELLIDO: apellido,
+      APELLIDO2: apellido2,
+      EMPRESA: empresa,
+      WEB: web,
+      MAIL1: alts[0] || "",
+      MAIL2: alts[1] || "",
+      MAIL3: alts[2] || "",
+      MAIL4: alts[3] || "",
+      PESTAÑA: (contact._tab || contact["PESTAÑA"] || "").toString().trim(),
+    };
+  });
 };
+
 
 async function fetchAllContacts(baseId: string): Promise<ExistingContactRow[]> {
   const all: ExistingContactRow[] = [];
