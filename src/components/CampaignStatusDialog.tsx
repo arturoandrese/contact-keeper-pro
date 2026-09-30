@@ -91,8 +91,8 @@ function alternativeMails(
   const blocked = new Set(bounced.filter(Boolean).map(m => m.toLowerCase().trim()));
   const candidates = [
     `${n}.${a}@${domain}`,
-    `${n.charAt(0)}${a}@${domain}`,
     `${n.charAt(0)}.${a}@${domain}`,
+    `${n.charAt(0)}${a}@${domain}`,
     `${n}${a}@${domain}`,
   ];
   const out: string[] = [];
@@ -129,18 +129,19 @@ const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName 
             const apellido2 = pick(c, ["APELLIDO2", "Apellido2", "apellido2", "Second Last Name"]);
             const empresa = pick(c, ["EMPRESA", "Empresa", "empresa", "Company", "company", "company_name"]);
             const web = pick(c, ["WEB", "Web", "web", "Website", "website", "company_website"]);
-            const mail1 = pick(c, ["MAIL1", "Mail1", "mail1"]) || email;
+            let mail1 = pick(c, ["MAIL1", "Mail1", "mail1"]) || email;
             let mail2 = pick(c, ["MAIL2", "Mail2", "mail2"]);
             let mail3 = pick(c, ["MAIL3", "Mail3", "mail3"]);
             let mail4 = pick(c, ["MAIL4", "Mail4", "mail4"]);
 
             if (category === "bounced") {
-              // El correo que rebotó no se reutiliza: proponemos los patrones
-              // más habituales (nombre.apellido y inicial+apellido).
+              // MAIL1 pasa a ser el primer correo nuevo que se debe intentar.
+              // El correo rebotado queda bloqueado en todas las alternativas.
               const alts = alternativeMails(nombre, apellido, email, web, [email, mail1]);
-              mail2 = alts[0] || "";
-              mail3 = alts[1] || "";
-              mail4 = alts[2] || "";
+              mail1 = alts[0] || "";
+              mail2 = alts[1] || "";
+              mail3 = alts[2] || "";
+              mail4 = alts[3] || "";
             }
             rows.push({
               email, nombre, apellido, apellido2, empresa, web,
@@ -160,24 +161,26 @@ const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName 
     load();
   }, [open, sheetId, category]);
 
-  const buildExport = () => contacts.map(c => {
-    const isBounced = category === "bounced";
-    return {
+  const buildExport = (): Record<string, string>[] => contacts.map(c => {
+    const base = {
       NOMBRE: c.nombre,
       APELLIDO: c.apellido,
       APELLIDO2: c.apellido2,
       EMPRESA: c.empresa,
       WEB: c.web,
-      MAIL1: isBounced ? "" : c.mail1,
+      MAIL1: c.mail1,
       MAIL2: c.mail2,
       MAIL3: c.mail3,
       MAIL4: c.mail4,
-      ESTADO: c.status,
       PESTAÑA: c.tab,
     };
+    if (category === "bounced") return base;
+    return { ...base, ESTADO: c.status };
   });
 
-  const EXPORT_HEADERS = ["NOMBRE","APELLIDO","APELLIDO2","EMPRESA","WEB","MAIL1","MAIL2","MAIL3","MAIL4","ESTADO","PESTAÑA"];
+  const EXPORT_HEADERS = category === "bounced"
+    ? ["NOMBRE","APELLIDO","APELLIDO2","EMPRESA","WEB","MAIL1","MAIL2","MAIL3","MAIL4","PESTAÑA"]
+    : ["NOMBRE","APELLIDO","APELLIDO2","EMPRESA","WEB","MAIL1","MAIL2","MAIL3","MAIL4","PESTAÑA","ESTADO"];
 
   const handleDownload = () => {
     if (contacts.length === 0) return;
@@ -208,7 +211,7 @@ const CampaignStatusDialog = ({ open, onOpenChange, sheetId, category, baseName 
                 onDownload={handleDownload}
                 getData={() => ({
                   headers: EXPORT_HEADERS,
-                  rows: buildExport().map(r => EXPORT_HEADERS.map(h => (r as any)[h] || "")),
+                   rows: buildExport().map(r => EXPORT_HEADERS.map(h => r[h] || "")),
                 })}
               />
             </div>
