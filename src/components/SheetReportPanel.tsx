@@ -520,25 +520,38 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
   const statusFilterLabel = selectedStatus ? selectedStatus.replace(/_/g, " ") : "TODOS";
 
-  const handleDownloadCurrentView = async () => {
-    if (!data) return;
+  const BOUNCED_HEADERS = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4", "PESTAÑA"];
+  const DEFAULT_HEADERS = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4", "PESTAÑA", "ESTADO"];
 
+  const buildStandardRows = () =>
+    filteredContacts.map((contact) => ({
+      NOMBRE: getSheetContactName(contact),
+      APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
+      APELLIDO2: (contact["APELLIDO2"] || contact["apellido2"] || "").toString().trim(),
+      EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
+      WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
+      MAIL1: (contact["MAIL1"] || getSheetContactEmail(contact) || "").toString().trim(),
+      MAIL2: (contact["MAIL2"] || "").toString().trim(),
+      MAIL3: (contact["MAIL3"] || "").toString().trim(),
+      MAIL4: (contact["MAIL4"] || "").toString().trim(),
+      PESTAÑA: (contact._tab || "").toString().trim(),
+      ESTADO: (contact._status || "UNKNOWN").toString().replace(/_/g, " "),
+    }));
+
+  const buildViewRows = async () => {
     const isBouncedView = selectedStatus === "BOUNCED";
     const rows = isBouncedView
       ? await buildBouncedExportRows(baseId, filteredContacts)
-      : filteredContacts.map((contact) => ({
-          EMAIL: getSheetContactEmail(contact) || "",
-          ESTADO: (contact._status || "UNKNOWN").toString().replace(/_/g, " "),
-          NOMBRE: getSheetContactName(contact),
-          APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
-          EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
-          WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
-          MAIL1: (contact["MAIL1"] || "").toString().trim(),
-          MAIL2: (contact["MAIL2"] || "").toString().trim(),
-          MAIL3: "",
-        }));
+      : buildStandardRows();
+    const headers = isBouncedView ? BOUNCED_HEADERS : DEFAULT_HEADERS;
+    return { headers, rows };
+  };
 
-    const ws = XLSX.utils.json_to_sheet(rows);
+  const handleDownloadCurrentView = async () => {
+    if (!data) return;
+
+    const { headers, rows } = await buildViewRows();
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reporte");
 
@@ -549,25 +562,12 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const getCurrentViewExportData = async () => {
     if (!data) return { headers: [], rows: [] };
 
-    const isBouncedView = selectedStatus === "BOUNCED";
-    const rows = isBouncedView
-      ? await buildBouncedExportRows(baseId, filteredContacts)
-      : filteredContacts.map((contact) => ({
-          EMAIL: getSheetContactEmail(contact) || "",
-          ESTADO: (contact._status || "UNKNOWN").replace(/_/g, " "),
-          NOMBRE: getSheetContactName(contact),
-          APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
-          EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
-          WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
-          MAIL1: (contact["MAIL1"] || "").toString().trim(),
-          MAIL2: (contact["MAIL2"] || "").toString().trim(),
-          MAIL3: "",
-        }));
-
+    const { headers, rows } = await buildViewRows();
     return {
-      headers: ["EMAIL", "ESTADO", "NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3"],
-      rows: rows.map((row) => [row.EMAIL, row.ESTADO, row.NOMBRE, row.APELLIDO, row.EMPRESA, row.WEB, row.MAIL1, row.MAIL2, row.MAIL3 || ""]),
+      headers,
+      rows: rows.map((row) => headers.map((h) => (row as Record<string, string>)[h] || "")),
     };
+
   };
 
   return (
