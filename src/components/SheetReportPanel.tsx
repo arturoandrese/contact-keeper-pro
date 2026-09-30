@@ -274,12 +274,14 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
       const mergedContacts: any[] = [];
       const mergedStats: Record<string, number> = {};
       let total = 0;
-      for (const r of results) {
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
         for (const c of r.contacts) {
           const email = (getSheetContactEmail(c) || JSON.stringify(c)).toLowerCase();
           if (seen.has(email)) continue;
           seen.add(email);
-          mergedContacts.push(c);
+          mergedContacts.push({ ...c, _tab: selectedTabs[i] });
+
           const key = (c._status || "UNKNOWN").toString();
           mergedStats[key] = (mergedStats[key] || 0) + 1;
           total += 1;
