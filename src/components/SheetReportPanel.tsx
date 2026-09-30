@@ -9,7 +9,9 @@ import { toast } from "sonner";
 import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
 import { crossReference, type EmailLogEntry, type CrossReferencedContact, type DeliveredHistoryEntry } from "@/lib/crossReference";
 import ExportDropdown from "./ExportDropdown";
-import type { CleanedContact } from "@/lib/contactCleaner";
+import { removeAccents, type CleanedContact } from "@/lib/contactCleaner";
+import { loadAllBouncedByDomain } from "@/lib/bouncedIndex";
+
 
 interface SheetReportPanelProps {
   baseId: string;
