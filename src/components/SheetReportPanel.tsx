@@ -9,7 +9,9 @@ import { toast } from "sonner";
 import { fetchSheetReport, fetchSheetTabs, type SheetData, type SheetTab } from "@/lib/googleSheets";
 import { crossReference, type EmailLogEntry, type CrossReferencedContact, type DeliveredHistoryEntry } from "@/lib/crossReference";
 import ExportDropdown from "./ExportDropdown";
-import type { CleanedContact } from "@/lib/contactCleaner";
+import { removeAccents, type CleanedContact } from "@/lib/contactCleaner";
+import { loadAllBouncedByDomain } from "@/lib/bouncedIndex";
+
 
 interface SheetReportPanelProps {
   baseId: string;
@@ -111,44 +113,98 @@ const toCleanedContacts = (rows: ExistingContactRow[]): CleanedContact[] =>
     MAIL4: c.mail4 || "",
   }));
 
+const normPart = (v: string): string =>
+  removeAccents((v || "").toLowerCase().trim()).replace(/[^a-z]/g, "");
+
+const domainOf = (email: string, web: string): string => {
+  const fromMail = (email || "").split("@")[1];
+  if (fromMail) return fromMail.toLowerCase().trim();
+  return (web || "")
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0]
+    .trim();
+};
+
+/**
+ * Rebotados: MAIL1 = nombre.apellido@dominio. Si ese correo ya rebotó
+ * (o es el que falló), MAIL1 pasa a ser inicial.apellido@dominio, etc.
+ * El correo rebotado nunca vuelve a aparecer en ningún campo MAIL.
+ */
+const alternativeMails = (
+  nombre: string,
+  apellido: string,
+  email: string,
+  web: string,
+  blockedMails: string[],
+  bouncedByDomain: Map<string, Set<string>>,
+): string[] => {
+  const n = normPart(nombre);
+  const a = normPart(apellido);
+  const domain = domainOf(email, web);
+  if (!n || !a || !domain) return [];
+
+  const blocked = new Set(blockedMails.filter(Boolean).map((m) => m.toLowerCase().trim()));
+  const bouncedLocals = bouncedByDomain.get(domain) || new Set<string>();
+
+  const candidates = [
+    `${n}.${a}@${domain}`,
+    `${n.charAt(0)}.${a}@${domain}`,
+    `${n.charAt(0)}${a}@${domain}`,
+    `${n}${a}@${domain}`,
+    `${n}.${a.charAt(0)}@${domain}`,
+  ];
+
+  const out: string[] = [];
+  for (const candidate of candidates) {
+    const local = candidate.split("@")[0];
+    if (blocked.has(candidate) || bouncedLocals.has(local) || out.includes(candidate)) continue;
+    out.push(candidate);
+  }
+  return out;
+};
+
 const buildBouncedExportRows = async (
-  baseId: string,
+  _baseId: string,
   contacts: Array<Record<string, string>>,
 ): Promise<Array<Record<string, string>>> => {
-  const existingContacts = await fetchAllContacts(baseId);
-  if (existingContacts.length === 0) return [];
+  let bouncedByDomain = new Map<string, Set<string>>();
+  try {
+    bouncedByDomain = await loadAllBouncedByDomain();
+  } catch {
+    bouncedByDomain = new Map();
+  }
 
-  const [savedPatternsRes, deliveredHistoryRes] = await Promise.all([
-    supabase.from("domain_patterns").select("domain, pattern, example_email"),
-    supabase.from("delivered_contacts").select("mail, nombre, apellido").limit(5000),
-  ]);
+  return contacts.map((contact) => {
+    const email = getSheetContactEmail(contact);
+    const nombre = getSheetContactName(contact);
+    const apellido = (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim();
+    const apellido2 = (contact["APELLIDO2"] || contact["apellido2"] || contact["Second Last Name"] || "").toString().trim();
+    const empresa = (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim();
+    const web = (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim();
+    const existingMails = [
+      email,
+      (contact["MAIL1"] || "").toString().trim().toLowerCase(),
+    ];
 
-  const savedPatterns = (savedPatternsRes.data || []).map((p: any) => ({
-    domain: p.domain, pattern: p.pattern, example_email: p.example_email,
-  }));
-  const deliveredHistory: DeliveredHistoryEntry[] = (deliveredHistoryRes.data || []).map((d: any) => ({
-    mail: d.mail || "", nombre: d.nombre || "", apellido: d.apellido || "",
-  }));
+    const alts = alternativeMails(nombre, apellido, email, web, existingMails, bouncedByDomain);
 
-  const { filtered } = crossReference(
-    toCleanedContacts(existingContacts),
-    toEmailLog(contacts),
-    undefined,
-    { onlyBounced: true, savedPatterns, deliveredHistory },
-  );
-
-  return filtered.map((row) => ({
-    EMAIL: row.MAIL_ORIGINAL || "",
-    ESTADO: "EMAIL BOUNCED",
-    NOMBRE: row.NOMBRE || "",
-    APELLIDO: row.APELLIDO || "",
-    EMPRESA: row.EMPRESA_SHORT || row.EMPRESA || "",
-    WEB: row.WEB || "",
-    MAIL1: row.MAIL1 || "",
-    MAIL2: row.MAIL2 || "",
-    MAIL3: row.MAIL3 || "",
-  }));
+    return {
+      NOMBRE: nombre,
+      APELLIDO: apellido,
+      APELLIDO2: apellido2,
+      EMPRESA: empresa,
+      WEB: web,
+      MAIL1: alts[0] || "",
+      MAIL2: alts[1] || "",
+      MAIL3: alts[2] || "",
+      MAIL4: alts[3] || "",
+      PESTAÑA: (contact._tab || contact["PESTAÑA"] || "").toString().trim(),
+    };
+  });
 };
+
 
 async function fetchAllContacts(baseId: string): Promise<ExistingContactRow[]> {
   const all: ExistingContactRow[] = [];
@@ -220,12 +276,14 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
       const mergedContacts: any[] = [];
       const mergedStats: Record<string, number> = {};
       let total = 0;
-      for (const r of results) {
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
         for (const c of r.contacts) {
           const email = (getSheetContactEmail(c) || JSON.stringify(c)).toLowerCase();
           if (seen.has(email)) continue;
           seen.add(email);
-          mergedContacts.push(c);
+          mergedContacts.push({ ...c, _tab: selectedTabs[i] });
+
           const key = (c._status || "UNKNOWN").toString();
           mergedStats[key] = (mergedStats[key] || 0) + 1;
           total += 1;
@@ -462,25 +520,38 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
 
   const statusFilterLabel = selectedStatus ? selectedStatus.replace(/_/g, " ") : "TODOS";
 
-  const handleDownloadCurrentView = async () => {
-    if (!data) return;
+  const BOUNCED_HEADERS = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4", "PESTAÑA"];
+  const DEFAULT_HEADERS = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4", "PESTAÑA", "ESTADO"];
 
+  const buildStandardRows = () =>
+    filteredContacts.map((contact) => ({
+      NOMBRE: getSheetContactName(contact),
+      APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
+      APELLIDO2: (contact["APELLIDO2"] || contact["apellido2"] || "").toString().trim(),
+      EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
+      WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
+      MAIL1: (contact["MAIL1"] || getSheetContactEmail(contact) || "").toString().trim(),
+      MAIL2: (contact["MAIL2"] || "").toString().trim(),
+      MAIL3: (contact["MAIL3"] || "").toString().trim(),
+      MAIL4: (contact["MAIL4"] || "").toString().trim(),
+      PESTAÑA: (contact._tab || "").toString().trim(),
+      ESTADO: (contact._status || "UNKNOWN").toString().replace(/_/g, " "),
+    }));
+
+  const buildViewRows = async () => {
     const isBouncedView = selectedStatus === "BOUNCED";
     const rows = isBouncedView
       ? await buildBouncedExportRows(baseId, filteredContacts)
-      : filteredContacts.map((contact) => ({
-          EMAIL: getSheetContactEmail(contact) || "",
-          ESTADO: (contact._status || "UNKNOWN").toString().replace(/_/g, " "),
-          NOMBRE: getSheetContactName(contact),
-          APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
-          EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
-          WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
-          MAIL1: (contact["MAIL1"] || "").toString().trim(),
-          MAIL2: (contact["MAIL2"] || "").toString().trim(),
-          MAIL3: "",
-        }));
+      : buildStandardRows();
+    const headers = isBouncedView ? BOUNCED_HEADERS : DEFAULT_HEADERS;
+    return { headers, rows };
+  };
 
-    const ws = XLSX.utils.json_to_sheet(rows);
+  const handleDownloadCurrentView = async () => {
+    if (!data) return;
+
+    const { headers, rows } = await buildViewRows();
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reporte");
 
@@ -491,25 +562,12 @@ const SheetReportPanel = ({ baseId, baseName, sheetId, onBack }: SheetReportPane
   const getCurrentViewExportData = async () => {
     if (!data) return { headers: [], rows: [] };
 
-    const isBouncedView = selectedStatus === "BOUNCED";
-    const rows = isBouncedView
-      ? await buildBouncedExportRows(baseId, filteredContacts)
-      : filteredContacts.map((contact) => ({
-          EMAIL: getSheetContactEmail(contact) || "",
-          ESTADO: (contact._status || "UNKNOWN").replace(/_/g, " "),
-          NOMBRE: getSheetContactName(contact),
-          APELLIDO: (contact["Last Name"] || contact["APELLIDO"] || contact["apellido"] || "").toString().trim(),
-          EMPRESA: (contact["EMPRESA"] || contact["Company"] || contact["empresa"] || "").toString().trim(),
-          WEB: (contact["WEB"] || contact["Website"] || contact["web"] || "").toString().trim(),
-          MAIL1: (contact["MAIL1"] || "").toString().trim(),
-          MAIL2: (contact["MAIL2"] || "").toString().trim(),
-          MAIL3: "",
-        }));
-
+    const { headers, rows } = await buildViewRows();
     return {
-      headers: ["EMAIL", "ESTADO", "NOMBRE", "APELLIDO", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3"],
-      rows: rows.map((row) => [row.EMAIL, row.ESTADO, row.NOMBRE, row.APELLIDO, row.EMPRESA, row.WEB, row.MAIL1, row.MAIL2, row.MAIL3 || ""]),
+      headers,
+      rows: rows.map((row) => headers.map((h) => (row as Record<string, string>)[h] || "")),
     };
+
   };
 
   return (
