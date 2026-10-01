@@ -91,6 +91,22 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
       const norm = (s: any) =>
         (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
           .toLowerCase().replace(/[^a-z]/g, "").trim();
+      const GENERIC = new Set(["gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "live.com", "icloud.com", "hotmail.cl", "yahoo.es", "gmail.cl"]);
+      const domOf = (s: any) => {
+        let d = (s || "").toString().toLowerCase().trim();
+        if (d.includes("@")) d = d.split("@")[1];
+        d = d.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+        return d && d.includes(".") && !GENERIC.has(d) ? d : "";
+      };
+      // Nombre+apellido solo cuenta si además coincide dominio del mail/web o empresa
+      const contextKeys = (key: string, mails: string[], empresa: any, web: any): string[] => {
+        if (!key) return [];
+        const out = new Set<string>();
+        for (const m of mails) { const d = domOf(m); if (d) out.add(`${key}|d:${d}`); }
+        const wd = domOf(web); if (wd) out.add(`${key}|d:${wd}`);
+        const e = norm(empresa); if (e.length >= 3) out.add(`${key}|e:${e}`);
+        return [...out];
+      };
       const nameKey = (n: any, a: any) => {
         const nn = norm((n || "").toString().split(/\s+/)[0]);
         const aa = norm((a || "").toString().split(/\s+/)[0]);
