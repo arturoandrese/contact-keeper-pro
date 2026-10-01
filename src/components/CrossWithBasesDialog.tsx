@@ -87,6 +87,19 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
 
     try {
       const excludeMails = new Set<string>();
+      const excludeNames = new Set<string>();
+      const norm = (s: any) =>
+        (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase().replace(/[^a-z]/g, "").trim();
+      const nameKey = (n: any, a: any) => {
+        const nn = norm((n || "").toString().split(/\s+/)[0]);
+        const aa = norm((a || "").toString().split(/\s+/)[0]);
+        return nn.length >= 2 && aa.length >= 2 ? `${nn}|${aa}` : "";
+      };
+      const pick = (c: any, keys: string[]) => {
+        for (const k of keys) if (c[k]) return c[k];
+        return "";
+      };
 
       for (const baseId of selected) {
         const tb = allBases.find((b) => b.id === baseId);
@@ -99,32 +112,58 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
         for (const sheet of allTabs) {
           for (const c of sheet.contacts) {
             const status = (c._status || "").toString().replace(/\s+/g, "_").toUpperCase().trim();
-            const mail = (c["Email Address"] || c["MAIL_CORREGIDO"] || c["MAIL1"] || c["email"] || "")
-              .toString().toLowerCase().trim();
-            if (!mail || !mail.includes("@")) continue;
+            const match = mode === "engaged"
+              ? ENGAGED_STATUSES.has(status)
+              : SENT_STATUSES.has(status) || ENGAGED_STATUSES.has(status);
+            if (!match) continue;
 
-            if (mode === "engaged") {
-              if (ENGAGED_STATUSES.has(status)) excludeMails.add(mail);
-            } else {
-              if (SENT_STATUSES.has(status) || ENGAGED_STATUSES.has(status)) excludeMails.add(mail);
+            for (const k of ["Email Address", "MAIL_CORREGIDO", "MAIL1", "MAIL2", "MAIL3", "MAIL4", "email", "EMAIL"]) {
+              const m = (c[k] || "").toString().toLowerCase().trim();
+              if (m.includes("@")) excludeMails.add(m);
             }
+            const key = nameKey(
+              pick(c, ["NOMBRE", "Nombre", "nombre", "First Name"]),
+              pick(c, ["APELLIDO", "Apellido", "apellido", "Last Name"])
+            );
+            if (key) excludeNames.add(key);
           }
         }
       }
 
-      if (excludeMails.size === 0) {
+      // Extra seguridad: historial de enviados guardado en la app
+      if (mode === "all") {
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await supabase
+            .from("delivered_contacts")
+            .select("mail, nombre, apellido")
+            .range(from, from + 999);
+          if (error) break;
+          if (!data || data.length === 0) break;
+          for (const d of data as any[]) {
+            const m = (d.mail || "").toLowerCase().trim();
+            if (m.includes("@")) excludeMails.add(m);
+            const key = nameKey(d.nombre, d.apellido);
+            if (key) excludeNames.add(key);
+          }
+          if (data.length < 1000) break;
+        }
+      }
+
+      if (excludeMails.size === 0 && excludeNames.size === 0) {
         toast.success("No se encontraron coincidencias en esas bases 👍", { id: toastId });
         setRunning(false);
         return;
       }
 
-      // 2. Find duplicates in source
+      // 2. Find duplicates in source (por mail o por nombre+apellido)
       const duplicateIds: string[] = [];
+      let byMail = 0;
+      let byName = 0;
       const pageSize = 1000;
       for (let from = 0; ; from += pageSize) {
         const { data, error } = await supabase
           .from("contacts")
-          .select("id, mail1, mail2, mail3, mail4")
+          .select("id, nombre, apellido, mail1, mail2, mail3, mail4")
           .eq("base_id", sourceBase.id)
           .range(from, from + pageSize - 1);
         if (error) throw error;
@@ -133,13 +172,22 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
           const mails = [c.mail1, c.mail2, c.mail3, c.mail4]
             .filter(Boolean)
             .map((m: string) => m.toLowerCase().trim());
-          if (mails.some((m) => excludeMails.has(m))) duplicateIds.push(c.id);
+          if (mails.some((m) => excludeMails.has(m))) {
+            duplicateIds.push(c.id);
+            byMail++;
+            continue;
+          }
+          const key = nameKey(c.nombre, c.apellido);
+          if (key && excludeNames.has(key)) {
+            duplicateIds.push(c.id);
+            byName++;
+          }
         }
         if (data.length < pageSize) break;
       }
 
       if (duplicateIds.length === 0) {
-        toast.success(`Sin coincidencias (${excludeMails.size} mails revisados) 👍`, { id: toastId });
+        toast.success(`Sin coincidencias (${excludeMails.size} mails y ${excludeNames.size} nombres revisados) 👍`, { id: toastId });
         setRunning(false);
         return;
       }
@@ -156,8 +204,8 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
       await supabase.from("bases").update({ clean_count: newCount }).eq("id", sourceBase.id);
 
       toast.success(
-        `🗑️ ${duplicateIds.length} contactos ya contactados eliminados de "${sourceBase.name}"`,
-        { id: toastId }
+        `🗑️ ${duplicateIds.length} eliminados de "${sourceBase.name}" (${byMail} por mail, ${byName} por nombre y apellido)`,
+        { id: toastId, duration: 8000 }
       );
       onDone(newCount);
       onOpenChange(false);
