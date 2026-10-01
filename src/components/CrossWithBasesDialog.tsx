@@ -91,6 +91,22 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
       const norm = (s: any) =>
         (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
           .toLowerCase().replace(/[^a-z]/g, "").trim();
+      const GENERIC = new Set(["gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "live.com", "icloud.com", "hotmail.cl", "yahoo.es", "gmail.cl"]);
+      const domOf = (s: any) => {
+        let d = (s || "").toString().toLowerCase().trim();
+        if (d.includes("@")) d = d.split("@")[1];
+        d = d.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+        return d && d.includes(".") && !GENERIC.has(d) ? d : "";
+      };
+      // Nombre+apellido solo cuenta si además coincide dominio del mail/web o empresa
+      const contextKeys = (key: string, mails: string[], empresa: any, web: any): string[] => {
+        if (!key) return [];
+        const out = new Set<string>();
+        for (const m of mails) { const d = domOf(m); if (d) out.add(`${key}|d:${d}`); }
+        const wd = domOf(web); if (wd) out.add(`${key}|d:${wd}`);
+        const e = norm(empresa); if (e.length >= 3) out.add(`${key}|e:${e}`);
+        return [...out];
+      };
       const nameKey = (n: any, a: any) => {
         const nn = norm((n || "").toString().split(/\s+/)[0]);
         const aa = norm((a || "").toString().split(/\s+/)[0]);
@@ -117,15 +133,16 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
               : SENT_STATUSES.has(status) || ENGAGED_STATUSES.has(status);
             if (!match) continue;
 
+            const rowMails: string[] = [];
             for (const k of ["Email Address", "MAIL_CORREGIDO", "MAIL1", "MAIL2", "MAIL3", "MAIL4", "email", "EMAIL"]) {
               const m = (c[k] || "").toString().toLowerCase().trim();
-              if (m.includes("@")) excludeMails.add(m);
+              if (m.includes("@")) { excludeMails.add(m); rowMails.push(m); }
             }
             const key = nameKey(
               pick(c, ["NOMBRE", "Nombre", "nombre", "First Name"]),
               pick(c, ["APELLIDO", "Apellido", "apellido", "Last Name"])
             );
-            if (key) excludeNames.add(key);
+            for (const k of contextKeys(key, rowMails, pick(c, ["EMPRESA", "Empresa", "empresa", "Company"]), pick(c, ["WEB", "Web", "web"]))) excludeNames.add(k);
           }
         }
       }
@@ -135,7 +152,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
         for (let from = 0; ; from += 1000) {
           const { data, error } = await supabase
             .from("delivered_contacts")
-            .select("mail, nombre, apellido")
+            .select("mail, nombre, apellido, empresa, web")
             .range(from, from + 999);
           if (error) break;
           if (!data || data.length === 0) break;
@@ -143,7 +160,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
             const m = (d.mail || "").toLowerCase().trim();
             if (m.includes("@")) excludeMails.add(m);
             const key = nameKey(d.nombre, d.apellido);
-            if (key) excludeNames.add(key);
+            for (const k of contextKeys(key, m ? [m] : [], d.empresa, d.web)) excludeNames.add(k);
           }
           if (data.length < 1000) break;
         }
@@ -155,7 +172,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
         return;
       }
 
-      // 2. Find duplicates in source (por mail o por nombre+apellido)
+      // 2. Find duplicates in source (por mail, o nombre+apellido con mismo dominio/empresa)
       const duplicateIds: string[] = [];
       let byMail = 0;
       let byName = 0;
@@ -163,7 +180,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
       for (let from = 0; ; from += pageSize) {
         const { data, error } = await supabase
           .from("contacts")
-          .select("id, nombre, apellido, mail1, mail2, mail3, mail4")
+          .select("id, nombre, apellido, empresa, web, mail1, mail2, mail3, mail4")
           .eq("base_id", sourceBase.id)
           .range(from, from + pageSize - 1);
         if (error) throw error;
@@ -178,7 +195,7 @@ const CrossWithBasesDialog = ({ open, onOpenChange, sourceBase, allBases, onDone
             continue;
           }
           const key = nameKey(c.nombre, c.apellido);
-          if (key && excludeNames.has(key)) {
+          if (contextKeys(key, mails, c.empresa, c.web).some((k) => excludeNames.has(k))) {
             duplicateIds.push(c.id);
             byName++;
           }
