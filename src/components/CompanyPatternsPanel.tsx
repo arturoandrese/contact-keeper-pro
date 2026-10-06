@@ -208,8 +208,22 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   const PERSON_VISIBLE = 20;
   const personVisible = personShowAll ? personResults : personResults.slice(0, PERSON_VISIBLE);
 
+  const [industries, setIndustries] = useState<Record<string, string>>({});
+  const [industryFilter, setIndustryFilter] = useState<string>("TODAS");
+  const [classifying, setClassifying] = useState(false);
+  const [classifyProgress, setClassifyProgress] = useState("");
+
   useEffect(() => {
     fetchAllContacts();
+    (async () => {
+      const map: Record<string, string> = {};
+      for (let from = 0; ; from += 1000) {
+        const { data } = await (supabase as any).from("company_industries").select("empresa_short, industry").range(from, from + 999);
+        for (const r of data || []) map[r.empresa_short] = r.industry;
+        if (!data || data.length < 1000) break;
+      }
+      setIndustries(map);
+    })();
   }, []);
 
   useEffect(() => {
@@ -451,9 +465,44 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
     ? scopedContacts
     : scopedContacts.filter((c) => c.status === statusFilter);
 
-  const displayedCompanies = companySearch.trim()
-    ? companies.filter(c => c.empresa_short.toLowerCase().includes(companySearch.toLowerCase()))
-    : companies;
+  const displayedCompanies = companies.filter(c =>
+    (!companySearch.trim() || c.empresa_short.toLowerCase().includes(companySearch.toLowerCase())) &&
+    (industryFilter === "TODAS" || (industries[c.empresa_short] || "Sin clasificar") === industryFilter)
+  );
+
+  const industryCounts = companies.reduce<Record<string, number>>((acc, c) => {
+    const k = industries[c.empresa_short] || "Sin clasificar";
+    acc[k] = (acc[k] || 0) + 1;
+    return acc;
+  }, {});
+
+  const handleClassifyIndustries = async () => {
+    const pending = companies.filter(c => !industries[c.empresa_short] && c.empresa_short !== "Sin empresa");
+    if (pending.length === 0) { toast.success("Todas las empresas ya tienen industria"); return; }
+    setClassifying(true);
+    const next = { ...industries };
+    let done = 0;
+    try {
+      for (let i = 0; i < pending.length; i += 60) {
+        const chunk = pending.slice(i, i + 60);
+        const { data, error } = await supabase.functions.invoke("classify-industries", {
+          body: { companies: chunk.map(c => ({ name: c.empresa_short, domain: c.domain })) },
+        });
+        if (error || data?.error) { toast.error(data?.error || "Error clasificando con IA"); break; }
+        const mapping = (data?.mapping || {}) as Record<string, string>;
+        const rows = Object.entries(mapping).map(([empresa_short, industry]) => ({ empresa_short, industry }));
+        if (rows.length) await (supabase as any).from("company_industries").upsert(rows);
+        Object.assign(next, mapping);
+        done += rows.length;
+        setIndustries({ ...next });
+        setClassifyProgress(`${Math.min(i + 60, pending.length)}/${pending.length}`);
+      }
+      toast.success(`${done} empresas clasificadas por industria`);
+    } finally {
+      setClassifying(false);
+      setClassifyProgress("");
+    }
+  };
 
   const handleAddCompany = async () => {
     const name = newCompanyName.trim().toUpperCase();
