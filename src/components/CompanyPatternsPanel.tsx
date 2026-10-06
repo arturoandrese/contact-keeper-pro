@@ -63,6 +63,7 @@ const statusColor: Record<string, string> = {
 
 interface CompanyAccordionProps {
   companies: { empresa_short: string; count: number; domain: string }[];
+  industries?: Record<string, string>;
   allContacts: DeliveredContact[];
   bulkMode: boolean;
   selectedCompanies: Set<string>;
@@ -80,7 +81,7 @@ interface CompanyAccordionProps {
 const VISIBLE_DEFAULT = 20;
 
 const CompanyAccordionList = ({
-  companies, allContacts, bulkMode, selectedCompanies, editingName, editNameValue,
+  companies, industries = {}, allContacts, bulkMode, selectedCompanies, editingName, editNameValue,
   onSelectCompany, onToggleCompany, onEditName, onRenameCompany, onCancelEdit, onSetEditValue, onDeleteCompany,
 }: CompanyAccordionProps) => {
   const [showAll, setShowAll] = useState(false);
@@ -130,7 +131,7 @@ const CompanyAccordionList = ({
                 </button>
               </div>
             ) : (
-              <p className="font-display font-medium text-sm">{empresa_short}</p>
+              <div className="flex items-center gap-2"><p className="font-display font-medium text-sm">{empresa_short}</p>{industries[empresa_short] && <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{industries[empresa_short]}</span>}</div>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -1100,6 +1101,7 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
       ) : (
         <CompanyAccordionList
           companies={displayedCompanies}
+          industries={industries}
           allContacts={allContacts}
           bulkMode={bulkMode}
           selectedCompanies={selectedCompanies}
