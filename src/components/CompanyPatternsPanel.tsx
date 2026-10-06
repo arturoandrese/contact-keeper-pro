@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, ChevronRight, ChevronDown, Download, Loader2, Users, Filter, Trash2, Mail, MailCheck, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X, Search, Plus, UserSearch } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, ChevronDown, Download, Loader2, Users, Filter, Trash2, Mail, MailCheck, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X, Search, Plus, UserSearch, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { setCompanyOverride, getCompanyOverrides } from "@/lib/companyNameOverrides";
 import { toast } from "sonner";
@@ -1063,6 +1063,29 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
             </div>
             {selectedCompanies.size === companies.length ? "Deseleccionar todas" : "Seleccionar todas"}
           </button>
+        </div>
+      )}
+
+      {companies.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Industria</p>
+            <Button size="sm" variant="outline" onClick={handleClassifyIndustries} disabled={classifying}>
+              {classifying ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+              {classifying ? `Clasificando ${classifyProgress}` : "Clasificar industrias con IA"}
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {["TODAS", ...Object.keys(industryCounts).sort((a, b) => industryCounts[b] - industryCounts[a])].map(ind => (
+              <button
+                key={ind}
+                onClick={() => setIndustryFilter(ind)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${industryFilter === ind ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}
+              >
+                {ind} ({ind === "TODAS" ? companies.length : industryCounts[ind]})
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
