@@ -65,6 +65,24 @@ export type Database = {
         }
         Relationships: []
       }
+      company_industries: {
+        Row: {
+          empresa_short: string
+          industry: string
+          updated_at: string | null
+        }
+        Insert: {
+          empresa_short: string
+          industry?: string
+          updated_at?: string | null
+        }
+        Update: {
+          empresa_short?: string
+          industry?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           apellido: string | null
