@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, ChevronRight, ChevronDown, Download, Loader2, Users, Filter, Trash2, Mail, MailCheck, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X, Search, Plus, UserSearch } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, ChevronDown, Download, Loader2, Users, Filter, Trash2, Mail, MailCheck, Save, Pencil, ArrowDownAZ, ArrowUpZA, ArrowDown01, Check, X, Search, Plus, UserSearch, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { setCompanyOverride, getCompanyOverrides } from "@/lib/companyNameOverrides";
 import { toast } from "sonner";
@@ -63,6 +63,7 @@ const statusColor: Record<string, string> = {
 
 interface CompanyAccordionProps {
   companies: { empresa_short: string; count: number; domain: string }[];
+  industries?: Record<string, string>;
   allContacts: DeliveredContact[];
   bulkMode: boolean;
   selectedCompanies: Set<string>;
@@ -80,7 +81,7 @@ interface CompanyAccordionProps {
 const VISIBLE_DEFAULT = 20;
 
 const CompanyAccordionList = ({
-  companies, allContacts, bulkMode, selectedCompanies, editingName, editNameValue,
+  companies, industries = {}, allContacts, bulkMode, selectedCompanies, editingName, editNameValue,
   onSelectCompany, onToggleCompany, onEditName, onRenameCompany, onCancelEdit, onSetEditValue, onDeleteCompany,
 }: CompanyAccordionProps) => {
   const [showAll, setShowAll] = useState(false);
@@ -130,7 +131,7 @@ const CompanyAccordionList = ({
                 </button>
               </div>
             ) : (
-              <p className="font-display font-medium text-sm">{empresa_short}</p>
+              <div className="flex items-center gap-2"><p className="font-display font-medium text-sm">{empresa_short}</p>{industries[empresa_short] && <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{industries[empresa_short]}</span>}</div>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -208,8 +209,22 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
   const PERSON_VISIBLE = 20;
   const personVisible = personShowAll ? personResults : personResults.slice(0, PERSON_VISIBLE);
 
+  const [industries, setIndustries] = useState<Record<string, string>>({});
+  const [industryFilter, setIndustryFilter] = useState<string>("TODAS");
+  const [classifying, setClassifying] = useState(false);
+  const [classifyProgress, setClassifyProgress] = useState("");
+
   useEffect(() => {
     fetchAllContacts();
+    (async () => {
+      const map: Record<string, string> = {};
+      for (let from = 0; ; from += 1000) {
+        const { data } = await (supabase as any).from("company_industries").select("empresa_short, industry").range(from, from + 999);
+        for (const r of data || []) map[r.empresa_short] = r.industry;
+        if (!data || data.length < 1000) break;
+      }
+      setIndustries(map);
+    })();
   }, []);
 
   useEffect(() => {
@@ -451,9 +466,44 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
     ? scopedContacts
     : scopedContacts.filter((c) => c.status === statusFilter);
 
-  const displayedCompanies = companySearch.trim()
-    ? companies.filter(c => c.empresa_short.toLowerCase().includes(companySearch.toLowerCase()))
-    : companies;
+  const displayedCompanies = companies.filter(c =>
+    (!companySearch.trim() || c.empresa_short.toLowerCase().includes(companySearch.toLowerCase())) &&
+    (industryFilter === "TODAS" || (industries[c.empresa_short] || "Sin clasificar") === industryFilter)
+  );
+
+  const industryCounts = companies.reduce<Record<string, number>>((acc, c) => {
+    const k = industries[c.empresa_short] || "Sin clasificar";
+    acc[k] = (acc[k] || 0) + 1;
+    return acc;
+  }, {});
+
+  const handleClassifyIndustries = async () => {
+    const pending = companies.filter(c => !industries[c.empresa_short] && c.empresa_short !== "Sin empresa");
+    if (pending.length === 0) { toast.success("Todas las empresas ya tienen industria"); return; }
+    setClassifying(true);
+    const next = { ...industries };
+    let done = 0;
+    try {
+      for (let i = 0; i < pending.length; i += 60) {
+        const chunk = pending.slice(i, i + 60);
+        const { data, error } = await supabase.functions.invoke("classify-industries", {
+          body: { companies: chunk.map(c => ({ name: c.empresa_short, domain: c.domain })) },
+        });
+        if (error || data?.error) { toast.error(data?.error || "Error clasificando con IA"); break; }
+        const mapping = (data?.mapping || {}) as Record<string, string>;
+        const rows = Object.entries(mapping).map(([empresa_short, industry]) => ({ empresa_short, industry }));
+        if (rows.length) await (supabase as any).from("company_industries").upsert(rows);
+        Object.assign(next, mapping);
+        done += rows.length;
+        setIndustries({ ...next });
+        setClassifyProgress(`${Math.min(i + 60, pending.length)}/${pending.length}`);
+      }
+      toast.success(`${done} empresas clasificadas por industria`);
+    } finally {
+      setClassifying(false);
+      setClassifyProgress("");
+    }
+  };
 
   const handleAddCompany = async () => {
     const name = newCompanyName.trim().toUpperCase();
@@ -1017,6 +1067,29 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
         </div>
       )}
 
+      {companies.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Industria</p>
+            <Button size="sm" variant="outline" onClick={handleClassifyIndustries} disabled={classifying}>
+              {classifying ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+              {classifying ? `Clasificando ${classifyProgress}` : "Clasificar industrias con IA"}
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {["TODAS", ...Object.keys(industryCounts).sort((a, b) => industryCounts[b] - industryCounts[a])].map(ind => (
+              <button
+                key={ind}
+                onClick={() => setIndustryFilter(ind)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${industryFilter === ind ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}
+              >
+                {ind} ({ind === "TODAS" ? companies.length : industryCounts[ind]})
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {displayedCompanies.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-12 text-center">
           <Building2 className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
@@ -1028,6 +1101,7 @@ const CompanyPatternsPanel = ({ onBack }: CompanyPatternsPanelProps) => {
       ) : (
         <CompanyAccordionList
           companies={displayedCompanies}
+          industries={industries}
           allContacts={allContacts}
           bulkMode={bulkMode}
           selectedCompanies={selectedCompanies}

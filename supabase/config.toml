@@ -5,3 +5,5 @@ verify_jwt = false
 
 [functions.enrich-company-domains]
 verify_jwt = false
+[functions.classify-industries]
+verify_jwt = false
