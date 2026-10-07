@@ -17,17 +17,18 @@ import ProspectsCRM from "@/components/ProspectsCRM";
 import LicitacionesPanel from "@/components/LicitacionesPanel";
 import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
 import ScheduledRemindersPanel from "@/components/ScheduledRemindersPanel";
+import SenderHealthPanel from "@/components/SenderHealthPanel";
 import { APP_VERSION } from "@/generated/appVersion";
 import { sanitizeDatabaseText } from "@/lib/databaseText";
 import { extractCompanyFromDomain } from "@/lib/companyName";
 
 import CampaignPerformancePanel from "@/components/CampaignPerformancePanel";
 import { Button } from "@/components/ui/button";
-import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel, BarChart3, CalendarDays } from "lucide-react";
+import { Download, Database, Building2, Sun, Moon, RefreshCw, ClipboardCopy, Layers, LayoutDashboard, Users, Gavel, BarChart3, CalendarDays, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 import ccpLogo from "@/assets/ccp-logo.jpg";
 
-type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones" | "performance" | "reminders";
+type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" | "dashboard" | "prospects" | "licitaciones" | "performance" | "reminders" | "senderhealth";
 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
@@ -35,7 +36,7 @@ const Index = () => {
   const [view, setView] = useState<View>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
-    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones","performance","reminders"].includes(v)) {
+    if (v && ["upload","bbd","patterns","crossref","preview","segments","dashboard","prospects","licitaciones","performance","reminders","senderhealth"].includes(v)) {
       // Clean the URL without reloading
       window.history.replaceState({}, "", window.location.pathname);
       return v as View;
@@ -755,6 +756,14 @@ const Index = () => {
               <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
               Agenda
             </Button>
+            <Button
+              variant={view === "senderhealth" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("senderhealth")}
+            >
+              <MailCheck className="mr-1.5 h-3.5 w-3.5" />
+              Mi correo
+            </Button>
           </div>
         </div>
       </header>
@@ -861,6 +870,10 @@ const Index = () => {
             prefill={reminderPrefill}
             onClearPrefill={() => setReminderPrefill(null)}
           />
+        )}
+
+        {view === "senderhealth" && (
+          <SenderHealthPanel onBack={() => setView("upload")} />
         )}
       </main>
 
