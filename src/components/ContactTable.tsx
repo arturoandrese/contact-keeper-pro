@@ -50,10 +50,28 @@ const ContactTable = ({ contacts }: ContactTableProps) => {
                     key={col}
                     className="max-w-[200px] truncate whitespace-nowrap px-4 py-2.5 font-mono-custom text-xs"
                   >
-                    {col === "MAIL1" && contact.confirmedPattern ? (
+                    {col === "MAIL1" ? (
                       <span className="flex items-center gap-1.5">
                         <span className="truncate">{contact[col]}</span>
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                        {contact.confirmedPattern && (
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                        )}
+                        {contact.provider === "google" && (
+                          <span
+                            title="Este correo lo recibe Google (Gmail/Workspace)"
+                            className="shrink-0 rounded bg-blue-500/15 px-1 py-0.5 text-[9px] font-bold uppercase text-blue-600"
+                          >
+                            G
+                          </span>
+                        )}
+                        {contact.provider === "microsoft" && (
+                          <span
+                            title="Este correo lo recibe Microsoft 365 — más estricto con spam"
+                            className="shrink-0 rounded bg-orange-500/15 px-1 py-0.5 text-[9px] font-bold uppercase text-orange-600"
+                          >
+                            M365
+                          </span>
+                        )}
                       </span>
                     ) : (
                       contact[col] || (

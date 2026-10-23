@@ -13,6 +13,8 @@ export interface CleanedContact {
   MAIL3: string;
   MAIL4: string;
   confirmedPattern?: boolean;
+  /** Proveedor de correo del dominio de MAIL1: google, microsoft u other */
+  provider?: "google" | "microsoft" | "other";
 }
 
 // Dominios de email personales / no corporativos
