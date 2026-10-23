@@ -299,6 +299,31 @@ const Index = () => {
       return;
     }
 
+    // Detectar si cada dominio lo recibe Google o Microsoft (vía registros MX)
+    try {
+      const { detectProvidersForEmails } = await import("@/lib/mailProvider");
+      const providerMap = await detectProvidersForEmails(
+        cleaned.map((c) => c.MAIL1).filter(Boolean)
+      );
+      let google = 0;
+      let microsoft = 0;
+      for (const c of cleaned) {
+        const domain = c.MAIL1.split("@")[1]?.toLowerCase();
+        const provider = domain ? providerMap.get(domain) : undefined;
+        if (provider) c.provider = provider;
+        if (provider === "google") google++;
+        else if (provider === "microsoft") microsoft++;
+      }
+      if (google + microsoft > 0) {
+        toast.info(
+          `📮 Destinos: ${google} en Google, ${microsoft} en Microsoft 365 — los de Microsoft son los más estrictos con spam`,
+          { duration: 8000 }
+        );
+      }
+    } catch (err) {
+      console.warn("No se pudo detectar el proveedor de correo:", err);
+    }
+
     // Flatten all bounced mails so "recent send" filter can ignore bounces.
     // If a contact's only recent "delivery" was actually a bounce, we WANT to
     // retry that contact with a new pattern — so it must not be filtered out.
