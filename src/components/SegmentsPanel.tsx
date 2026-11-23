@@ -169,6 +169,22 @@ const SegmentsPanel = ({ onBack }: SegmentsPanelProps) => {
         }));
       }
 
+      // Lista Negra / rebotados: nunca deben aparecer en un segmento
+      const blocked = new Set<string>();
+      for (let from = 0; ; from += 1000) {
+        const { data: bl } = await supabase
+          .from("bounced_emails")
+          .select("mail")
+          .range(from, from + 999)
+          .throwOnError();
+        (bl || []).forEach(r => blocked.add((r.mail || "").toLowerCase().trim()));
+        if (!bl || bl.length < 1000) break;
+      }
+      const before = generatedContacts.length;
+      generatedContacts = generatedContacts.filter(c => !blocked.has((c.mail || "").toLowerCase().trim()));
+      const removedBlocked = before - generatedContacts.length;
+      if (removedBlocked > 0) toast.info(`🚫 ${removedBlocked} contactos excluidos por Lista Negra`);
+
       setContacts(generatedContacts);
       setHasGenerated(true);
       if (generatedContacts.length > 0) {
