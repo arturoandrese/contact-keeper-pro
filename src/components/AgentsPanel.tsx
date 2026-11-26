@@ -29,14 +29,20 @@ interface Props { onSelectBase: (baseId: string, baseName: string, crossed: bool
 const AgentsPanel = ({ onSelectBase }: Props) => {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [denied, setDenied] = useState<string | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [sel, setSel] = useState<Run | null>(null);
   const [prospects, setProspects] = useState<Prospect[] | null>(null);
 
   const load = async () => {
-    setRuns(null); setError(null);
+    setRuns(null); setError(null); setDenied(null);
     const { data, error } = await supabase.functions.invoke("agent-runs", { body: { action: "runs" } });
-    if (error || data?.error) { setError(error?.message || data.error); setRuns([]); return; }
+    if (error || data?.error) {
+      let body: { error?: string; code?: string } | null = data ?? null;
+      try { body = await (error as { context?: Response })?.context?.json(); } catch { /* ignore */ }
+      if (body?.code) { setDenied(body.code); setRuns([]); return; }
+      setError(error?.message || data.error); setRuns([]); return;
+    }
     setRuns(data.runs ?? []);
   };
   useEffect(() => { load(); }, []);
@@ -59,6 +65,17 @@ const AgentsPanel = ({ onSelectBase }: Props) => {
   };
 
   if (runs === null) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+
+  if (denied) return (
+    <div className="rounded-lg border border-dashed p-10 text-center space-y-2">
+      <h2 className="font-display text-xl font-bold">Acceso requerido</h2>
+      <p className="text-sm text-muted-foreground">
+        {denied === "access_not_configured" ? "Los datos de agentes están protegidos y aún no hay un usuario autorizado configurado."
+          : denied === "forbidden" ? "Tu usuario no está autorizado para ver los datos de agentes."
+          : "Debes iniciar sesión con el usuario autorizado para ver los datos de agentes."}
+      </p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
