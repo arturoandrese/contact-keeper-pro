@@ -375,6 +375,21 @@ Deno.serve(async (req) => {
     }
     const ctx = await loadCtx(db)
     switch (body.action) {
+      case 'list_senders': {
+        const d = await gm('/users/me/settings/sendAs')
+        const list = (d.sendAs ?? []).filter((x: any) => x.isPrimary || x.verificationStatus === 'accepted')
+          .map((x: any) => ({ email: x.sendAsEmail, name: x.displayName || '', primary: !!x.isPrimary }))
+        return json({ ok: true, senders: list, current: ctx.settings.sender_email })
+      }
+      case 'set_sender': {
+        const email = String(body.email ?? '').trim().toLowerCase()
+        const d = await gm('/users/me/settings/sendAs')
+        const s = (d.sendAs ?? []).find((x: any) => x.sendAsEmail?.toLowerCase() === email && (x.isPrimary || x.verificationStatus === 'accepted'))
+        if (!s) return json({ error: 'Ese correo no está autorizado en Gmail' }, 400)
+        await db.from('autosend_settings').update({ sender_email: s.sendAsEmail, sender_name: s.displayName || ctx.settings.sender_name, updated_at: new Date().toISOString() }).eq('id', 1)
+        await log(db, `Remitente cambiado a ${s.sendAsEmail}`)
+        return json({ ok: true, email: s.sendAsEmail })
+      }
       case 'verify_sender': {
         const s = await getSender(ctx.settings)
         return json(s.ok ? { ok: true, email: s.email, name: s.name, has_signature: !!s.signature, has_logo: /<img/i.test(s.signature), signature_html: s.signature } : s)

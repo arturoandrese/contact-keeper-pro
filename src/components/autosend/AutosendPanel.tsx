@@ -376,6 +376,32 @@ function PeopleTable({ rows, onChange }: { rows: any[]; onChange: () => void }) 
   );
 }
 
+function SenderPicker({ current, name, onSaved }: { current: string; name: string; onSaved: () => void }) {
+  const [list, setList] = useState<{ email: string; name: string; primary: boolean }[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { autosend("list_senders").then((r: any) => setList(r.senders ?? [])).catch((e) => { toast.error(String(e.message ?? e)); setList([]); }); }, []);
+  const pick = async (email: string) => {
+    if (email === current) return;
+    setBusy(true);
+    try { await autosend("set_sender", { email }); toast.success(`Ahora se envía desde ${email}`); onSaved(); }
+    catch (e: any) { toast.error(String(e.message ?? e)); } finally { setBusy(false); }
+  };
+  return (
+    <div>
+      <Label>Enviar desde</Label>
+      {list === null ? <p className="mt-1 text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />Buscando correos autorizados en Gmail…</p> : (
+        <Select value={current} onValueChange={pick} disabled={busy}>
+          <SelectTrigger className="mt-1"><SelectValue placeholder={`${name} <${current}>`} /></SelectTrigger>
+          <SelectContent>
+            {!list.some((x) => x.email.toLowerCase() === current.toLowerCase()) && <SelectItem value={current}>{name} &lt;{current}&gt;</SelectItem>}
+            {list.map((x) => <SelectItem key={x.email} value={x.email}>{(x.name || name)} &lt;{x.email}&gt;{x.primary ? " (principal)" : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+}
+
 function SettingsForm({ settings, onSaved }: { settings: any; onSaved: () => void }) {
   const [f, setF] = useState<any>({ ...settings, window_start: String(settings.window_start).slice(0, 5), window_end: String(settings.window_end).slice(0, 5) });
   const num = (k: string) => (e: ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: Math.max(0, Number(e.target.value) || 0) });
@@ -405,7 +431,7 @@ function SettingsForm({ settings, onSaved }: { settings: any; onSaved: () => voi
           <Button key={d} size="sm" variant={f.send_days.includes(d) ? "default" : "outline"} onClick={() => setF({ ...f, send_days: f.send_days.includes(d) ? f.send_days.filter((x: number) => x !== d) : [...f.send_days, d].sort() })}>{l}</Button>
         ))}</div>
       </div>
-      <div><Label>Remitente autorizado</Label><Input value={`${f.sender_name} <${f.sender_email}>`} disabled /></div>
+      <SenderPicker current={f.sender_email} name={f.sender_name} onSaved={onSaved} />
       <div className="flex items-center gap-2"><Switch checked={f.include_optout} onCheckedChange={(v) => setF({ ...f, include_optout: v })} /><Label>Incluir enlace pequeño para pedir no recibir más correos</Label></div>
       <p className="text-xs text-muted-foreground">Plantillas de presentación y reactivación: se editan en «Plantillas». La revisión automática corre cada 15 minutos de lunes a viernes por la mañana.</p>
       <Button onClick={save}>Guardar configuración</Button>

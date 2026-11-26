@@ -46,3 +46,9 @@ Deno.test('daily quota is never exceeded per tick', () => {
   assertEquals(sendsThisTick(20, 120, 5), 3)
   assertEquals(sendsThisTick(2, 10, 5), 2)
 })
+
+Deno.test('email body has no blank lines between sentences', () => {
+  const r = renderTemplate({ subject: 's', body: 'Hola.\n\nTe escribo.\n\n\nSaludos,' }, {})
+  assertEquals(r.html.includes('<br><br>'), false)
+  assertEquals(r.text, 'Hola.\nTe escribo.\nSaludos,')
+})

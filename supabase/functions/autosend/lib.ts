@@ -53,7 +53,8 @@ export function renderTemplate(t: { subject: string; body: string }, vars: Recor
     return v
   })
   const subject = fill(t.subject)
-  const body = fill(t.body)
+  // Plain, hand-written look: no blank lines between sentences.
+  const body = fill(t.body).replace(/\r/g, '').replace(/\n[ \t]*\n+/g, '\n').trim()
   if (/\{\{|\}\}/.test(subject + body)) missing.push('variable mal escrita')
   const linkRe = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g
   const text = body.replace(linkRe, '$1: $2') + (optoutUrl ? `\n\n--\nSi prefieres no recibir más correos: ${optoutUrl}` : '')
@@ -66,7 +67,7 @@ export function renderTemplate(t: { subject: string; body: string }, vars: Recor
     return out + esc(line.slice(last))
   }).join('<br>')
   const optHtml = optoutUrl ? `<p style="color:#9aa3ab;font-size:11px;margin-top:24px">Si prefieres no recibir más correos, <a style="color:#9aa3ab" href="${esc(optoutUrl)}">avísanos aquí</a>.</p>` : ''
-  const html = `<div style="font-family:arial,sans-serif;font-size:14px;color:#222">${htmlBody}<br><br>${signatureHtml}${optHtml}</div>`
+  const html = `<div style="font-family:arial,sans-serif;font-size:14px;color:#222">${htmlBody}<br>${signatureHtml}${optHtml}</div>`
   return { subject, html, text, missing: [...new Set(missing)] }
 }
 
