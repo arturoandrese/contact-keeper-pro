@@ -10,6 +10,8 @@ import BBDPanel from "@/components/BBDPanel";
 import CompanyPatternsPanel from "@/components/CompanyPatternsPanel";
 import CrossReferencePanel from "@/components/CrossReferencePanel";
 import BasePreviewPanel from "@/components/BasePreviewPanel";
+import AgentBatchPanel from "@/components/agents/AgentBatchPanel";
+import { isAgentBaseName } from "@/lib/agentBases";
 import UploadFilterDialog, { type UploadFilters } from "@/components/UploadFilterDialog";
 import SegmentsPanel from "@/components/SegmentsPanel";
 import DashboardPanel from "@/components/DashboardPanel";
@@ -863,7 +865,11 @@ const Index = () => {
 
         {view === "patterns" && <CompanyPatternsPanel onBack={() => setView("upload")} />}
 
-        {view === "preview" && selectedBase && (
+        {view === "preview" && selectedBase && isAgentBaseName(selectedBase.name) && (
+          <AgentBatchPanel baseId={selectedBase.id} baseName={selectedBase.name} onBack={() => setView("bbd")} />
+        )}
+
+        {view === "preview" && selectedBase && !isAgentBaseName(selectedBase.name) && (
           <BasePreviewPanel
             baseId={selectedBase.id}
             baseName={selectedBase.name}
