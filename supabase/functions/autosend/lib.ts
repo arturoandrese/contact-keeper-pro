@@ -17,7 +17,7 @@ const SMALL = new Set(['y', 'de', 'del', 'la', 'las', 'los', 'el', 'e'])
 const smartCase = (s: string) => {
   if (!(s === s.toUpperCase() && /\p{Lu}{2}/u.test(s))) return s
   const words = s.split(' ')
-  if (words.length === 1 && s.length <= 4) return s // acronyms like HP, CCU
+  if (words.length === 1 && (s.length <= 3 || !/[AEIOU]/.test(s))) return s // acronyms like HP, CCU; HUAU -> Huau
   return words.map((w, i) => {
     const l = w.toLowerCase()
     if (i > 0 && SMALL.has(l)) return l
