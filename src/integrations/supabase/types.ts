@@ -14,6 +14,118 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_import_runs: {
+        Row: {
+          base_id: string | null
+          created_at: string
+          id: string
+          result: Json
+          run_date: string
+          source: string
+        }
+        Insert: {
+          base_id?: string | null
+          created_at?: string
+          id?: string
+          result: Json
+          run_date: string
+          source: string
+        }
+        Update: {
+          base_id?: string | null
+          created_at?: string
+          id?: string
+          result?: Json
+          run_date?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_import_runs_base_id_fkey"
+            columns: ["base_id"]
+            isOneToOne: false
+            referencedRelation: "bases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_prospects: {
+        Row: {
+          base_id: string | null
+          cargo: string | null
+          correo_probable_1: string | null
+          correo_probable_2: string | null
+          correo_verificado: string | null
+          created_at: string
+          dominio: string | null
+          empresa: string
+          estado: string
+          first_seen_date: string
+          fuente_patron: string | null
+          historial: Json
+          id: string
+          industria: string | null
+          linkedin_norm: string | null
+          linkedin_url: string | null
+          nombre: string
+          relevancia: number | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          base_id?: string | null
+          cargo?: string | null
+          correo_probable_1?: string | null
+          correo_probable_2?: string | null
+          correo_verificado?: string | null
+          created_at?: string
+          dominio?: string | null
+          empresa: string
+          estado?: string
+          first_seen_date: string
+          fuente_patron?: string | null
+          historial?: Json
+          id?: string
+          industria?: string | null
+          linkedin_norm?: string | null
+          linkedin_url?: string | null
+          nombre: string
+          relevancia?: number | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          base_id?: string | null
+          cargo?: string | null
+          correo_probable_1?: string | null
+          correo_probable_2?: string | null
+          correo_verificado?: string | null
+          created_at?: string
+          dominio?: string | null
+          empresa?: string
+          estado?: string
+          first_seen_date?: string
+          fuente_patron?: string | null
+          historial?: Json
+          id?: string
+          industria?: string | null
+          linkedin_norm?: string | null
+          linkedin_url?: string | null
+          nombre?: string
+          relevancia?: number | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_prospects_base_id_fkey"
+            columns: ["base_id"]
+            isOneToOne: false
+            referencedRelation: "bases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bases: {
         Row: {
           clean_count: number | null
@@ -354,7 +466,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      agent007_import_prospects: {
+        Args: { p_dry_run?: boolean; p_payload: Json; p_run_date?: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
