@@ -6,7 +6,8 @@ import { Loader2, Bot, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Download, ClipboardCopy, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { fetchBaseContacts, toNativeRows, exportNativeRows } from "@/lib/nativeBaseExport";
+import { fetchBaseContacts, toNativeRows, exportNativeRows, type BaseContactRow } from "@/lib/nativeBaseExport";
+import NativeContactsTable from "@/components/NativeContactsTable";
 
 interface RunResult {
   recibidos?: number; nuevos?: number; repetidos?: number; invalidos?: number; errores?: number;
@@ -31,6 +32,8 @@ const AgentsPanel = ({ onSelectBase }: Props) => {
   const [source, setSource] = useState<string | null>(null);
   const [sel, setSel] = useState<Run | null>(null);
   const [prospects, setProspects] = useState<Prospect[] | null>(null);
+  // Native rows of the batch, read from contacts by base_id (same source as Mis bases).
+  const [baseRows, setBaseRows] = useState<BaseContactRow[] | null>(null);
 
   const load = async () => {
     setRuns(null); setError(null); setDenied(null);
@@ -50,7 +53,10 @@ const AgentsPanel = ({ onSelectBase }: Props) => {
   const shown = (runs ?? []).filter(r => r.source === active);
 
   const openRun = async (r: Run) => {
-    setSel(r); setProspects(null);
+    setSel(r); setProspects(null); setBaseRows(null);
+    if (r.base_id) {
+      fetchBaseContacts(r.base_id).then(setBaseRows).catch((e) => { setBaseRows([]); toast.error("No se pudieron cargar los contactos: " + (e?.message ?? "")); });
+    } else setBaseRows([]);
     const { data, error } = await supabase.functions.invoke("agent-runs", { body: { action: "prospects", source: r.source, run_date: r.run_date, base_id: r.base_id } });
     setProspects(error || data?.error ? [] : data.prospects ?? []);
   };
@@ -59,7 +65,7 @@ const AgentsPanel = ({ onSelectBase }: Props) => {
   const exportBase = async (mode: "xlsx" | "csv" | "copy") => {
     if (!sel?.base_id) return;
     try {
-      const rows = toNativeRows(await fetchBaseContacts(sel.base_id));
+      const rows = toNativeRows(baseRows ?? await fetchBaseContacts(sel.base_id));
       if (!rows.length) { toast.error("No hay contactos para descargar"); return; }
       await exportNativeRows(sel.base_name ?? `${sel.source} - ${sel.run_date}`, rows, mode);
       toast.success(mode === "copy" ? `📋 ${rows.length} contactos copiados` : `${rows.length} contactos descargados`);
@@ -137,7 +143,7 @@ const AgentsPanel = ({ onSelectBase }: Props) => {
             <h3 className="font-semibold">{sel.source} — {sel.run_date}</h3>
 <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" disabled={!sel.base_id}>
+                <Button size="sm" variant="outline" disabled={!sel.base_id || !baseRows?.length}>
                   <Download className="mr-1.5 h-3.5 w-3.5" />Exportar<ChevronDown className="ml-1 h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -148,29 +154,34 @@ const AgentsPanel = ({ onSelectBase }: Props) => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {prospects === null ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> :
-            prospects.length === 0 ? <p className="text-sm text-muted-foreground">Este día no hubo contactos nuevos.</p> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase text-muted-foreground">
-                  <tr><th className="p-2">Nombre</th><th className="p-2">Cargo</th><th className="p-2">Empresa</th><th className="p-2">Industria</th><th className="p-2">LinkedIn</th><th className="p-2">Correo</th><th className="p-2">Fuente patrón</th><th className="p-2">Estado</th></tr>
-                </thead>
-                <tbody>
-                  {prospects.map(p => (
-                    <tr key={p.id} className="border-t">
-                      <td className="p-2 font-medium">{p.nombre}</td>
-                      <td className="p-2">{p.cargo}</td>
-                      <td className="p-2">{p.empresa}</td>
-                      <td className="p-2">{p.industria}</td>
-                      <td className="p-2">{p.linkedin_url && <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Perfil</a>}</td>
-                      <td className="p-2">{correo(p)} {tipo(p) && <Badge variant={tipo(p) === "verificado" ? "default" : "secondary"} className="ml-1">{tipo(p)}</Badge>}</td>
-                      <td className="p-2">{p.fuente_patron}</td>
-                      <td className="p-2">{p.estado}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {baseRows === null ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> :
+            baseRows.length === 0 ? <p className="text-sm text-muted-foreground">Este día no hubo contactos nuevos.</p> :
+            <NativeContactsTable contacts={baseRows} />}
+          {prospects && prospects.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-muted-foreground">Ficha del agente (cargo, industria, LinkedIn, fuente patrón, estado) — no va en el archivo</summary>
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs uppercase text-muted-foreground">
+                    <tr><th className="p-2">Nombre completo</th><th className="p-2">Cargo</th><th className="p-2">Empresa</th><th className="p-2">Industria</th><th className="p-2">LinkedIn</th><th className="p-2">Correo</th><th className="p-2">Fuente patrón</th><th className="p-2">Estado</th></tr>
+                  </thead>
+                  <tbody>
+                    {prospects.map(p => (
+                      <tr key={p.id} className="border-t">
+                        <td className="p-2 font-medium">{p.nombre}</td>
+                        <td className="p-2">{p.cargo}</td>
+                        <td className="p-2">{p.empresa}</td>
+                        <td className="p-2">{p.industria}</td>
+                        <td className="p-2">{p.linkedin_url && <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Perfil</a>}</td>
+                        <td className="p-2">{correo(p)} {tipo(p) && <Badge variant={tipo(p) === "verificado" ? "default" : "secondary"} className="ml-1">{tipo(p)}</Badge>}</td>
+                        <td className="p-2">{p.fuente_patron}</td>
+                        <td className="p-2">{p.estado}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
           )}
           {(sel.result.detalle?.repetidos?.length || sel.result.detalle?.invalidos?.length || sel.result.detalle?.errores?.length) ? (
             <details className="text-sm">

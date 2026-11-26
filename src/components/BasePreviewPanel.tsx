@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +13,7 @@ import Papa from "papaparse";
 import { parseAndClean, type DomainPatternEntry } from "@/lib/contactCleaner";
 import { sanitizeDatabaseText } from "@/lib/databaseText";
 import { extractCompanyFromDomain } from "@/lib/companyName";
-import { Trash2 } from "lucide-react";
+import NativeContactsTable from "./NativeContactsTable";
 
 interface Contact {
   id?: string;
@@ -71,7 +70,6 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<StatusCategory>("sent");
   const [searchQuery, setSearchQuery] = useState("");
-  const [showAllContacts, setShowAllContacts] = useState(false);
 
   const handleMergeFile = useCallback(async (file: File) => {
     setMerging(true);
@@ -591,70 +589,7 @@ const BasePreviewPanel = ({ baseId, baseName, isCrossed, onBack, onCrossReferenc
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/60">
-                  <th className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[40px]">#</th>
-                  {columns.map((col) => (
-                    <th key={col} className="whitespace-nowrap px-4 py-3 text-left font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {col}
-                    </th>
-                  ))}
-                  <th className="px-3 py-3 text-center font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[60px]">
-                    Acción
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {(showAllContacts || searchQuery ? filteredContacts : filteredContacts.slice(0, 20)).map((c, i) => (
-                  <tr key={i} className="border-b border-border/50 transition-colors hover:bg-muted/30">
-                    <td className="whitespace-nowrap px-3 py-2.5 text-center font-mono text-xs text-muted-foreground/50">{i + 1}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.nombre || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.apellido || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.apellido2 || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.empresa || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-muted-foreground">{c.web || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs font-medium text-primary">{c.mail1 || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.mail2 || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.mail3 || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{c.mail4 || "—"}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        title="Eliminar contacto"
-                        disabled={deletingId === c.id}
-                        onClick={() => handleDeleteContact(c)}
-                      >
-                        {deletingId === c.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {!showAllContacts && !searchQuery && filteredContacts.length > 20 && (
-            <div className="border-t border-border bg-muted/30 px-4 py-3 text-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-sm text-muted-foreground hover:text-foreground"
-                onClick={() => setShowAllContacts(true)}
-              >
-                <ChevronDown className="mr-1.5 h-4 w-4" />
-                Ver más ({filteredContacts.length - 20} contactos restantes)
-              </Button>
-            </div>
-          )}
-        </div>
+        <NativeContactsTable contacts={filteredContacts} expanded={!!searchQuery} onDelete={(c) => handleDeleteContact(c as Contact)} deletingId={deletingId} />
       )}
       {sheetId && (
         <CampaignStatusDialog

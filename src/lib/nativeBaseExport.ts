@@ -27,13 +27,24 @@ export const toNativeRows = (data: BaseContactRow[]): NativeRow[] => data.map((c
   EMPRESA: c.empresa as string, WEB: c.web as string, MAIL1: c.mail1 as string, MAIL2: c.mail2 as string, MAIL3: c.mail3 as string, MAIL4: c.mail4 as string,
 }));
 
+/** Native TSV used by "Copiar para Sheets". */
+export const nativeRowsToTsv = (rows: NativeRow[]) =>
+  [NATIVE_HEADERS.join("\t"), ...rows.map(r => NATIVE_HEADERS.map(h => r[h] ?? "").join("\t"))].join("\n");
+
+/** Native workbook: one sheet "Contactos", columns pinned to NATIVE_HEADERS. */
+export function buildNativeWorkbook(rows: NativeRow[]) {
+  const ws = XLSX.utils.json_to_sheet(rows, { header: [...NATIVE_HEADERS] });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Contactos");
+  return { wb, ws };
+}
+
 export async function exportNativeRows(baseName: string, rows: NativeRow[], mode: "xlsx" | "csv" | "copy") {
   if (mode === "copy") {
-    const tsv = [NATIVE_HEADERS.join("\t"), ...rows.map(r => Object.values(r).join("\t"))].join("\n");
-    await copyTextToClipboard(tsv);
+    await copyTextToClipboard(nativeRowsToTsv(rows));
     return;
   }
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const { wb, ws } = buildNativeWorkbook(rows);
   if (mode === "csv") {
     const csv = XLSX.utils.sheet_to_csv(ws);
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
@@ -42,7 +53,5 @@ export async function exportNativeRows(baseName: string, rows: NativeRow[], mode
     URL.revokeObjectURL(url);
     return;
   }
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Contactos");
   XLSX.writeFile(wb, `${baseName}_limpia.xlsx`);
 }

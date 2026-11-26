@@ -598,7 +598,11 @@ const Index = () => {
   };
 
   const handleExport = (fmt: "xlsx" | "csv" = "xlsx") => {
-    const ws = XLSX.utils.json_to_sheet(contacts);
+    // Only the native columns; internal flags (confirmedPattern, provider) never go to the file.
+    const ws = XLSX.utils.json_to_sheet(
+      contacts.map((c) => ({ NOMBRE: c.NOMBRE, APELLIDO: c.APELLIDO, APELLIDO2: c.APELLIDO2, EMPRESA: c.EMPRESA, WEB: c.WEB, MAIL1: c.MAIL1, MAIL2: c.MAIL2, MAIL3: c.MAIL3, MAIL4: c.MAIL4 })),
+      { header: ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4"] },
+    );
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Contactos");
     if (fmt === "csv") {
