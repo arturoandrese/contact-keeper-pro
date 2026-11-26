@@ -481,7 +481,7 @@ Deno.serve(async (req) => {
         if (!s.ok) return json({ error: s.reason }, 400)
         const kind = body.kind === 'reactivacion' ? 'reactivacion' : 'presentacion'
         const url = ctx.settings.include_optout ? await optoutUrl(TEST_TO) : ''
-        const r = renderTemplate(ctx.templates[kind], { nombre: 'Arturo', empresa_corta: 'HUAU' }, s.signature, url)
+        const r = renderTemplate(ctx.templates[kind], { nombre: 'Arturo', empresa_corta: 'Huau' }, s.signature, url)
         const raw = buildRaw({ fromName: s.name, fromEmail: s.email, to: TEST_TO, subject: '[PRUEBA CCP] ' + r.subject, html: r.html, text: r.text, listUnsubscribe: url || undefined })
         const res = await gm('/users/me/messages/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ raw }) })
         await db.from('autosend_attempts').insert({ email: TEST_TO, sender: s.email, subject: '[PRUEBA CCP] ' + r.subject, template_kind: kind, is_test: true, gmail_message_id: res.id, gmail_thread_id: res.threadId })
