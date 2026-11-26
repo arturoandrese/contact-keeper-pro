@@ -7,3 +7,6 @@ verify_jwt = false
 verify_jwt = false
 [functions.classify-industries]
 verify_jwt = false
+
+[functions.agent-runs]
+verify_jwt = false

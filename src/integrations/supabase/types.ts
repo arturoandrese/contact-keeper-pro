@@ -470,6 +470,7 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_payload: Json; p_run_date?: string }
         Returns: Json
       }
+      agent007_norm: { Args: { t: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

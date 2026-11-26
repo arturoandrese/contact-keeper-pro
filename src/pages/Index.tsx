@@ -7,6 +7,7 @@ import FileUploader from "@/components/FileUploader";
 import ContactTable from "@/components/ContactTable";
 import SaveBaseDialog from "@/components/SaveBaseDialog";
 import BBDPanel from "@/components/BBDPanel";
+import AgentsPanel from "@/components/AgentsPanel";
 import CompanyPatternsPanel from "@/components/CompanyPatternsPanel";
 import CrossReferencePanel from "@/components/CrossReferencePanel";
 import BasePreviewPanel from "@/components/BasePreviewPanel";
@@ -33,6 +34,7 @@ type View = "upload" | "bbd" | "patterns" | "crossref" | "preview" | "segments" 
 const Index = () => {
   const [contacts, setContacts] = useState<CleanedContact[]>([]);
   const [rawCount, setRawCount] = useState(0);
+  const [bbdTab, setBbdTab] = useState<"bases" | "agentes">("bases");
   const [view, setView] = useState<View>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
@@ -846,7 +848,15 @@ const Index = () => {
           </div>
         )}
 
-        {view === "bbd" && <BBDPanel onSelectBase={handleSelectBase} />}
+        {view === "bbd" && (
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Button size="sm" variant={bbdTab === "bases" ? "default" : "outline"} onClick={() => setBbdTab("bases")}>Mis bases</Button>
+              <Button size="sm" variant={bbdTab === "agentes" ? "default" : "outline"} onClick={() => setBbdTab("agentes")}>Agentes</Button>
+            </div>
+            {bbdTab === "bases" ? <BBDPanel onSelectBase={handleSelectBase} /> : <AgentsPanel onSelectBase={handleSelectBase} />}
+          </div>
+        )}
 
         {view === "patterns" && <CompanyPatternsPanel onBack={() => setView("upload")} />}
 
