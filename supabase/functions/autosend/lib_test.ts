@@ -6,6 +6,9 @@ Deno.test('short company names from the brief', () => {
   assertEquals(shortCompany('Empresas Carozzi S.A.'), 'Carozzi')
   assertEquals(shortCompany('Forus S.A.'), 'Forus')
   assertEquals(shortCompany('Viña Concha y Toro'), 'Concha y Toro')
+  assertEquals(shortCompany('HP'), 'HP')
+  assertEquals(shortCompany('WSA – WONDERFUL SOUND FOR ALL'), 'WSA')
+  assertEquals(shortCompany('CAMBIASO HNOS S.A.C'), 'Cambiaso Hnos')
   assertEquals(shortCompany('Cámara Chilena de la Construcción', { camarachilenadelaconstruccion: 'CChC' }), 'CChC')
 })
 

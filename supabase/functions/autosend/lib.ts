@@ -13,16 +13,23 @@ export const cleanDomain = (d?: string | null) =>
 const LEGAL = /\b(s\.?\s?a\.?(\s?c\.?)?|spa|s\.?p\.?a\.?|ltda\.?|limitada|e\.?i\.?r\.?l\.?|y cia\.?|& cia\.?|chile)\s*$/i
 const PREFIXES = ['empresas ', 'empresa ', 'automotores ', 'automotora ', 'viña ', 'vina ', 'grupo ', 'inversiones ', 'comercial ', 'sociedad ', 'compañía ', 'compania ']
 
-const smartCase = (s: string) =>
-  s === s.toUpperCase() && /[A-ZÁÉÍÓÚÑ]{2}/.test(s)
-    ? s.toLowerCase().replace(/(^|[\s\-/])(\p{L})/gu, (_m, a, b) => a + b.toUpperCase()).replace(/\b(Y|De|Del|La|Las|Los|El)\b/g, (w, _x, i) => (i === 0 ? w : w.toLowerCase()))
-    : s
+const SMALL = new Set(['y', 'de', 'del', 'la', 'las', 'los', 'el', 'e'])
+const smartCase = (s: string) => {
+  if (!(s === s.toUpperCase() && /\p{Lu}{2}/u.test(s))) return s
+  const words = s.split(' ')
+  if (words.length === 1 && s.length <= 4) return s // acronyms like HP, CCU
+  return words.map((w, i) => {
+    const l = w.toLowerCase()
+    if (i > 0 && SMALL.has(l)) return l
+    return l.replace(/(^|[\-/])(\p{L})/gu, (_m, a, b) => a + b.toUpperCase())
+  }).join(' ')
+}
 
 /** Commercial short name: removes only legal suffixes and generic prefixes, never invents abbreviations. */
 export function shortCompany(raw: string | null | undefined, overrides: Record<string, string> = {}): string {
   const o = overrides[companyKey(raw)]
   if (o) return o
-  let s = (raw ?? '').trim().replace(/\s+/g, ' ')
+  let s = (raw ?? '').trim().replace(/\s+/g, ' ').split(/\s+[–—|]\s+/)[0]
   for (let i = 0; i < 3; i++) s = s.replace(/[,.]?\s*$/, '').replace(LEGAL, '').trim()
   const lower = s.toLowerCase()
   for (const p of PREFIXES) {
