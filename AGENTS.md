@@ -6,3 +6,4 @@
 
 - Every base contacts view and export (Mis bases, Agentes) goes through src/lib/nativeBaseExport.ts and src/components/NativeContactsTable.tsx, reading `contacts` by base_id. Why: one native format, no drift between screens and files.
 - The visible app version is bumped by hand in src/generated/appVersion.ts; the build only mirrors it to public/version.txt. Why: auto-bumping at build time showed the same number on every publish, hiding stale caches.
+- Automatic sending lives in edge function `autosend` (Gmail via the Lovable Gmail connector, server-side only; owner PIN session or the DB-held `autosend_cron_token` for pg_cron job `autosend-tick`) with pure rules in `autosend/lib.ts` (tested in lib_test.ts); every send re-runs the full analysis and is claimed via `autosend_claim_next` + unique attempt per (queue, email). Why: no duplicate or unchecked sends, and it runs with the computer off.

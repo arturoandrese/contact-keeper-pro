@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDown, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NATIVE_HEADERS } from "@/lib/nativeBaseExport";
+import ProtectContactButton from "@/components/autosend/ProtectContactDialog";
 
 export interface NativeContact {
   id?: string;
@@ -34,7 +35,7 @@ const NativeContactsTable = ({ contacts, expanded, onDelete, deletingId }: Props
             <tr className="border-b border-border bg-muted/60">
               <th className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[40px]">#</th>
               {NATIVE_HEADERS.map((col) => <th key={col} className={th}>{col}</th>)}
-              {onDelete && <th className="px-3 py-3 text-center font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[60px]">Acción</th>}
+              {onDelete && <th className="px-3 py-3 text-center font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[90px]">Acción</th>}
             </tr>
           </thead>
           <tbody>
@@ -48,6 +49,7 @@ const NativeContactsTable = ({ contacts, expanded, onDelete, deletingId }: Props
                 ))}
                 {onDelete && (
                   <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                    <ProtectContactButton size="icon" prefill={{ nombre: c.nombre ?? "", apellidos: [c.apellido, c.apellido2].filter(Boolean).join(" "), empresa: c.empresa ?? "", correos: [c.mail1, c.mail2, c.mail3, c.mail4].filter(Boolean) as string[] }} />
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" title="Eliminar contacto"
                       disabled={deletingId === c.id} onClick={() => onDelete(c)}>
                       {deletingId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}

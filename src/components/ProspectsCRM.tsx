@@ -1,3 +1,4 @@
+import ProtectContactButton from "@/components/autosend/ProtectContactDialog";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -422,6 +423,7 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
                     <td className="px-4 py-3">
                       <div>{p.contact_name}</div>
                       {p.email && <div className="text-xs text-muted-foreground">{p.email}</div>}
+                      <ProtectContactButton size="icon" prefill={{ nombre: p.contact_name.split(" ")[0], apellidos: p.contact_name.split(" ").slice(1).join(" "), empresa: p.company, correos: p.email ? [p.email] : [] }} />
                     </td>
                     <td className="px-4 py-3">
                       {isEditing ? (

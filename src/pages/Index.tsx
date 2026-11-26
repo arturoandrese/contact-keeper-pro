@@ -17,7 +17,7 @@ import ProspectsCRM from "@/components/ProspectsCRM";
 import LicitacionesPanel from "@/components/LicitacionesPanel";
 import UnansweredEmailsAlert from "@/components/UnansweredEmailsAlert";
 import ScheduledRemindersPanel from "@/components/ScheduledRemindersPanel";
-import SenderHealthPanel from "@/components/SenderHealthPanel";
+import AutosendPanel from "@/components/autosend/AutosendPanel";
 import { APP_VERSION } from "@/generated/appVersion";
 import { sanitizeDatabaseText } from "@/lib/databaseText";
 import { extractCompanyFromDomain } from "@/lib/companyName";
@@ -911,7 +911,7 @@ const Index = () => {
         )}
 
         {view === "senderhealth" && (
-          <SenderHealthPanel onBack={() => setView("upload")} />
+          <AutosendPanel onBack={() => setView("upload")} />
         )}
       </main>
 
