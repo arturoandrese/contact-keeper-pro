@@ -1,3 +1,4 @@
+import { requireOwner } from '../_shared/ccpGuard.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
 // Checks sender domain health: MX, SPF, DKIM, DMARC + DNS blacklists.
@@ -35,6 +36,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+  { const __denied = await requireOwner(req, corsHeaders); if (__denied) return __denied; }
 
   try {
     const body = await req.json().catch(() => ({}))

@@ -123,10 +123,6 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
         storeTokens(session.provider_token, refreshToken, 3600);
         setGmailConnected(true);
         setGmailTokenStatus(`✓ Token Gmail detectado (${event})`);
-      } else if (event === "SIGNED_OUT") {
-        clearTokens();
-        setGmailConnected(false);
-        setGmailTokenStatus("✗ Sesión cerrada. Conecta Gmail.");
       }
     });
 
@@ -165,7 +161,6 @@ export default function ProspectsCRM({ onBack }: { onBack: () => void }) {
     setGmailConnected(false);
     setGmailTokenStatus("✗ Gmail desconectado. Conecta otra cuenta.");
     setSyncProgress("");
-    await supabase.auth.signOut();
     toast.success("Gmail desconectado. Puedes conectar otra cuenta.");
   };
 

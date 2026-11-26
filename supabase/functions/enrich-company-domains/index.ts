@@ -1,3 +1,4 @@
+import { requireOwner } from '../_shared/ccpGuard.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 interface ReqBody {
@@ -6,6 +7,7 @@ interface ReqBody {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  { const __denied = await requireOwner(req, corsHeaders); if (__denied) return __denied; }
 
   try {
     const key = Deno.env.get('LOVABLE_API_KEY');

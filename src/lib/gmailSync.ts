@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { backupPinSession, INITIAL_HASH } from "@/lib/ccpSession";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
@@ -228,6 +229,7 @@ function extractNameFromHeader(from: string): { name: string; email: string } {
 // --- OAuth ---
 
 export async function connectGmail(): Promise<string | null> {
+  await backupPinSession();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
@@ -252,7 +254,7 @@ export async function connectGmail(): Promise<string | null> {
  * Extract provider tokens from URL hash after OAuth redirect and store them.
  */
 export function extractProviderTokenFromUrl(): string | null {
-  const hash = window.location.hash;
+  const hash = window.location.hash || INITIAL_HASH;
   if (!hash) return null;
   const params = new URLSearchParams(hash.replace(/^#/, ""));
   const accessToken = params.get("provider_token");

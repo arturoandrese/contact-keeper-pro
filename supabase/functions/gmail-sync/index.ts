@@ -1,3 +1,4 @@
+import { requireOwner } from '../_shared/ccpGuard.ts'
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
@@ -104,6 +105,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+  { const __denied = await requireOwner(req, corsHeaders); if (__denied) return __denied; }
 
   try {
     const authHeader = req.headers.get("Authorization");

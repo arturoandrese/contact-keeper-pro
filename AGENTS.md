@@ -2,4 +2,4 @@
 
 - Agent import UI reads agent tables only through the read-only edge function agent-runs (service role inside); never grant those tables to anon/authenticated.
 
-- agent-runs fails closed: requires a signed-in user whose id is in the AGENT_VIEWER_USER_IDS secret (server allowlist, never user metadata); agent bases/contacts are hidden from anon/authenticated via restrictive RLS using private.is_agent_base. Why: the app has no login, so agent data must never be reachable through public routes.
+- Whole-app access is a 4-digit PIN checked only in edge function ccp-auth (salted PBKDF2 + server pepper, 5 tries then 15-min lock in ccp_pin_state) which opens a session for a single server-owned owner user and records it in ccp_sessions (30 days, revocable); every data table's RLS and every edge function (_shared/ccpGuard.ts) require that live session, anon has no grants. Why: the app had no login, so the PIN must be enforced server-side, never by the client screen.

@@ -1,3 +1,4 @@
+import { requireOwner } from '../_shared/ccpGuard.ts'
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
@@ -13,6 +14,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+  { const __denied = await requireOwner(req, corsHeaders); if (__denied) return __denied; }
 
   try {
     const { accessToken, userEmail } = await req.json();

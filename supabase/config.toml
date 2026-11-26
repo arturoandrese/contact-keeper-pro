@@ -10,3 +10,6 @@ verify_jwt = false
 
 [functions.agent-runs]
 verify_jwt = false
+
+[functions.ccp-auth]
+verify_jwt = false

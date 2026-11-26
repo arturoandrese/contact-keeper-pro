@@ -1,0 +1,1 @@
+REVOKE ALL ON public.ccp_pin_state, public.ccp_sessions FROM anon, authenticated;

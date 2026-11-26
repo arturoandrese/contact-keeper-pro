@@ -1,23 +1,16 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { requireOwner } from '../_shared/ccpGuard.ts'
 
 // Read-only view of agent imports (agent_import_runs + agent_prospects).
-// Fails closed: requires a signed-in user whose id is listed in the
-// AGENT_VIEWER_USER_IDS secret (server-side allowlist, not user metadata).
+// Fails closed: requires a live PIN session (see _shared/ccpGuard.ts).
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   const json = (b: unknown, s = 200) =>
     new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   try {
-    const allow = (Deno.env.get('AGENT_VIEWER_USER_IDS') ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
-    if (!allow.length) return json({ error: 'Acceso no configurado', code: 'access_not_configured' }, 403)
-    const auth = req.headers.get('Authorization') ?? ''
-    if (!auth.startsWith('Bearer ')) return json({ error: 'Inicia sesión', code: 'auth_required' }, 401)
-    const pub = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!)
-    const { data: c, error: ce } = await pub.auth.getClaims(auth.slice(7))
-    const sub = (c?.claims?.sub as string | undefined)?.toLowerCase()
-    if (ce || !sub || c?.claims?.role !== 'authenticated') return json({ error: 'Inicia sesión', code: 'auth_required' }, 401)
-    if (!allow.includes(sub)) return json({ error: 'Usuario no autorizado', code: 'forbidden' }, 403)
+    const denied = await requireOwner(req, corsHeaders)
+    if (denied) return denied
 
     const body = await req.json().catch(() => ({}))
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)

@@ -177,6 +177,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ccp_pin_state: {
+        Row: {
+          failed_count: number
+          hash: string | null
+          id: number
+          locked_until: string | null
+          owner_user_id: string | null
+          pin_version: string | null
+          salt: string | null
+          updated_at: string
+        }
+        Insert: {
+          failed_count?: number
+          hash?: string | null
+          id?: number
+          locked_until?: string | null
+          owner_user_id?: string | null
+          pin_version?: string | null
+          salt?: string | null
+          updated_at?: string
+        }
+        Update: {
+          failed_count?: number
+          hash?: string | null
+          id?: number
+          locked_until?: string | null
+          owner_user_id?: string | null
+          pin_version?: string | null
+          salt?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ccp_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          revoked_at: string | null
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          revoked_at?: string | null
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          revoked_at?: string | null
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       company_industries: {
         Row: {
           empresa_short: string
@@ -471,6 +528,8 @@ export type Database = {
         Returns: Json
       }
       agent007_norm: { Args: { t: string }; Returns: string }
+      ccp_pin_begin: { Args: never; Returns: Json }
+      ccp_pin_success: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
