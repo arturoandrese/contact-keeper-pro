@@ -30,6 +30,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { fetchBaseContacts, toNativeRows, exportNativeRows } from "@/lib/nativeBaseExport";
 import * as XLSX from "xlsx";
 import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
 import { extractCompanyFromDomain } from "@/lib/companyName";
@@ -355,54 +356,13 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     e.stopPropagation();
     setExporting(base.id);
     try {
-      const fetchAllBaseContacts = async () => {
-        const all: Array<{
-          nombre: string; apellido: string; apellido2: string;
-          empresa: string; web: string; mail1: string; mail2: string; mail3: string; mail4: string;
-        }> = [];
-        const pageSize = 1000;
-        for (let from = 0; ; from += pageSize) {
-          const to = from + pageSize - 1;
-          const { data, error } = await supabase
-            .from("contacts")
-            .select("nombre, apellido, apellido2, empresa, web, mail1, mail2, mail3, mail4")
-            .eq("base_id", base.id)
-            .range(from, to);
-          if (error) throw error;
-          if (!data || data.length === 0) break;
-          all.push(...(data as any[]));
-          if (data.length < pageSize) break;
-        }
-        return all;
-      };
-
-      const data = await fetchAllBaseContacts();
+      const data = await fetchBaseContacts(base.id);
       if (!data || data.length === 0) { toast.error("No hay contactos para descargar"); return; }
-
-      const rows = data.map((c) => ({
-        NOMBRE: c.nombre, APELLIDO: c.apellido, APELLIDO2: c.apellido2,
-        EMPRESA: c.empresa, WEB: c.web, MAIL1: c.mail1, MAIL2: c.mail2, MAIL3: c.mail3, MAIL4: c.mail4,
-      }));
-
+      const rows = toNativeRows(data);
+      await exportNativeRows(base.name, rows, mode);
       if (mode === "copy") {
-        const headers = ["NOMBRE", "APELLIDO", "APELLIDO2", "EMPRESA", "WEB", "MAIL1", "MAIL2", "MAIL3", "MAIL4"];
-        const tsv = [headers.join("\t"), ...rows.map(r => Object.values(r).join("\t"))].join("\n");
-        await copyTextToClipboard(tsv);
         toast.success(`📋 ${rows.length} contactos copiados`);
       } else {
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Contactos");
-        if (mode === "csv") {
-          const csv = XLSX.utils.sheet_to_csv(ws);
-          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url; a.download = `${base.name}_limpia.csv`; a.click();
-          URL.revokeObjectURL(url);
-        } else {
-          XLSX.writeFile(wb, `${base.name}_limpia.xlsx`);
-        }
         toast.success(`${rows.length} contactos descargados`);
       }
     } catch (error: any) {

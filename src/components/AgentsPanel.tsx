@@ -3,8 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Bot, ExternalLink, RefreshCw } from "lucide-react";
-import * as XLSX from "xlsx";
-import ExportDropdown from "./ExportDropdown";
+import { toast } from "sonner";
+import { Download, ClipboardCopy, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { fetchBaseContacts, toNativeRows, exportNativeRows } from "@/lib/nativeBaseExport";
 
 interface RunResult {
   recibidos?: number; nuevos?: number; repetidos?: number; invalidos?: number; errores?: number;
@@ -17,13 +19,9 @@ interface Prospect {
   fuente_patron: string | null; estado: string; relevancia: number | null;
 }
 
-const HEADERS = ["NOMBRE", "CARGO", "EMPRESA", "INDUSTRIA", "LINKEDIN", "CORREO", "TIPO CORREO", "CORREO PROBABLE 2", "FUENTE PATRÓN", "ESTADO", "RELEVANCIA"];
 const correo = (p: Prospect) => p.correo_verificado || p.correo_probable_1 || p.correo_probable_2 || "";
 // Only a correo_verificado counts as verified; everything else is inferred.
 const tipo = (p: Prospect) => (p.correo_verificado ? "verificado" : correo(p) ? "inferido" : "");
-const toRow = (p: Prospect) => [p.nombre, p.cargo ?? "", p.empresa, p.industria ?? "", p.linkedin_url ?? "", correo(p), tipo(p),
-  p.correo_verificado ? "" : p.correo_probable_1 ? p.correo_probable_2 ?? "" : "", p.fuente_patron ?? "", p.estado, p.relevancia?.toString() ?? ""];
-
 interface Props { onSelectBase: (baseId: string, baseName: string, crossed: boolean) => void }
 
 const AgentsPanel = ({ onSelectBase }: Props) => {
@@ -57,11 +55,15 @@ const AgentsPanel = ({ onSelectBase }: Props) => {
     setProspects(error || data?.error ? [] : data.prospects ?? []);
   };
 
-  const exportXlsx = () => {
-    if (!sel || !prospects) return;
-    const ws = XLSX.utils.aoa_to_sheet([HEADERS, ...prospects.map(toRow)]);
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Prospectos");
-    XLSX.writeFile(wb, `${sel.source} - ${sel.run_date}.xlsx`);
+  // Same native "Mis bases" format, read from contacts by base_id (agent metadata stays in the ficha).
+  const exportBase = async (mode: "xlsx" | "csv" | "copy") => {
+    if (!sel?.base_id) return;
+    try {
+      const rows = toNativeRows(await fetchBaseContacts(sel.base_id));
+      if (!rows.length) { toast.error("No hay contactos para descargar"); return; }
+      await exportNativeRows(sel.base_name ?? `${sel.source} - ${sel.run_date}`, rows, mode);
+      toast.success(mode === "copy" ? `📋 ${rows.length} contactos copiados` : `${rows.length} contactos descargados`);
+    } catch (e) { toast.error("Error exportando: " + (e instanceof Error ? e.message : "desconocido")); }
   };
 
   if (runs === null) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -133,8 +135,18 @@ const AgentsPanel = ({ onSelectBase }: Props) => {
         <div className="space-y-3 rounded-lg border p-4">
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-semibold">{sel.source} — {sel.run_date}</h3>
-            <ExportDropdown label="Exportar" onDownload={exportXlsx} disabled={!prospects?.length}
-              getData={() => ({ headers: HEADERS, rows: (prospects ?? []).map(toRow) })} />
+<DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={!sel.base_id}>
+                  <Download className="mr-1.5 h-3.5 w-3.5" />Exportar<ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportBase("xlsx")}><Download className="mr-2 h-3.5 w-3.5" />Descargar XLSX</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportBase("csv")}><Download className="mr-2 h-3.5 w-3.5" />Descargar CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportBase("copy")}><ClipboardCopy className="mr-2 h-3.5 w-3.5" />Copiar para Sheets</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           {prospects === null ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> :
             prospects.length === 0 ? <p className="text-sm text-muted-foreground">Este día no hubo contactos nuevos.</p> : (
