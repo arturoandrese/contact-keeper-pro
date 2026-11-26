@@ -318,6 +318,44 @@ async function sendOne(db: Db, ctx: Ctx, sender: any, row: any) {
   }
 }
 
+/** Manual "send now": ignores the time window and the on/off switch, but keeps every exclusion and the daily limit. */
+async function sendNow(db: Db, max = 4) {
+  const ctx = await loadCtx(db)
+  const s = ctx.settings
+  if (s.status === 'stopped') return { ok: false, reason: 'El envío está Detenido. Cámbialo a Pausado o Activo para enviar.' }
+  const out: Record<string, unknown> = { ok: true, sent: 0 }
+  try {
+    const sender = await getSender(s)
+    if (!sender.ok) return { ok: false, reason: sender.reason }
+    const quota = s.daily_limit - (await sentToday(db))
+    out.quota_left = quota
+    if (quota <= 0) return { ...out, done: true, reason: `Ya se alcanzó el máximo de ${s.daily_limit} correos de hoy` }
+    const k = Math.min(max, quota)
+    let sent = 0
+    for (let i = 0; i < k; i++) {
+      const { data: claimed } = await db.rpc('autosend_claim_next')
+      const row = claimed?.[0]
+      if (!row) break
+      const patch = await analyze(db, ctx, row)
+      await db.from('autosend_queue').update(patch).eq('id', row.id)
+      if (patch.status !== 'programado') continue
+      if (await sendOne(db, ctx, sender, { ...row, ...patch })) sent++
+      if (i < k - 1) await new Promise((r) => setTimeout(r, 8000 + Math.random() * 7000))
+    }
+    out.sent = sent
+    out.quota_left = quota - sent
+    const { count } = await db.from('autosend_queue').select('id', { count: 'exact', head: true }).eq('status', 'programado')
+    out.remaining = count ?? 0
+    out.done = !count || quota - sent <= 0
+    if (sent) await log(db, `Envío manual «Enviar ahora»: ${sent} correos`)
+  } catch (e) {
+    if (e instanceof GmailError && [0, 401, 403, 429].includes(e.status)) await pause(db, `Gmail rechazó la operación (${e.status})`)
+    await db.from('autosend_queue').update({ status: 'programado' }).eq('status', 'enviando')
+    return { ok: false, reason: String(e).slice(0, 300) }
+  }
+  return out
+}
+
 async function tick(db: Db, opts: { force?: boolean } = {}) {
   const ctx = await loadCtx(db)
   const s = ctx.settings
@@ -441,6 +479,13 @@ Deno.serve(async (req) => {
         await log(db, `Correo de prueba enviado a ${TEST_TO}`)
         const sentMsg = await gm(`/users/me/messages/${res.id}?format=metadata&metadataHeaders=From`)
         return json({ ok: true, to: TEST_TO, in_sent: (sentMsg.labelIds ?? []).includes('SENT'), from: hv(sentMsg, 'From') })
+      }
+      case 'send_now':
+        return json(await sendNow(db))
+      case 'send_now_count': {
+        const { count } = await db.from('autosend_queue').select('id', { count: 'exact', head: true }).eq('status', 'programado')
+        const left = ctx.settings.daily_limit - (await sentToday(db))
+        return json({ ok: true, programados: count ?? 0, quota_left: Math.max(0, left) })
       }
       case 'tick_now':
         return json(await tick(db))

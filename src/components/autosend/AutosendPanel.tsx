@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode, type ChangeEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type ChangeEvent } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,30 @@ const AutosendPanel = ({ onBack }: { onBack: () => void }) => {
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
     try { await fn(); } catch (e) { toast.error((e as Error).message); } finally { setBusy(null); load(); }
+  };
+
+  const [sendingNow, setSendingNow] = useState<{ sent: number } | null>(null);
+  const cancelSend = useRef(false);
+  const sendNow = async () => {
+    const c = await autosend<any>("send_now_count").catch((e) => { toast.error(e.message); return null; });
+    if (!c) return;
+    if (!c.programados) return toast.info("No hay contactos listos para enviar en la cola");
+    if (!c.quota_left) return toast.error("Ya se alcanzó el máximo de correos de hoy");
+    const n = Math.min(c.programados, c.quota_left);
+    if (!confirm(`Se enviarán ${n} correos ahora mismo (de ${c.programados} listos; máximo diario restante ${c.quota_left}). Antes de cada uno se revisan otra vez todas las exclusiones. ¿Enviar?`)) return;
+    cancelSend.current = false;
+    let total = 0;
+    setSendingNow({ sent: 0 });
+    try {
+      for (;;) {
+        const r = await autosend<any>("send_now");
+        if (!r.ok) { toast.error(r.reason); break; }
+        total += r.sent; setSendingNow({ sent: total });
+        if (r.done || cancelSend.current || (!r.sent && !r.remaining)) { if (r.reason) toast.info(r.reason); break; }
+      }
+      toast.success(`Enviados ahora: ${total}`);
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setSendingNow(null); load(); }
   };
 
   const setStatus = (status: string) => run("status", async () => {
@@ -155,6 +179,17 @@ const AutosendPanel = ({ onBack }: { onBack: () => void }) => {
               <Button disabled={busy === "status" || st === "active"} onClick={() => setStatus("active")}><Play className="mr-1.5 h-4 w-4" />Activar</Button>
               <Button variant="secondary" disabled={busy === "status" || st === "paused"} onClick={() => setStatus("paused")}><Pause className="mr-1.5 h-4 w-4" />Pausar</Button>
               <Button variant="destructive" disabled={busy === "status" || st === "stopped"} onClick={() => setStatus("stopped")}><Square className="mr-1.5 h-4 w-4" />Detener</Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
+              {sendingNow ? (
+                <>
+                  <Button disabled><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Enviando… {sendingNow.sent} enviados</Button>
+                  <Button variant="outline" onClick={() => { cancelSend.current = true; toast.info("Se detendrá después del correo en curso"); }}>Parar</Button>
+                </>
+              ) : (
+                <Button disabled={!!busy || st === "stopped"} onClick={sendNow}><Send className="mr-1.5 h-4 w-4" />Enviar ahora</Button>
+              )}
+              <p className="text-xs text-muted-foreground">Envía ya los contactos listos en la Cola, aunque esté fuera de horario o pausado. Respeta el máximo diario y todas las exclusiones. Mantén esta pantalla abierta mientras envía.</p>
             </div>
             <div className="flex flex-wrap gap-2 border-t border-border pt-4">
               <Button variant="outline" disabled={!!busy} onClick={() => run("verify", async () => { const v = await autosend<any>("verify_sender"); setSender(v); v.ok ? toast.success("Remitente autorizado en Gmail") : toast.error(v.reason); })}>
