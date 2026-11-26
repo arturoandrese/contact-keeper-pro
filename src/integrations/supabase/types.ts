@@ -126,6 +126,284 @@ export type Database = {
           },
         ]
       }
+      autosend_attempts: {
+        Row: {
+          email: string
+          error: string | null
+          gmail_message_id: string | null
+          gmail_thread_id: string | null
+          id: string
+          is_test: boolean
+          queue_id: string | null
+          sender: string
+          sent_at: string
+          status: string
+          subject: string | null
+          template_kind: string | null
+        }
+        Insert: {
+          email: string
+          error?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          is_test?: boolean
+          queue_id?: string | null
+          sender: string
+          sent_at?: string
+          status?: string
+          subject?: string | null
+          template_kind?: string | null
+        }
+        Update: {
+          email?: string
+          error?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          is_test?: boolean
+          queue_id?: string | null
+          sender?: string
+          sent_at?: string
+          status?: string
+          subject?: string | null
+          template_kind?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autosend_attempts_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "autosend_queue"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      autosend_cron_token: {
+        Row: {
+          id: number
+          token: string
+        }
+        Insert: {
+          id?: number
+          token?: string
+        }
+        Update: {
+          id?: number
+          token?: string
+        }
+        Relationships: []
+      }
+      autosend_log: {
+        Row: {
+          at: string
+          data: Json | null
+          id: number
+          level: string
+          message: string
+        }
+        Insert: {
+          at?: string
+          data?: Json | null
+          id?: number
+          level?: string
+          message: string
+        }
+        Update: {
+          at?: string
+          data?: Json | null
+          id?: number
+          level?: string
+          message?: string
+        }
+        Relationships: []
+      }
+      autosend_optouts: {
+        Row: {
+          created_at: string
+          email: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          source?: string
+        }
+        Relationships: []
+      }
+      autosend_queue: {
+        Row: {
+          analysis: Json | null
+          analyzed_at: string | null
+          apellido: string | null
+          apellido2: string | null
+          attempt: number
+          base_id: string | null
+          classification: string | null
+          contact_id: string
+          created_at: string
+          current_email: string | null
+          delivered_at: string | null
+          empresa: string | null
+          empresa_corta: string | null
+          gmail_message_id: string | null
+          gmail_thread_id: string | null
+          id: string
+          mail1: string | null
+          mail2: string | null
+          next_action: string | null
+          nombre: string | null
+          reason: string | null
+          replied_at: string | null
+          sent_at: string | null
+          status: string
+          subject: string | null
+          template_kind: string | null
+          updated_at: string
+          web: string | null
+        }
+        Insert: {
+          analysis?: Json | null
+          analyzed_at?: string | null
+          apellido?: string | null
+          apellido2?: string | null
+          attempt?: number
+          base_id?: string | null
+          classification?: string | null
+          contact_id: string
+          created_at?: string
+          current_email?: string | null
+          delivered_at?: string | null
+          empresa?: string | null
+          empresa_corta?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          mail1?: string | null
+          mail2?: string | null
+          next_action?: string | null
+          nombre?: string | null
+          reason?: string | null
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template_kind?: string | null
+          updated_at?: string
+          web?: string | null
+        }
+        Update: {
+          analysis?: Json | null
+          analyzed_at?: string | null
+          apellido?: string | null
+          apellido2?: string | null
+          attempt?: number
+          base_id?: string | null
+          classification?: string | null
+          contact_id?: string
+          created_at?: string
+          current_email?: string | null
+          delivered_at?: string | null
+          empresa?: string | null
+          empresa_corta?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          mail1?: string | null
+          mail2?: string | null
+          next_action?: string | null
+          nombre?: string | null
+          reason?: string | null
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template_kind?: string | null
+          updated_at?: string
+          web?: string | null
+        }
+        Relationships: []
+      }
+      autosend_settings: {
+        Row: {
+          bounce_stop_threshold: number
+          daily_limit: number
+          id: number
+          include_optout: boolean
+          interval_minutes: number
+          last_tick_at: string | null
+          recontact_days: number
+          send_days: number[]
+          sender_email: string
+          sender_name: string
+          status: string
+          stop_reason: string | null
+          updated_at: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          bounce_stop_threshold?: number
+          daily_limit?: number
+          id?: number
+          include_optout?: boolean
+          interval_minutes?: number
+          last_tick_at?: string | null
+          recontact_days?: number
+          send_days?: number[]
+          sender_email?: string
+          sender_name?: string
+          status?: string
+          stop_reason?: string | null
+          updated_at?: string
+          window_end?: string
+          window_start?: string
+        }
+        Update: {
+          bounce_stop_threshold?: number
+          daily_limit?: number
+          id?: number
+          include_optout?: boolean
+          interval_minutes?: number
+          last_tick_at?: string | null
+          recontact_days?: number
+          send_days?: number[]
+          sender_email?: string
+          sender_name?: string
+          status?: string
+          stop_reason?: string | null
+          updated_at?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      autosend_templates: {
+        Row: {
+          body: string
+          kind: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          kind: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          kind?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bases: {
         Row: {
           clean_count: number | null
@@ -249,6 +527,24 @@ export type Database = {
           empresa_short?: string
           industry?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      company_short_names: {
+        Row: {
+          empresa_key: string
+          short_name: string
+          updated_at: string
+        }
+        Insert: {
+          empresa_key: string
+          short_name: string
+          updated_at?: string
+        }
+        Update: {
+          empresa_key?: string
+          short_name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -455,6 +751,81 @@ export type Database = {
         }
         Relationships: []
       }
+      protected_companies: {
+        Row: {
+          created_at: string
+          dominio: string | null
+          dominios_alt: string[]
+          estado: string
+          id: string
+          motivo: string
+          nombre_comercial: string
+          nota: string | null
+          razon_social: string | null
+        }
+        Insert: {
+          created_at?: string
+          dominio?: string | null
+          dominios_alt?: string[]
+          estado?: string
+          id?: string
+          motivo?: string
+          nombre_comercial: string
+          nota?: string | null
+          razon_social?: string | null
+        }
+        Update: {
+          created_at?: string
+          dominio?: string | null
+          dominios_alt?: string[]
+          estado?: string
+          id?: string
+          motivo?: string
+          nombre_comercial?: string
+          nota?: string | null
+          razon_social?: string | null
+        }
+        Relationships: []
+      }
+      protected_contacts: {
+        Row: {
+          apellidos: string | null
+          cargo: string | null
+          correos: string[]
+          created_at: string
+          empresa: string | null
+          estado: string
+          id: string
+          linkedin: string | null
+          motivo: string
+          nombre: string
+        }
+        Insert: {
+          apellidos?: string | null
+          cargo?: string | null
+          correos?: string[]
+          created_at?: string
+          empresa?: string | null
+          estado?: string
+          id?: string
+          linkedin?: string | null
+          motivo?: string
+          nombre: string
+        }
+        Update: {
+          apellidos?: string | null
+          cargo?: string | null
+          correos?: string[]
+          created_at?: string
+          empresa?: string | null
+          estado?: string
+          id?: string
+          linkedin?: string | null
+          motivo?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
       replied_contacts: {
         Row: {
           apellido: string | null
@@ -528,6 +899,45 @@ export type Database = {
         Returns: Json
       }
       agent007_norm: { Args: { t: string }; Returns: string }
+      autosend_claim_next: {
+        Args: never
+        Returns: {
+          analysis: Json | null
+          analyzed_at: string | null
+          apellido: string | null
+          apellido2: string | null
+          attempt: number
+          base_id: string | null
+          classification: string | null
+          contact_id: string
+          created_at: string
+          current_email: string | null
+          delivered_at: string | null
+          empresa: string | null
+          empresa_corta: string | null
+          gmail_message_id: string | null
+          gmail_thread_id: string | null
+          id: string
+          mail1: string | null
+          mail2: string | null
+          next_action: string | null
+          nombre: string | null
+          reason: string | null
+          replied_at: string | null
+          sent_at: string | null
+          status: string
+          subject: string | null
+          template_kind: string | null
+          updated_at: string
+          web: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "autosend_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       ccp_pin_begin: { Args: never; Returns: Json }
       ccp_pin_success: { Args: never; Returns: undefined }
     }

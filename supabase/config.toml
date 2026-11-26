@@ -13,3 +13,9 @@ verify_jwt = false
 
 [functions.ccp-auth]
 verify_jwt = false
+
+[functions.autosend]
+verify_jwt = false
+
+[functions.autosend-optout]
+verify_jwt = false
