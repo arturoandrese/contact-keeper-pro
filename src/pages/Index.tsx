@@ -7,7 +7,6 @@ import FileUploader from "@/components/FileUploader";
 import ContactTable from "@/components/ContactTable";
 import SaveBaseDialog from "@/components/SaveBaseDialog";
 import BBDPanel from "@/components/BBDPanel";
-import AgentsPanel from "@/components/AgentsPanel";
 import CompanyPatternsPanel from "@/components/CompanyPatternsPanel";
 import CrossReferencePanel from "@/components/CrossReferencePanel";
 import BasePreviewPanel from "@/components/BasePreviewPanel";
@@ -858,7 +857,7 @@ const Index = () => {
               <Button size="sm" variant={bbdTab === "bases" ? "default" : "outline"} onClick={() => setBbdTab("bases")}>Mis bases</Button>
               <Button size="sm" variant={bbdTab === "agentes" ? "default" : "outline"} onClick={() => setBbdTab("agentes")}>Agentes</Button>
             </div>
-            {bbdTab === "bases" ? <BBDPanel onSelectBase={handleSelectBase} /> : <AgentsPanel onSelectBase={handleSelectBase} />}
+            <BBDPanel key={bbdTab} scope={bbdTab === "agentes" ? "agentes" : "manual"} onSelectBase={handleSelectBase} />
           </div>
         )}
 

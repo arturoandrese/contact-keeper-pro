@@ -35,6 +35,7 @@ import * as XLSX from "xlsx";
 import { fetchSheetReport, fetchSheetTabs } from "@/lib/googleSheets";
 import { extractCompanyFromDomain } from "@/lib/companyName";
 import { copyTextToClipboard } from "@/lib/copyToClipboard";
+import { isAgentBaseName, agentBaseDate } from "@/lib/agentBases";
 
 interface Base {
   id: string;
@@ -49,10 +50,17 @@ interface Base {
 
 interface BBDPanelProps {
   onSelectBase: (baseId: string, baseName: string, crossed: boolean) => void;
+  /** "manual" = Mis bases (default); "agentes" = bases created by agents, grouped by date. */
+  scope?: "manual" | "agentes";
 }
 
-const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
-  const [bases, setBases] = useState<Base[]>([]);
+const BBDPanel = ({ onSelectBase, scope = "manual" }: BBDPanelProps) => {
+  const [allBases, setAllBases] = useState<Base[]>([]);
+  const isAgentes = scope === "agentes";
+  const inScope = (b: Base) => isAgentBaseName(b.name) === isAgentes;
+  const bases = allBases.filter(inScope);
+  if (isAgentes) bases.sort((a, b) => (agentBaseDate(b.name) ?? "").localeCompare(agentBaseDate(a.name) ?? "") || b.created_at.localeCompare(a.created_at));
+  const setBases = setAllBases;
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -108,7 +116,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
 
   useEffect(() => {
     fetchBases();
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     if (editingId && inputRef.current) {
@@ -578,9 +586,9 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl font-bold">BBD — Bases de Datos</h2>
+          <h2 className="font-display text-2xl font-bold">{isAgentes ? "BBD — Bases de Agentes" : "BBD — Bases de Datos"}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Tus bases subidas. Pincha una para verla o cruzarla.
+            {isAgentes ? "Bases generadas automáticamente por los agentes, por fecha. Pincha una para verla o cruzarla." : "Tus bases subidas. Pincha una para verla o cruzarla."}
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -607,7 +615,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         <div className="rounded-xl border border-dashed border-border p-12 text-center">
           <p className="font-semibold">Sin bases aún</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Sube un CSV o Excel desde la pantalla principal para empezar.
+            {isAgentes ? "Cuando un agente importe contactos, su base aparecerá aquí." : "Sube un CSV o Excel desde la pantalla principal para empezar."}
           </p>
         </div>
       ) : (
@@ -637,9 +645,14 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
               </div>
             </div>
           )}
-          {bases.map((base) => (
+          {bases.map((base, i) => (
+            <div key={base.id} className="space-y-2">
+            {isAgentes && agentBaseDate(base.name) !== agentBaseDate(bases[i - 1]?.name) && (
+              <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {format(new Date(`${agentBaseDate(base.name)}T12:00:00`), "EEEE d 'de' MMMM yyyy", { locale: es })}
+              </p>
+            )}
             <div
-              key={base.id}
               draggable={!editingId && !deduping}
               onDragStart={(e) => handleDragStart(e, base.id)}
               onDragOver={(e) => handleDragOver(e, base.id)}
@@ -786,6 +799,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
                 </Button>
               </div>
             </div>
+            </div>
           ))}
         </div>
       )}
@@ -810,7 +824,7 @@ const BBDPanel = ({ onSelectBase }: BBDPanelProps) => {
         open={!!crossDialogBase}
         onOpenChange={(v) => !v && setCrossDialogBase(null)}
         sourceBase={crossDialogBase}
-        allBases={bases}
+        allBases={allBases}
         onDone={(newCount) => {
           if (crossDialogBase) {
             setBases((prev) => prev.map((b) => b.id === crossDialogBase.id ? { ...b, clean_count: newCount } : b));
