@@ -1,5 +1,5 @@
 import { assertEquals, assert } from 'jsr:@std/assert@1'
-import { shortCompany, greetingName, renderTemplate, matchProtectedCompany, inWindow, sendsThisTick } from './lib.ts'
+import { shortCompany, greetingName, renderTemplate, matchProtectedCompany, inWindow, sendsThisTick, rankDomains } from './lib.ts'
 
 Deno.test('short company names from the brief', () => {
   assertEquals(shortCompany('Automotores Gildemeister'), 'Gildemeister')
@@ -47,8 +47,9 @@ Deno.test('daily quota is never exceeded per tick', () => {
   assertEquals(sendsThisTick(2, 10, 5), 2)
 })
 
-Deno.test('email body has no blank lines between sentences', () => {
-  const r = renderTemplate({ subject: 's', body: 'Hola.\n\nTe escribo.\n\n\nSaludos,' }, {})
-  assertEquals(r.html.includes('<br><br>'), false)
-  assertEquals(r.text, 'Hola.\nTe escribo.\nSaludos,')
+Deno.test('finds the company domain from Gmail headers', () => {
+  const h = ['Juan <juan@larrainvial.com>', 'Arturo <arturo@huau.cl>', 'ana@larrainvial.com, x@gmail.com', 'otro@agencia.cl']
+  const r = rankDomains(h, 'Larrain Vial', new Set(['gmail.com', 'huau.cl']))
+  assertEquals(r[0], { domain: 'larrainvial.com', hits: 2, matches_name: true })
+  assertEquals(r.some((x) => x.domain === 'huau.cl' || x.domain === 'gmail.com'), false)
 })

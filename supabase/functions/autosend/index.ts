@@ -4,8 +4,7 @@ import { requireOwner } from '../_shared/ccpGuard.ts'
 import { generateResponse } from 'npm:@lovable.dev/ai-gateway'
 import {
   norm, companyKey, domainOf, cleanDomain, shortCompany, greetingName, renderTemplate, buildRaw,
-  santiagoNow, inWindow, sendsThisTick, matchProtectedCompany, type ProtectedCompany,
-} from './lib.ts'
+  santiagoNow, inWindow, sendsThisTick, matchProtectedCompany, type ProtectedCompany, rankDomains } from './lib.ts'
 
 const GW = 'https://connector-gateway.lovable.dev/google_mail/gmail/v1'
 const GW_BATCH = 'https://connector-gateway.lovable.dev/google_mail/batch/gmail/v1'
@@ -375,6 +374,13 @@ Deno.serve(async (req) => {
     }
     const ctx = await loadCtx(db)
     switch (body.action) {
+      case 'find_domain': {
+        const name = String(body.name ?? '').trim().slice(0, 80)
+        if (name.length < 2) return json({ error: 'Escribe el nombre de la empresa' }, 400)
+        const msgs = await gmSearch(`"${name.replace(/"/g, '')}" newer_than:5y -from:mailer-daemon`, 40)
+        const exclude = new Set([...FREE, 'huau.cl', 'estudio.huau.cl', 'google.com', 'linkedin.com'])
+        return json({ ok: true, found: msgs.length, domains: rankDomains(msgs.flatMap((m) => [m.from, m.to]), name, exclude) })
+      }
       case 'list_senders': {
         const d = await gm('/users/me/settings/sendAs')
         const list = (d.sendAs ?? []).filter((x: any) => x.isPrimary || x.verificationStatus === 'accepted')

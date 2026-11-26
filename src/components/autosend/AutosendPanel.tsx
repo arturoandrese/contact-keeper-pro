@@ -304,6 +304,25 @@ function CompaniesTable({ rows, onChange }: { rows: any[]; onChange: () => void 
   const [editing, setEditing] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
+  const [finding, setFinding] = useState(false);
+  const [found, setFound] = useState<{ domain: string; hits: number; matches_name: boolean }[] | null>(null);
+  const findDomain = async () => {
+    if (!f.nombre_comercial.trim()) return toast.error("Escribe primero el nombre comercial");
+    setFinding(true); setFound(null);
+    try {
+      const r: any = await autosend("find_domain", { name: f.nombre_comercial });
+      setFound(r.domains ?? []);
+      const best = (r.domains ?? []).find((d: any) => d.matches_name) ?? r.domains?.[0];
+      if (best && !f.dominio) setF((x: any) => ({ ...x, dominio: best.domain }));
+      if (!r.domains?.length) toast.info("No encontré correos con esa empresa en tu Gmail");
+    } catch (e: any) { toast.error(String(e.message ?? e)); } finally { setFinding(false); }
+  };
+  const pickDomain = (d: string) => {
+    if (!f.dominio) return setF({ ...f, dominio: d });
+    if (f.dominio === d) return;
+    const alt = String(f.dominios_alt).split(/[,\s]+/).filter(Boolean);
+    if (!alt.includes(d)) setF({ ...f, dominios_alt: [...alt, d].join(", ") });
+  };
   const save = async () => {
     if (!f.nombre_comercial.trim()) return toast.error("Falta el nombre comercial");
     const row = { ...f, dominio: f.dominio.trim().toLowerCase() || null, dominios_alt: String(f.dominios_alt).split(/[,\s]+/).map((d: string) => d.trim().toLowerCase()).filter(Boolean) };
@@ -315,7 +334,10 @@ function CompaniesTable({ rows, onChange }: { rows: any[]; onChange: () => void 
   return (
     <div className="space-y-3">
       <div className="grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-6">
-        <Input placeholder="Nombre comercial" value={f.nombre_comercial} onChange={(e) => setF({ ...f, nombre_comercial: e.target.value })} />
+        <div className="flex gap-1">
+          <Input placeholder="Nombre comercial" value={f.nombre_comercial} onChange={(e) => setF({ ...f, nombre_comercial: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") findDomain(); }} />
+          <Button size="icon" variant="outline" title="Buscar dominio en mi Gmail" onClick={findDomain} disabled={finding}>{finding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}</Button>
+        </div>
         <Input placeholder="Razón social" value={f.razon_social ?? ""} onChange={(e) => setF({ ...f, razon_social: e.target.value })} />
         <Input placeholder="Dominio principal" value={f.dominio ?? ""} onChange={(e) => setF({ ...f, dominio: e.target.value })} />
         <Input placeholder="Dominios alternativos" value={f.dominios_alt} onChange={(e) => setF({ ...f, dominios_alt: e.target.value })} />
@@ -324,6 +346,12 @@ function CompaniesTable({ rows, onChange }: { rows: any[]; onChange: () => void 
           <SelectContent>{COMPANY_REASONS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
         </Select>
         <Button onClick={save}>{editing ? "Guardar cambios" : "Agregar"}</Button>
+        {found && found.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 md:col-span-6">
+            <span className="text-xs text-muted-foreground">Encontrado en tu Gmail (clic para usar):</span>
+            {found.map((d) => <Button key={d.domain} size="sm" variant={d.matches_name ? "default" : "outline"} onClick={() => pickDomain(d.domain)}>{d.domain} · {d.hits}</Button>)}
+          </div>
+        )}
       </div>
       <div className="flex gap-2">
         <Input className="w-64" placeholder="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />

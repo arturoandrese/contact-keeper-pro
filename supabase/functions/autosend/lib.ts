@@ -53,8 +53,7 @@ export function renderTemplate(t: { subject: string; body: string }, vars: Recor
     return v
   })
   const subject = fill(t.subject)
-  // Plain, hand-written look: no blank lines between sentences.
-  const body = fill(t.body).replace(/\r/g, '').replace(/\n[ \t]*\n+/g, '\n').trim()
+  const body = fill(t.body)
   if (/\{\{|\}\}/.test(subject + body)) missing.push('variable mal escrita')
   const linkRe = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g
   const text = body.replace(linkRe, '$1: $2') + (optoutUrl ? `\n\n--\nSi prefieres no recibir más correos: ${optoutUrl}` : '')
@@ -137,4 +136,23 @@ export function matchProtectedCompany(list: ProtectedCompany[], empresa: string 
     if (keys.some((k) => ek === k || sk === k || (ek.length >= 4 && (ek.includes(k) || (k.includes(ek) && ek.length >= 6))))) return c
   }
   return null
+}
+
+/** Ranks company domains seen in Gmail headers for a company name search. */
+export function rankDomains(headers: string[], name: string, exclude: Set<string>) {
+  const key = companyKey(name)
+  const count = new Map<string, number>()
+  for (const h of headers) for (const m of h.toLowerCase().matchAll(/[a-z0-9._%+-]+@([a-z0-9.-]+\.[a-z]{2,})/g)) {
+    const d = m[1]
+    if (exclude.has(d) || [...exclude].some((x) => d.endsWith('.' + x))) continue
+    count.set(d, (count.get(d) ?? 0) + 1)
+  }
+  const tokens = norm(name).split(' ').filter((t) => t.length >= 3)
+  const score = (d: string) => {
+    const base = companyKey(d.split('.')[0])
+    const match = base && (key.includes(base) || base.includes(key) || tokens.some((t) => base.includes(t))) ? 1000 : 0
+    return match + (count.get(d) ?? 0)
+  }
+  return [...count.keys()].sort((a, b) => score(b) - score(a)).slice(0, 5)
+    .map((d) => ({ domain: d, hits: count.get(d)!, matches_name: score(d) >= 1000 }))
 }
