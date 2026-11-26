@@ -53,3 +53,12 @@ Deno.test('finds the company domain from Gmail headers', () => {
   assertEquals(r[0], { domain: 'larrainvial.com', hits: 2, matches_name: true })
   assertEquals(r.some((x) => x.domain === 'huau.cl' || x.domain === 'gmail.com'), false)
 })
+
+import { pickTemplate } from './lib.ts'
+Deno.test('client template wins over general one', () => {
+  const list = [{ kind: 'presentacion' }, { kind: 'reactivacion' }, { kind: 'c_banca', base_kind: 'presentacion', match_terms: ['Larrain Vial', 'bci.cl'] }]
+  assertEquals(pickTemplate(list, 'presentacion', ['LARRAIN VIAL S.A.'], []), 'c_banca')
+  assertEquals(pickTemplate(list, 'presentacion', ['Otra'], ['ana@bci.cl']), 'c_banca')
+  assertEquals(pickTemplate(list, 'reactivacion', ['Larrain Vial'], []), 'reactivacion')
+  assertEquals(pickTemplate(list, 'presentacion', ['Forus'], ['a@forus.cl']), 'presentacion')
+})

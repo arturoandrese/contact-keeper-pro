@@ -385,20 +385,29 @@ export type Database = {
       }
       autosend_templates: {
         Row: {
+          base_kind: string | null
           body: string
           kind: string
+          label: string | null
+          match_terms: string[]
           subject: string
           updated_at: string
         }
         Insert: {
+          base_kind?: string | null
           body: string
           kind: string
+          label?: string | null
+          match_terms?: string[]
           subject: string
           updated_at?: string
         }
         Update: {
+          base_kind?: string | null
           body?: string
           kind?: string
+          label?: string | null
+          match_terms?: string[]
           subject?: string
           updated_at?: string
         }

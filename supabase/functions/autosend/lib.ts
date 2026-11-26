@@ -156,3 +156,19 @@ export function rankDomains(headers: string[], name: string, exclude: Set<string
   return [...count.keys()].sort((a, b) => score(b) - score(a)).slice(0, 5)
     .map((d) => ({ domain: d, hits: count.get(d)!, matches_name: score(d) >= 1000 }))
 }
+
+export interface TemplateRow { kind: string; base_kind?: string | null; match_terms?: string[] | null }
+/** Client-specific template whose terms match the company name or email/web domain; else the general one. */
+export function pickTemplate(list: TemplateRow[], base: string, companies: (string | null | undefined)[], emails: (string | null | undefined)[]): string {
+  const keys = companies.map(companyKey).filter(Boolean)
+  const doms = emails.map((e) => (e ?? '').includes('@') ? domainOf(e) : cleanDomain(e)).filter(Boolean)
+  for (const t of list) {
+    if (t.kind === base || (t.base_kind ?? t.kind) !== base) continue
+    for (const term of t.match_terms ?? []) {
+      const tk = companyKey(term), td = cleanDomain(term)
+      if (td.includes('.') && doms.some((d) => d === td || d.endsWith('.' + td))) return t.kind
+      if (tk.length >= 3 && keys.some((k) => k === tk || k.includes(tk))) return t.kind
+    }
+  }
+  return base
+}

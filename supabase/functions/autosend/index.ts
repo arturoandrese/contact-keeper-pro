@@ -4,7 +4,7 @@ import { requireOwner } from '../_shared/ccpGuard.ts'
 import { generateResponse } from 'npm:@lovable.dev/ai-gateway'
 import {
   norm, companyKey, domainOf, cleanDomain, shortCompany, greetingName, renderTemplate, buildRaw,
-  santiagoNow, inWindow, sendsThisTick, matchProtectedCompany, type ProtectedCompany, rankDomains } from './lib.ts'
+  santiagoNow, inWindow, sendsThisTick, matchProtectedCompany, type ProtectedCompany, rankDomains, pickTemplate } from './lib.ts'
 
 const GW = 'https://connector-gateway.lovable.dev/google_mail/gmail/v1'
 const GW_BATCH = 'https://connector-gateway.lovable.dev/google_mail/batch/gmail/v1'
@@ -27,12 +27,20 @@ async function gm(path: string, init: RequestInit = {}) {
 }
 async function gmBatch(paths: string[]): Promise<any[]> {
   const out: any[] = []
-  for (let i = 0; i < paths.length; i += 50) {
-    const chunk = paths.slice(i, i + 50), b = 'batch_' + crypto.randomUUID().replace(/-/g, '')
-    const body = chunk.map((p, j) => `--${b}\r\nContent-Type: application/http\r\nContent-ID: <i${j}>\r\n\r\nGET /gmail/v1${p}\r\n\r\n`).join('') + `--${b}--`
-    const r = await fetch(GW_BATCH, { method: 'POST', headers: gwHeaders({ 'Content-Type': `multipart/mixed; boundary=${b}` }), body })
-    const t = await r.text()
-    if (!r.ok) throw new GmailError(r.status, t)
+  // Small chunks + retry: Gmail rejects >~10 concurrent requests per user with 429.
+  for (let i = 0; i < paths.length; i += 10) {
+    const chunk = paths.slice(i, i + 10)
+    let r: Response | null = null, t = ''
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const b = 'batch_' + crypto.randomUUID().replace(/-/g, '')
+      const body = chunk.map((p, j) => `--${b}\r\nContent-Type: application/http\r\nContent-ID: <i${j}>\r\n\r\nGET /gmail/v1${p}\r\n\r\n`).join('') + `--${b}--`
+      r = await fetch(GW_BATCH, { method: 'POST', headers: gwHeaders({ 'Content-Type': `multipart/mixed; boundary=${b}` }), body })
+      t = await r.text()
+      if (r.ok && !/"code":\s*429/.test(t)) break
+      if (r.ok || r.status === 429) { await new Promise((res) => setTimeout(res, 1200 * (attempt + 1))); continue }
+      break
+    }
+    if (!r!.ok) throw new GmailError(r!.status, t)
     const ct = r.headers.get('content-type') ?? ''
     const rb = ct.match(/boundary="?([^";]+)"?/)?.[1]
     if (!ct.includes('multipart/mixed') || !rb) throw new GmailError(502, 'respuesta batch inesperada')
@@ -42,7 +50,7 @@ async function gmBatch(paths: string[]): Promise<any[]> {
       const status = Number(part.slice(h + 9, h + 12))
       const sep = part.indexOf('\r\n\r\n', h)
       const json = sep >= 0 ? part.slice(sep + 4).trim() : ''
-      if (status === 401 || status === 403 || status === 429) throw new GmailError(status, json)
+      if (status === 401 || status === 403) throw new GmailError(status, json)
       if (status >= 200 && status < 300 && json) { try { out.push(JSON.parse(json)) } catch { /* skip */ } }
     }
   }
@@ -190,7 +198,8 @@ async function analyze(db: Db, ctx: Ctx, row: any) {
     const when = new Date(new Date(lastContact!).getTime() + ctx.settings.recontact_days * 86400000).toISOString().slice(0, 10)
     return done('excluido_historial', cat, `${motivo}. Contactado hace menos de ${ctx.settings.recontact_days} días`, { analysis: { ...analysis, recheck_after: when }, next_action: `Reactivar desde ${when}` })
   }
-  const kind = cat === 'nuevo' ? 'presentacion' : 'reactivacion'
+  let kind = cat === 'nuevo' ? 'presentacion' : 'reactivacion'
+  kind = pickTemplate(Object.values(ctx.templates), kind, [row.empresa, empresa_corta], [row.mail1, row.mail2, row.web])
   const r = renderTemplate(ctx.templates[kind], { nombre: greetingName(row.nombre), empresa_corta })
   if (r.missing.length) return done('revision', cat, `Faltan datos para la plantilla: ${r.missing.join(', ')}`, { analysis })
   return done('programado', cat, motivo, { analysis, template_kind: kind, subject: r.subject, next_action: 'Envío en el próximo horario' })
@@ -454,7 +463,7 @@ Deno.serve(async (req) => {
         return json({ ok: true, ...patch })
       }
       case 'preview': {
-        const kind = body.kind === 'reactivacion' ? 'reactivacion' : 'presentacion'
+        const kind = typeof body.kind === 'string' && ctx.templates[body.kind] ? body.kind : 'presentacion'
         const tpl = { subject: String(body.subject ?? ctx.templates[kind].subject), body: String(body.body ?? ctx.templates[kind].body) }
         let vars = { nombre: 'Eduardo', empresa_corta: 'Forus' }
         if (typeof body.queue_id === 'string') {
