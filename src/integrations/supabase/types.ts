@@ -244,6 +244,7 @@ export type Database = {
           apellido2: string | null
           attempt: number
           base_id: string | null
+          cargo: string | null
           classification: string | null
           contact_id: string
           created_at: string
@@ -274,6 +275,7 @@ export type Database = {
           apellido2?: string | null
           attempt?: number
           base_id?: string | null
+          cargo?: string | null
           classification?: string | null
           contact_id: string
           created_at?: string
@@ -304,6 +306,7 @@ export type Database = {
           apellido2?: string | null
           attempt?: number
           base_id?: string | null
+          cargo?: string | null
           classification?: string | null
           contact_id?: string
           created_at?: string
@@ -389,6 +392,7 @@ export type Database = {
           body: string
           kind: string
           label: string | null
+          match_cargos: string[]
           match_terms: string[]
           subject: string
           updated_at: string
@@ -398,6 +402,7 @@ export type Database = {
           body: string
           kind: string
           label?: string | null
+          match_cargos?: string[]
           match_terms?: string[]
           subject: string
           updated_at?: string
@@ -407,6 +412,7 @@ export type Database = {
           body?: string
           kind?: string
           label?: string | null
+          match_cargos?: string[]
           match_terms?: string[]
           subject?: string
           updated_at?: string
@@ -917,6 +923,7 @@ export type Database = {
           apellido2: string | null
           attempt: number
           base_id: string | null
+          cargo: string | null
           classification: string | null
           contact_id: string
           created_at: string
