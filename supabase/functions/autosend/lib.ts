@@ -157,13 +157,19 @@ export function rankDomains(headers: string[], name: string, exclude: Set<string
     .map((d) => ({ domain: d, hits: count.get(d)!, matches_name: score(d) >= 1000 }))
 }
 
-export interface TemplateRow { kind: string; base_kind?: string | null; match_terms?: string[] | null }
+export interface TemplateRow { kind: string; base_kind?: string | null; match_terms?: string[] | null; match_cargos?: string[] | null }
 /** Client-specific template whose terms match the company name or email/web domain; else the general one. */
-export function pickTemplate(list: TemplateRow[], base: string, companies: (string | null | undefined)[], emails: (string | null | undefined)[]): string {
+export function pickTemplate(list: TemplateRow[], base: string, companies: (string | null | undefined)[], emails: (string | null | undefined)[], cargo?: string | null): string {
+  const c = norm(cargo ?? '')
+  if (c) for (const t of list) {
+    if ((t.base_kind ?? t.kind) !== base) continue
+    if ((t.match_cargos ?? []).some((x) => { const n = norm(x); return n.length >= 3 && c.includes(n) })) return t.kind
+  }
   const keys = companies.map(companyKey).filter(Boolean)
   const doms = emails.map((e) => (e ?? '').includes('@') ? domainOf(e) : cleanDomain(e)).filter(Boolean)
   for (const t of list) {
     if (t.kind === base || (t.base_kind ?? t.kind) !== base) continue
+    if ((t.match_cargos ?? []).length) continue
     for (const term of t.match_terms ?? []) {
       const tk = companyKey(term), td = cleanDomain(term)
       if (td.includes('.') && doms.some((d) => d === td || d.endsWith('.' + td))) return t.kind

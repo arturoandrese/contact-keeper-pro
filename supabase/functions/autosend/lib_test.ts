@@ -81,3 +81,11 @@ Deno.test('the last template of a base cannot be deleted', () => {
   assertEquals(canDeleteTemplate(list, 'reactivacion'), false)  // nothing else reactivates
   assertEquals(canDeleteTemplate(list, 'c_inexistente'), false)
 })
+
+Deno.test('pickTemplate by cargo: internal comms only', () => {
+  const list = [{ kind: 'presentacion' }, { kind: 'c_ci', base_kind: 'presentacion', match_cargos: ['comunicaciones internas', 'cultura'] }]
+  assertEquals(pickTemplate(list, 'presentacion', ['Forus'], [], 'Jefa de Comunicaciones Internas'), 'c_ci')
+  assertEquals(pickTemplate(list, 'presentacion', ['Forus'], [], 'Gerente de Marketing'), 'presentacion')
+  assertEquals(pickTemplate(list, 'presentacion', ['Forus'], [], null), 'presentacion')
+  assertEquals(pickTemplate(list, 'reactivacion', ['Forus'], [], 'Subgerente de Cultura'), 'reactivacion')
+})

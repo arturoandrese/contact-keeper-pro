@@ -199,12 +199,21 @@ async function analyze(db: Db, ctx: Ctx, row: any) {
     return done('excluido_historial', cat, `${motivo}. Contactado hace menos de ${ctx.settings.recontact_days} días`, { analysis: { ...analysis, recheck_after: when }, next_action: `Reactivar desde ${when}` })
   }
   let kind = cat === 'nuevo' ? 'presentacion' : 'reactivacion'
-  kind = pickTemplate(Object.values(ctx.templates), kind, [row.empresa, empresa_corta], [row.mail1, row.mail2, row.web])
+  let cargo: string | null = row.cargo ?? null
+  if (!cargo && row.base_id) {
+    const { data: aps } = await db.from('agent_prospects').select('cargo,correo_verificado,correo_probable_1,correo_probable_2,nombre,empresa').eq('base_id', row.base_id)
+    const mails = [row.mail1, row.mail2].filter(Boolean).map((m: string) => m.toLowerCase())
+    const full = norm(`${row.nombre ?? ''} ${row.apellido ?? ''}`)
+    const hit = (aps ?? []).find((a: any) => [a.correo_verificado, a.correo_probable_1, a.correo_probable_2].some((m: string | null) => m && mails.includes(m.toLowerCase())))
+      ?? (aps ?? []).find((a: any) => full && norm(a.nombre).startsWith(full))
+    cargo = hit?.cargo ?? null
+  }
+  kind = pickTemplate(Object.values(ctx.templates), kind, [row.empresa, empresa_corta], [row.mail1, row.mail2, row.web], cargo)
   const tpl = ctx.templates[kind]
   if (!tpl) return done('revision', cat, `Falta una plantilla de ${kind === 'reactivacion' ? 'reactivación' : 'presentación'}`, { analysis })
   const r = renderTemplate(tpl, { nombre: greetingName(row.nombre), empresa_corta })
   if (r.missing.length) return done('revision', cat, `Faltan datos para la plantilla: ${r.missing.join(', ')}`, { analysis })
-  return done('programado', cat, motivo, { analysis, template_kind: kind, subject: r.subject, next_action: 'Envío en el próximo horario' })
+  return done('programado', cat, motivo, { analysis, cargo, template_kind: kind, subject: r.subject, next_action: 'Envío en el próximo horario' })
 }
 
 async function enqueueAgentContacts(db: Db, baseId?: string) {

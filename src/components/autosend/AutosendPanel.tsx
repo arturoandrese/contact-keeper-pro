@@ -228,11 +228,12 @@ function TemplatesEditor({ templates, queue, onSaved }: { templates: Record<stri
   const [body, setBody] = useState("");
   const [label, setLabel] = useState("");
   const [terms, setTerms] = useState("");
+  const [cargos, setCargos] = useState("");
   const [preview, setPreview] = useState<any>(null);
   const [sample, setSample] = useState<string>("");
   const isGeneral = kind === "presentacion" || kind === "reactivacion";
   const list = Object.values(templates).sort((a: any, b: any) => (a.kind.startsWith("c_") ? 1 : 0) - (b.kind.startsWith("c_") ? 1 : 0) || String(a.label ?? a.kind).localeCompare(String(b.label ?? b.kind)));
-  useEffect(() => { const t = templates[kind]; if (t) { setSubject(t.subject); setBody(t.body); setLabel(t.label ?? ""); setTerms((t.match_terms ?? []).join(", ")); setPreview(null); } }, [kind, templates]);
+  useEffect(() => { const t = templates[kind]; if (t) { setSubject(t.subject); setBody(t.body); setLabel(t.label ?? ""); setTerms((t.match_terms ?? []).join(", ")); setCargos((t.match_cargos ?? []).join(", ")); setPreview(null); } }, [kind, templates]);
   const createClient = async () => {
     const base = templates[kind]?.base_kind ?? "presentacion";
     const src = templates[base] ?? Object.values(templates).find((t: any) => (t.base_kind ?? t.kind) === base);
@@ -257,7 +258,10 @@ function TemplatesEditor({ templates, queue, onSaved }: { templates: Record<stri
   const save = async () => {
     const name = label.trim() || (isGeneral ? (kind === "reactivacion" ? "Reactivación (general)" : "Presentación (general)") : "Plantilla de cliente");
     const patch: Record<string, unknown> = { subject, body, label: name, updated_at: new Date().toISOString() };
-    if (!isGeneral) patch.match_terms = terms.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+    if (!isGeneral) {
+      patch.match_terms = terms.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+      patch.match_cargos = cargos.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+    }
     const { error } = await db.from("autosend_templates").update(patch).eq("kind", kind);
     if (error) return toast.error(error.message);
     toast.success("Plantilla guardada"); onSaved();
@@ -282,6 +286,8 @@ function TemplatesEditor({ templates, queue, onSaved }: { templates: Record<stri
                 <SelectContent><SelectItem value="presentacion">Para contactos nuevos (presentación)</SelectItem><SelectItem value="reactivacion">Para reactivar (sin respuesta / antiguos)</SelectItem></SelectContent>
               </Select>
               <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows={2} placeholder="Clientes: empresas o dominios separados por coma (ej. Larrain Vial, bci.cl, Falabella)" />
+              <Textarea value={cargos} onChange={(e) => setCargos(e.target.value)} rows={2} placeholder="Cargos: palabras del puesto separadas por coma (ej. comunicaciones internas, cultura)" />
+              <p className="text-xs text-muted-foreground">Si pones cargos, esta plantilla se usa solo para personas cuyo puesto contenga alguna de esas palabras (en cualquier empresa).</p>
             </>
           )}
         </div>
