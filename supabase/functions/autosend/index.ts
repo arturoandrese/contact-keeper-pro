@@ -4,7 +4,7 @@ import { requireOwner } from '../_shared/ccpGuard.ts'
 import { generateResponse } from 'npm:@lovable.dev/ai-gateway'
 import {
   norm, companyKey, domainOf, cleanDomain, shortCompany, greetingName, renderTemplate, buildRaw,
-  santiagoNow, inWindow, sendsThisTick, matchProtectedCompany, type ProtectedCompany, rankDomains, pickTemplate } from './lib.ts'
+  santiagoNow, inWindow, sendsThisTick, matchProtectedCompany, type ProtectedCompany, rankDomains, pickTemplate, resolveKind } from './lib.ts'
 
 const GW = 'https://connector-gateway.lovable.dev/google_mail/gmail/v1'
 const GW_BATCH = 'https://connector-gateway.lovable.dev/google_mail/batch/gmail/v1'
@@ -200,7 +200,9 @@ async function analyze(db: Db, ctx: Ctx, row: any) {
   }
   let kind = cat === 'nuevo' ? 'presentacion' : 'reactivacion'
   kind = pickTemplate(Object.values(ctx.templates), kind, [row.empresa, empresa_corta], [row.mail1, row.mail2, row.web])
-  const r = renderTemplate(ctx.templates[kind], { nombre: greetingName(row.nombre), empresa_corta })
+  const tpl = ctx.templates[kind]
+  if (!tpl) return done('revision', cat, `Falta una plantilla de ${kind === 'reactivacion' ? 'reactivación' : 'presentación'}`, { analysis })
+  const r = renderTemplate(tpl, { nombre: greetingName(row.nombre), empresa_corta })
   if (r.missing.length) return done('revision', cat, `Faltan datos para la plantilla: ${r.missing.join(', ')}`, { analysis })
   return done('programado', cat, motivo, { analysis, template_kind: kind, subject: r.subject, next_action: 'Envío en el próximo horario' })
 }
@@ -463,8 +465,8 @@ Deno.serve(async (req) => {
         return json({ ok: true, ...patch })
       }
       case 'preview': {
-        const kind = typeof body.kind === 'string' && ctx.templates[body.kind] ? body.kind : 'presentacion'
-        const tpl = { subject: String(body.subject ?? ctx.templates[kind].subject), body: String(body.body ?? ctx.templates[kind].body) }
+        const kind = typeof body.kind === 'string' && ctx.templates[body.kind] ? body.kind : (resolveKind(Object.values(ctx.templates), 'presentacion') ?? '')
+        const tpl = { subject: String(body.subject ?? ctx.templates[kind]?.subject ?? ''), body: String(body.body ?? ctx.templates[kind]?.body ?? '') }
         let vars = { nombre: 'Eduardo', empresa_corta: 'Forus' }
         if (typeof body.queue_id === 'string') {
           const { data: q } = await db.from('autosend_queue').select('nombre,empresa,empresa_corta').eq('id', body.queue_id).single()
@@ -479,7 +481,9 @@ Deno.serve(async (req) => {
         if (recent?.length) return json({ error: 'Ya se envió una prueba hace menos de 10 minutos' }, 429)
         const s = await getSender(ctx.settings)
         if (!s.ok) return json({ error: s.reason }, 400)
-        const kind = body.kind === 'reactivacion' ? 'reactivacion' : 'presentacion'
+        const base = body.kind === 'reactivacion' ? 'reactivacion' : 'presentacion'
+        const kind = resolveKind(Object.values(ctx.templates), base)
+        if (!kind) return json({ error: `No hay plantilla de ${base === 'reactivacion' ? 'reactivación' : 'presentación'}` }, 400)
         const url = ctx.settings.include_optout ? await optoutUrl(TEST_TO) : ''
         const r = renderTemplate(ctx.templates[kind], { nombre: 'Arturo', empresa_corta: 'Huau' }, s.signature, url)
         const raw = buildRaw({ fromName: s.name, fromEmail: s.email, to: TEST_TO, subject: '[PRUEBA CCP] ' + r.subject, html: r.html, text: r.text, listUnsubscribe: url || undefined })

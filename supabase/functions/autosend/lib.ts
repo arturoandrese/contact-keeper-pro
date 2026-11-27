@@ -170,5 +170,20 @@ export function pickTemplate(list: TemplateRow[], base: string, companies: (stri
       if (tk.length >= 3 && keys.some((k) => k === tk || k.includes(tk))) return t.kind
     }
   }
-  return base
+  return resolveKind(list, base) ?? base
+}
+
+const baseOf = (t: TemplateRow) => t.base_kind ?? t.kind
+
+/** Template that really serves a category: the general one when it still exists, otherwise any client template of the same base. */
+export function resolveKind(list: TemplateRow[], base: string): string | null {
+  if (list.some((t) => t.kind === base)) return base
+  return list.find((t) => baseOf(t) === base)?.kind ?? null
+}
+
+/** A template may only be deleted while another one of the same base (presentación / reactivación) survives. */
+export function canDeleteTemplate(list: TemplateRow[], kind: string): boolean {
+  const t = list.find((x) => x.kind === kind)
+  if (!t) return false
+  return list.some((x) => x.kind !== kind && baseOf(x) === baseOf(t))
 }

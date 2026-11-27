@@ -235,23 +235,30 @@ function TemplatesEditor({ templates, queue, onSaved }: { templates: Record<stri
   useEffect(() => { const t = templates[kind]; if (t) { setSubject(t.subject); setBody(t.body); setLabel(t.label ?? ""); setTerms((t.match_terms ?? []).join(", ")); setPreview(null); } }, [kind, templates]);
   const createClient = async () => {
     const base = templates[kind]?.base_kind ?? "presentacion";
-    const src = templates[base];
+    const src = templates[base] ?? Object.values(templates).find((t: any) => (t.base_kind ?? t.kind) === base);
     const id = "c_" + crypto.randomUUID().slice(0, 8);
     const { error } = await db.from("autosend_templates").insert({ kind: id, base_kind: base, label: "Nueva plantilla de cliente", match_terms: [], subject: src?.subject ?? "", body: src?.body ?? "" });
     if (error) return toast.error(error.message);
     toast.success("Plantilla creada: ponle nombre y clientes"); onSaved(); setKind(id);
   };
   const remove = async () => {
-    if (isGeneral || !confirm("¿Borrar esta plantilla de cliente?")) return;
+    const base = templates[kind]?.base_kind ?? templates[kind]?.kind ?? kind;
+    const siblings = Object.values(templates).filter((t: any) => (t.base_kind ?? t.kind) === base && t.kind !== kind);
+    if (!siblings.length) return toast.error(`No puedes borrar la última plantilla de ${base === "reactivacion" ? "reactivación" : "presentación"}: el envío la necesita.`);
+    if (!confirm(`¿Borrar la plantilla «${label.trim() || kind}»? Esta acción no se puede deshacer.`)) return;
     const { error } = await db.from("autosend_templates").delete().eq("kind", kind);
     if (error) return toast.error(error.message);
-    setKind("presentacion"); onSaved();
+    toast.success("Plantilla borrada");
+    setKind(siblings[0].kind); onSaved();
   };
   const doPreview = async () => {
     try { setPreview(await autosend("preview", { kind, subject, body, queue_id: sample || undefined })); } catch (e) { toast.error((e as Error).message); }
   };
   const save = async () => {
-    const { error } = await db.from("autosend_templates").update({ subject, body, ...(isGeneral ? {} : { label: label.trim() || "Plantilla de cliente", match_terms: terms.split(/[,\n]/).map((x) => x.trim()).filter(Boolean) }), updated_at: new Date().toISOString() }).eq("kind", kind);
+    const name = label.trim() || (isGeneral ? (kind === "reactivacion" ? "Reactivación (general)" : "Presentación (general)") : "Plantilla de cliente");
+    const patch: Record<string, unknown> = { subject, body, label: name, updated_at: new Date().toISOString() };
+    if (!isGeneral) patch.match_terms = terms.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+    const { error } = await db.from("autosend_templates").update(patch).eq("kind", kind);
     if (error) return toast.error(error.message);
     toast.success("Plantilla guardada"); onSaved();
   };
@@ -264,18 +271,20 @@ function TemplatesEditor({ templates, queue, onSaved }: { templates: Record<stri
             <SelectContent>{list.map((t: any) => <SelectItem key={t.kind} value={t.kind}>{t.label ?? t.kind}{t.kind.startsWith("c_") ? ` · ${t.base_kind === "reactivacion" ? "Reactivación" : "Presentación"}` : ""}</SelectItem>)}</SelectContent>
           </Select>
           <Button variant="outline" onClick={createClient}>+ Plantilla de cliente</Button>
-          {!isGeneral && <Button variant="ghost" size="icon" onClick={remove} aria-label="Borrar plantilla"><Trash2 className="h-4 w-4" /></Button>}
+          <Button variant="ghost" size="icon" onClick={remove} aria-label="Borrar plantilla" title="Borrar esta plantilla"><Trash2 className="h-4 w-4" /></Button>
         </div>
-        {isGeneral ? <p className="text-xs text-muted-foreground">Plantilla general: se usa cuando ninguna plantilla de cliente coincide.</p> : (
-          <div className="space-y-2 rounded-md border border-border p-3">
-            <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nombre de la plantilla (ej. Bancos)" />
-            <Select value={templates[kind]?.base_kind ?? "presentacion"} onValueChange={async (v) => { await db.from("autosend_templates").update({ base_kind: v }).eq("kind", kind); onSaved(); }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="presentacion">Para contactos nuevos (presentación)</SelectItem><SelectItem value="reactivacion">Para reactivar (sin respuesta / antiguos)</SelectItem></SelectContent>
-            </Select>
-            <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows={2} placeholder="Clientes: empresas o dominios separados por coma (ej. Larrain Vial, bci.cl, Falabella)" />
-          </div>
-        )}
+        <div className="space-y-2 rounded-md border border-border p-3">
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nombre de la plantilla (ej. Bancos, Larrain Vial, Presentación general)" />
+          {isGeneral ? <p className="text-xs text-muted-foreground">Plantilla general: se usa cuando ninguna plantilla de cliente coincide. Puedes cambiarle el nombre y borrarla si queda otra del mismo tipo.</p> : (
+            <>
+              <Select value={templates[kind]?.base_kind ?? "presentacion"} onValueChange={async (v) => { await db.from("autosend_templates").update({ base_kind: v }).eq("kind", kind); onSaved(); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="presentacion">Para contactos nuevos (presentación)</SelectItem><SelectItem value="reactivacion">Para reactivar (sin respuesta / antiguos)</SelectItem></SelectContent>
+              </Select>
+              <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows={2} placeholder="Clientes: empresas o dominios separados por coma (ej. Larrain Vial, bci.cl, Falabella)" />
+            </>
+          )}
+        </div>
         <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto" />
         <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={18} className="font-mono text-xs" />
         <p className="text-xs text-muted-foreground">Variables: {"{{nombre}}"}, {"{{empresa_corta}}"}. Enlaces: [texto](https://...). La firma de Gmail se agrega sola.</p>
